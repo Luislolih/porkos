@@ -27,6 +27,8 @@ export default function CatalogView() {
     extras,
     packagings,
     isLoadingCatalog,
+    firestoreError,
+    syncLocalToFirestore,
     clearAllCatalog,
     addProduct,
     updateProduct,
@@ -49,10 +51,14 @@ export default function CatalogView() {
   const [activeTab, setActiveTab] = useState('products'); // 'products' | 'creams' | 'extras' | 'packagings'
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [statusToast, setStatusToast] = useState(null);
 
   // Modales de Producto
   const [editingProduct, setEditingProduct] = useState(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
 
   // Form state de Producto
   const [prodName, setProdName] = useState('');
@@ -178,66 +184,93 @@ export default function CatalogView() {
   };
 
   // Guardar Producto
-  const handleSaveProduct = (e) => {
+  const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (!prodName.trim() || !prodPrice) return;
+    setIsSavingProduct(true);
 
-    const modifiers = [];
-    if (prodHasPapas) {
-      modifiers.push({
-        id: 'mod_papas',
-        name: 'Tipo de Papas',
-        required: true,
-        defaultOptionId: 'fritas',
-        options: [
-          { id: 'fritas', name: 'Papas Fritas', priceDelta: 0 },
-          { id: 'al_hilo', name: 'Papas al Hilo', priceDelta: 0 },
-          { id: 'sin_papas', name: 'Sin Papas', priceDelta: 0 },
-        ],
+    try {
+      const modifiers = [];
+      if (prodHasPapas) {
+        modifiers.push({
+          id: 'mod_papas',
+          name: 'Tipo de Papas',
+          required: true,
+          defaultOptionId: 'fritas',
+          options: [
+            { id: 'fritas', name: 'Papas Fritas', priceDelta: 0 },
+            { id: 'al_hilo', name: 'Papas al Hilo', priceDelta: 0 },
+            { id: 'sin_papas', name: 'Sin Papas', priceDelta: 0 },
+          ],
+        });
+      }
+
+      const productPayload = {
+        name: prodName.trim(),
+        categoryId: prodCategory,
+        line: prodLine,
+        subcategory: prodSubcategory,
+        type: prodType,
+        price: parseFloat(prodPrice) || 0,
+        cost: parseFloat(prodCost) || 0,
+        image: prodImage.trim(),
+        description: prodDescription.trim(),
+        requiresKitchen: prodKitchen,
+        modifiers,
+        availablePackagingIds: prodAvailablePackagingIds,
+        saladConfig: prodHasSalad
+          ? {
+              enabled: true,
+              defaultMode: 'CON_ENSALADA',
+              ingredients: ['Lechuga', 'Tomate', 'Pepinillo'],
+            }
+          : null,
+        temperatureConfig: prodHasTemperature
+          ? {
+              enabled: true,
+              defaultOption: 'HELADA',
+            }
+          : null,
+        creamsConfig: {
+          enabled: prodSelectedCreams.length > 0,
+          availableCreamIds: prodSelectedCreams,
+          defaultCreamIds: [],
+          defaultMode: 'CUSTOM',
+        },
+      };
+
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, productPayload);
+        setStatusToast({
+          type: 'success',
+          msg: `Producto "${prodName}" actualizado con éxito`,
+        });
+      } else {
+        const result = await addProduct(productPayload);
+        if (result?.firestoreResult && !result.firestoreResult.success) {
+          setStatusToast({
+            type: 'warning',
+            msg: `Producto guardado en tu navegador. (Aviso: Firebase rechazó con ${result.firestoreResult.error?.code || 'error'})`,
+          });
+        } else {
+          setStatusToast({
+            type: 'success',
+            msg: `Producto "${prodName}" creado y sincronizado`,
+          });
+        }
+      }
+
+      setIsProductModalOpen(false);
+    } catch (err) {
+      console.error('Error al guardar producto:', err);
+      setStatusToast({
+        type: 'error',
+        msg: 'Hubo un error al guardar el producto',
       });
+    } finally {
+      setIsSavingProduct(false);
+      setTimeout(() => setStatusToast(null), 5000);
     }
-
-    const productPayload = {
-      name: prodName.trim(),
-      categoryId: prodCategory,
-      line: prodLine,
-      subcategory: prodSubcategory,
-      type: prodType,
-      price: parseFloat(prodPrice) || 0,
-      cost: parseFloat(prodCost) || 0,
-      image: prodImage.trim(),
-      description: prodDescription.trim(),
-      requiresKitchen: prodKitchen,
-      modifiers,
-      availablePackagingIds: prodAvailablePackagingIds,
-      saladConfig: prodHasSalad
-        ? {
-            enabled: true,
-            defaultMode: 'CON_ENSALADA',
-            ingredients: ['Lechuga', 'Tomate', 'Pepinillo'],
-          }
-        : null,
-      temperatureConfig: prodHasTemperature
-        ? {
-            enabled: true,
-            defaultOption: 'HELADA',
-          }
-        : null,
-      creamsConfig: {
-        enabled: prodSelectedCreams.length > 0,
-        availableCreamIds: prodSelectedCreams,
-        defaultCreamIds: [],
-        defaultMode: 'CUSTOM',
-      },
-    };
-
-    if (editingProduct) {
-      updateProduct(editingProduct.id, productPayload);
-    } else {
-      addProduct(productPayload);
-    }
-
-    setIsProductModalOpen(false);
   };
 
   // 2. Cremas Handlers
@@ -356,6 +389,82 @@ export default function CatalogView() {
 
   return (
     <div className="space-y-4 pb-20 lg:pb-6">
+      {/* Toast Notification */}
+      {statusToast && (
+        <div
+          className={`p-3 rounded-xl font-bold text-xs flex items-center justify-between gap-2 shadow-lg animate-in fade-in slide-in-from-top-2 ${
+            statusToast.type === 'error'
+              ? 'bg-rose-950/80 border border-rose-500/50 text-rose-200'
+              : statusToast.type === 'warning'
+              ? 'bg-amber-950/80 border border-amber-500/50 text-amber-200'
+              : 'bg-emerald-950/80 border border-emerald-500/50 text-emerald-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{statusToast.msg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusToast(null)}
+            className="text-zinc-400 hover:text-white px-1.5 py-0.5 rounded cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Banner de Estado de Conexión / Reglas de Firebase */}
+      {firestoreError && (
+        <div className="bg-amber-950/30 border border-amber-500/40 p-3.5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-start gap-2.5 text-amber-200">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-white">Modo Local Activo (Firebase requiere configurar Reglas)</p>
+              <p className="text-zinc-400 text-[11px] mt-0.5">
+                Tus productos se guardan de forma segura en este navegador. Para que aparezcan en tu consola de Firebase en la nube, debes habilitar las Reglas de Firestore.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setIsRulesModalOpen(true)}
+              className="text-xs border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
+            >
+              Ver Solución de Reglas
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isSyncing}
+              onClick={async () => {
+                setIsSyncing(true);
+                const res = await syncLocalToFirestore();
+                setIsSyncing(false);
+                if (res.success) {
+                  setStatusToast({
+                    type: 'success',
+                    msg: '¡Sincronizado exitosamente con Firebase!',
+                  });
+                } else {
+                  setStatusToast({
+                    type: 'warning',
+                    msg: 'Aún sin permisos en Firebase. Revisa las reglas en Firebase Console.',
+                  });
+                }
+                setTimeout(() => setStatusToast(null), 5000);
+              }}
+              className="text-xs bg-amber-500 hover:bg-amber-400 text-black font-bold"
+            >
+              {isSyncing ? 'Sincronizando...' : 'Reintentar Nube'}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Header Principal */}
       <div className="bg-[var(--color-porkos-surface)] p-4 rounded-2xl border border-[var(--color-porkos-border)] flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -1388,8 +1497,12 @@ export default function CatalogView() {
             >
               Cancelar
             </Button>
-            <Button type="submit">
-              {editingProduct ? 'Guardar Cambios' : 'Crear Producto'}
+            <Button type="submit" disabled={isSavingProduct}>
+              {isSavingProduct
+                ? 'Guardando...'
+                : editingProduct
+                ? 'Guardar Cambios'
+                : 'Crear Producto'}
             </Button>
           </div>
         </form>
@@ -1696,6 +1809,59 @@ export default function CatalogView() {
               }}
             >
               {isClearing ? 'Vaciando...' : 'Sí, Vaciar Todo'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Instructivo de Reglas de Firebase */}
+      <Modal
+        isOpen={isRulesModalOpen}
+        onClose={() => setIsRulesModalOpen(false)}
+        title="Cómo Habilitar Firebase Firestore"
+        maxWidth="max-w-lg"
+      >
+        <div className="space-y-4 text-xs text-zinc-300">
+          <p>
+            Al crear un proyecto en Firebase, Google bloquea la base de datos por defecto (<code className="text-amber-400 bg-black/60 px-1 py-0.5 rounded">allow read, write: if false;</code>). Para que tu base de datos en la nube reciba los productos:
+          </p>
+
+          <ol className="list-decimal list-inside space-y-2.5 bg-black/40 p-3.5 rounded-xl border border-zinc-800">
+            <li>
+              Entra a tu consola de Firebase en:{' '}
+              <a
+                href="https://console.firebase.google.com/project/porkos-ac37d/firestore/rules"
+                target="_blank"
+                rel="noreferrer"
+                className="text-orange-400 hover:text-orange-300 underline font-bold"
+              >
+                Firebase Console &gt; porkos-ac37d &gt; Firestore Database &gt; Reglas
+              </a>
+            </li>
+            <li>
+              Reemplaza las reglas actuales por:
+              <pre className="mt-1.5 p-2.5 bg-black rounded-lg text-emerald-400 font-mono text-[11px] overflow-x-auto border border-zinc-800">
+{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}`}
+              </pre>
+            </li>
+            <li>
+              Haz clic en el botón azul <strong>Publicar (Publish)</strong>.
+            </li>
+            <li>
+              Vuelve aquí y presiona el botón <strong>"Reintentar Nube"</strong>. Todos tus productos se subirán automáticamente a Firestore.
+            </li>
+          </ol>
+
+          <div className="flex justify-end pt-2">
+            <Button type="button" onClick={() => setIsRulesModalOpen(false)}>
+              Entendido
             </Button>
           </div>
         </div>

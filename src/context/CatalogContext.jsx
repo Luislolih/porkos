@@ -17,34 +17,139 @@ import {
   clearAllDemoCatalogFromFirestore,
 } from '../services/firestoreService';
 
+const STORAGE_KEYS = {
+  PRODUCTS: 'porkos_catalog_products',
+  CREAMS: 'porkos_catalog_creams',
+  EXTRAS: 'porkos_catalog_extras',
+  PACKAGINGS: 'porkos_catalog_packagings',
+};
+
+function loadLocal(key, fallback = []) {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveLocal(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (err) {
+    console.warn(`Error guardando localmente (${key}):`, err);
+  }
+}
+
 export function CatalogProvider({ children }) {
-  const [products, setProducts] = useState([]);
-  const [creams, setCreams] = useState([]);
+  // Inicializar primero desde LocalStorage para que al actualizar NUNCA desaparezcan los datos
+  const [products, setProducts] = useState(() => loadLocal(STORAGE_KEYS.PRODUCTS, []));
+  const [creams, setCreams] = useState(() => loadLocal(STORAGE_KEYS.CREAMS, []));
   const [categories] = useState(DEFAULT_CATEGORIES);
-  const [extras, setExtras] = useState([]);
-  const [packagings, setPackagings] = useState([]);
+  const [extras, setExtras] = useState(() => loadLocal(STORAGE_KEYS.EXTRAS, []));
+  const [packagings, setPackagings] = useState(() => loadLocal(STORAGE_KEYS.PACKAGINGS, []));
+
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
+  const [firestoreError, setFirestoreError] = useState(null);
+  const [isFirestoreConnected, setIsFirestoreConnected] = useState(false);
 
-  // Inicializar y sincronizar con Firestore en tiempo real (100% dinámico desde BD)
+  // Inicializar y sincronizar con Firestore en tiempo real (con timeout de seguridad para evitar spinner infinito)
   useEffect(() => {
-    const unsubProducts = subscribeToProducts((remoteProducts) => {
-      setProducts(remoteProducts || []);
-      setIsLoadingCatalog(false);
-    });
+    let isMounted = true;
 
-    const unsubCreams = subscribeToCreams((remoteCreams) => {
-      setCreams(remoteCreams || []);
-    });
+    // Timeout de seguridad: Si Firestore tarda más de 2 segundos o está bloqueado, apagar spinner
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted) {
+        setIsLoadingCatalog(false);
+      }
+    }, 2000);
 
-    const unsubExtras = subscribeToExtras((remoteExtras) => {
-      setExtras(remoteExtras || []);
-    });
+    const handleError = (colName, err) => {
+      console.warn(`[Firestore ${colName}] Error:`, err?.code, err?.message);
+      if (isMounted) {
+        setIsLoadingCatalog(false);
+        setFirestoreError({
+          code: err?.code || 'permission-denied',
+          message: err?.message || 'Error de permisos o conexión en Firestore',
+          colName,
+        });
+      }
+    };
 
-    const unsubPackagings = subscribeToPackagings((remotePackagings) => {
-      setPackagings(remotePackagings || []);
-    });
+    const unsubProducts = subscribeToProducts(
+      (remoteProducts) => {
+        if (!isMounted) return;
+        clearTimeout(safetyTimeout);
+        setIsLoadingCatalog(false);
+        setIsFirestoreConnected(true);
+        setFirestoreError(null);
+
+        if (remoteProducts && remoteProducts.length > 0) {
+          setProducts(remoteProducts);
+          saveLocal(STORAGE_KEYS.PRODUCTS, remoteProducts);
+        } else {
+          // Si Firestore está vacío pero el usuario tiene productos locales, sincronizarlos a la nube
+          const localItems = loadLocal(STORAGE_KEYS.PRODUCTS, []);
+          if (localItems.length > 0) {
+            console.log('Sincronizando productos locales a Firestore...');
+            localItems.forEach((p) => saveProductToFirestore(p));
+          }
+        }
+      },
+      (err) => handleError('products', err)
+    );
+
+    const unsubCreams = subscribeToCreams(
+      (remoteCreams) => {
+        if (!isMounted) return;
+        if (remoteCreams && remoteCreams.length > 0) {
+          setCreams(remoteCreams);
+          saveLocal(STORAGE_KEYS.CREAMS, remoteCreams);
+        } else {
+          const localItems = loadLocal(STORAGE_KEYS.CREAMS, []);
+          if (localItems.length > 0) {
+            localItems.forEach((c) => saveCreamToFirestore(c));
+          }
+        }
+      },
+      (err) => handleError('creams', err)
+    );
+
+    const unsubExtras = subscribeToExtras(
+      (remoteExtras) => {
+        if (!isMounted) return;
+        if (remoteExtras && remoteExtras.length > 0) {
+          setExtras(remoteExtras);
+          saveLocal(STORAGE_KEYS.EXTRAS, remoteExtras);
+        } else {
+          const localItems = loadLocal(STORAGE_KEYS.EXTRAS, []);
+          if (localItems.length > 0) {
+            localItems.forEach((e) => saveExtraToFirestore(e));
+          }
+        }
+      },
+      (err) => handleError('extras', err)
+    );
+
+    const unsubPackagings = subscribeToPackagings(
+      (remotePackagings) => {
+        if (!isMounted) return;
+        if (remotePackagings && remotePackagings.length > 0) {
+          setPackagings(remotePackagings);
+          saveLocal(STORAGE_KEYS.PACKAGINGS, remotePackagings);
+        } else {
+          const localItems = loadLocal(STORAGE_KEYS.PACKAGINGS, []);
+          if (localItems.length > 0) {
+            localItems.forEach((pkg) => savePackagingToFirestore(pkg));
+          }
+        }
+      },
+      (err) => handleError('packagings', err)
+    );
 
     return () => {
+      isMounted = false;
+      clearTimeout(safetyTimeout);
       unsubProducts();
       unsubCreams();
       unsubExtras();
@@ -52,8 +157,49 @@ export function CatalogProvider({ children }) {
     };
   }, []);
 
-  // Funciones de Productos
-  const addProduct = (newProduct) => {
+  // Función para forzar sincronización de todo lo local a Firestore
+  const syncLocalToFirestore = async () => {
+    setIsLoadingCatalog(true);
+    let lastError = null;
+    try {
+      for (const p of products) {
+        const res = await saveProductToFirestore(p);
+        if (!res.success) lastError = res.error;
+      }
+      for (const c of creams) {
+        const res = await saveCreamToFirestore(c);
+        if (!res.success) lastError = res.error;
+      }
+      for (const e of extras) {
+        const res = await saveExtraToFirestore(e);
+        if (!res.success) lastError = res.error;
+      }
+      for (const pkg of packagings) {
+        const res = await savePackagingToFirestore(pkg);
+        if (!res.success) lastError = res.error;
+      }
+
+      if (lastError) {
+        setFirestoreError({
+          code: lastError.code || 'write-denied',
+          message: lastError.message,
+        });
+        return { success: false, error: lastError };
+      } else {
+        setFirestoreError(null);
+        setIsFirestoreConnected(true);
+        return { success: true };
+      }
+    } catch (err) {
+      console.error('Error durante sincronización manual:', err);
+      return { success: false, error: err };
+    } finally {
+      setIsLoadingCatalog(false);
+    }
+  };
+
+  // Funciones de Productos (con persistencia dual LocalStorage + Firestore)
+  const addProduct = async (newProduct) => {
     const id = `prod_${Date.now()}`;
     const productWithDefaults = {
       id,
@@ -83,13 +229,28 @@ export function CatalogProvider({ children }) {
       saladConfig: newProduct.saladConfig || null,
     };
 
-    setProducts((prev) => [productWithDefaults, ...prev]);
-    saveProductToFirestore(productWithDefaults);
+    // 1. Guardar de inmediato en estado y LocalStorage (nunca se pierde)
+    setProducts((prev) => {
+      const updated = [productWithDefaults, ...prev];
+      saveLocal(STORAGE_KEYS.PRODUCTS, updated);
+      return updated;
+    });
 
-    // Si tiene empaques asociados, sincronizar en packagings
+    // 2. Guardar en Firestore y capturar resultado
+    const firestoreResult = await saveProductToFirestore(productWithDefaults);
+    if (!firestoreResult.success) {
+      console.warn('Advertencia: No se pudo guardar en Firestore:', firestoreResult.error);
+      setFirestoreError({
+        code: firestoreResult.error?.code || 'write-error',
+        message: firestoreResult.error?.message,
+        colName: 'products',
+      });
+    }
+
+    // 3. Sincronizar empaques si corresponde
     if (productWithDefaults.availablePackagingIds.length > 0) {
-      setPackagings((prev) =>
-        prev.map((pkg) => {
+      setPackagings((prev) => {
+        const updated = prev.map((pkg) => {
           if (productWithDefaults.availablePackagingIds.includes(pkg.id)) {
             const currentProds = pkg.applicableProductIds || [];
             if (!currentProds.includes(id)) {
@@ -99,17 +260,19 @@ export function CatalogProvider({ children }) {
             }
           }
           return pkg;
-        })
-      );
+        });
+        saveLocal(STORAGE_KEYS.PACKAGINGS, updated);
+        return updated;
+      });
     }
 
-    return productWithDefaults;
+    return { product: productWithDefaults, firestoreResult };
   };
 
-  const updateProduct = (productId, updatedFields) => {
+  const updateProduct = async (productId, updatedFields) => {
     let updatedProdObj = null;
-    setProducts((prev) =>
-      prev.map((p) => {
+    setProducts((prev) => {
+      const updated = prev.map((p) => {
         if (p.id === productId) {
           updatedProdObj = {
             ...p,
@@ -120,17 +283,26 @@ export function CatalogProvider({ children }) {
           return updatedProdObj;
         }
         return p;
-      })
-    );
+      });
+      saveLocal(STORAGE_KEYS.PRODUCTS, updated);
+      return updated;
+    });
 
     if (updatedProdObj) {
-      saveProductToFirestore(updatedProdObj);
+      const res = await saveProductToFirestore(updatedProdObj);
+      if (!res.success) {
+        setFirestoreError({
+          code: res.error?.code || 'update-error',
+          message: res.error?.message,
+          colName: 'products',
+        });
+      }
     }
 
-    // Sincronizar empaques si se actualizaron los availablePackagingIds
+    // Sincronizar empaques
     if (updatedFields.availablePackagingIds) {
-      setPackagings((prev) =>
-        prev.map((pkg) => {
+      setPackagings((prev) => {
+        const updated = prev.map((pkg) => {
           const isAssociated = updatedFields.availablePackagingIds.includes(pkg.id);
           const currentList = pkg.applicableProductIds || [];
           if (isAssociated && !currentList.includes(productId)) {
@@ -143,61 +315,73 @@ export function CatalogProvider({ children }) {
             return updatedPkg;
           }
           return pkg;
-        })
-      );
+        });
+        saveLocal(STORAGE_KEYS.PACKAGINGS, updated);
+        return updated;
+      });
     }
   };
 
-  const deleteProduct = (productId) => {
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
-    deleteProductFromFirestore(productId);
+  const deleteProduct = async (productId) => {
+    setProducts((prev) => {
+      const updated = prev.filter((p) => p.id !== productId);
+      saveLocal(STORAGE_KEYS.PRODUCTS, updated);
+      return updated;
+    });
+    await deleteProductFromFirestore(productId);
 
     // Limpiar asociación en packagings
-    setPackagings((prev) =>
-      prev.map((pkg) => {
-        const updated = {
+    setPackagings((prev) => {
+      const updated = prev.map((pkg) => {
+        const updatedPkg = {
           ...pkg,
           applicableProductIds: (pkg.applicableProductIds || []).filter((id) => id !== productId),
         };
-        savePackagingToFirestore(updated);
-        return updated;
-      })
-    );
+        savePackagingToFirestore(updatedPkg);
+        return updatedPkg;
+      });
+      saveLocal(STORAGE_KEYS.PACKAGINGS, updated);
+      return updated;
+    });
   };
 
   const toggleProductActive = (productId) => {
-    setProducts((prev) =>
-      prev.map((p) => {
+    setProducts((prev) => {
+      const updated = prev.map((p) => {
         if (p.id === productId) {
-          const updated = { ...p, active: !p.active };
-          saveProductToFirestore(updated);
-          return updated;
+          const updatedProd = { ...p, active: !p.active };
+          saveProductToFirestore(updatedProd);
+          return updatedProd;
         }
         return p;
-      })
-    );
+      });
+      saveLocal(STORAGE_KEYS.PRODUCTS, updated);
+      return updated;
+    });
   };
 
   // Registrar ventas para alimentar el ranking histórico de salida
   const recordProductSales = (soldItems = []) => {
-    setProducts((prev) =>
-      prev.map((p) => {
+    setProducts((prev) => {
+      const updated = prev.map((p) => {
         const matchingItem = soldItems.find((item) => item.productId === p.id);
         if (matchingItem) {
-          const updated = {
+          const updatedProd = {
             ...p,
             salesCount: (p.salesCount || 0) + (matchingItem.quantity || 1),
           };
-          saveProductToFirestore(updated);
-          return updated;
+          saveProductToFirestore(updatedProd);
+          return updatedProd;
         }
         return p;
-      })
-    );
+      });
+      saveLocal(STORAGE_KEYS.PRODUCTS, updated);
+      return updated;
+    });
   };
 
   // Funciones de Cremas con diminutivo
-  const addCream = (newCream) => {
+  const addCream = async (newCream) => {
     const id = `cream_${Date.now()}`;
     const creamWithDefaults = {
       id,
@@ -207,48 +391,60 @@ export function CatalogProvider({ children }) {
       order: creams.length + 1,
       active: true,
     };
-    setCreams((prev) => [...prev, creamWithDefaults]);
-    saveCreamToFirestore(creamWithDefaults);
+    setCreams((prev) => {
+      const updated = [...prev, creamWithDefaults];
+      saveLocal(STORAGE_KEYS.CREAMS, updated);
+      return updated;
+    });
+    await saveCreamToFirestore(creamWithDefaults);
     return creamWithDefaults;
   };
 
-  const updateCream = (creamId, updatedFields) => {
-    setCreams((prev) =>
-      prev.map((c) => {
+  const updateCream = async (creamId, updatedFields) => {
+    setCreams((prev) => {
+      const updated = prev.map((c) => {
         if (c.id === creamId) {
-          const updated = {
+          const updatedCream = {
             ...c,
             ...updatedFields,
             shortName: updatedFields.shortName ? updatedFields.shortName.toUpperCase() : c.shortName,
           };
-          saveCreamToFirestore(updated);
-          return updated;
+          saveCreamToFirestore(updatedCream);
+          return updatedCream;
         }
         return c;
-      })
-    );
+      });
+      saveLocal(STORAGE_KEYS.CREAMS, updated);
+      return updated;
+    });
   };
 
-  const deleteCream = (creamId) => {
-    setCreams((prev) => prev.filter((c) => c.id !== creamId));
-    deleteCreamFromFirestore(creamId);
+  const deleteCream = async (creamId) => {
+    setCreams((prev) => {
+      const updated = prev.filter((c) => c.id !== creamId);
+      saveLocal(STORAGE_KEYS.CREAMS, updated);
+      return updated;
+    });
+    await deleteCreamFromFirestore(creamId);
   };
 
   const toggleCreamActive = (creamId) => {
-    setCreams((prev) =>
-      prev.map((c) => {
+    setCreams((prev) => {
+      const updated = prev.map((c) => {
         if (c.id === creamId) {
-          const updated = { ...c, active: !c.active };
-          saveCreamToFirestore(updated);
-          return updated;
+          const updatedCream = { ...c, active: !c.active };
+          saveCreamToFirestore(updatedCream);
+          return updatedCream;
         }
         return c;
-      })
-    );
+      });
+      saveLocal(STORAGE_KEYS.CREAMS, updated);
+      return updated;
+    });
   };
 
   // Funciones de Extras
-  const addExtra = (newExtra) => {
+  const addExtra = async (newExtra) => {
     const id = `ext_${Date.now()}`;
     const extraWithDefaults = {
       id,
@@ -257,48 +453,60 @@ export function CatalogProvider({ children }) {
       compatibleCategories: newExtra.compatibleCategories || ['cat_burgers', 'cat_salchipapas', 'cat_choripanes'],
       active: true,
     };
-    setExtras((prev) => [...prev, extraWithDefaults]);
-    saveExtraToFirestore(extraWithDefaults);
+    setExtras((prev) => {
+      const updated = [...prev, extraWithDefaults];
+      saveLocal(STORAGE_KEYS.EXTRAS, updated);
+      return updated;
+    });
+    await saveExtraToFirestore(extraWithDefaults);
     return extraWithDefaults;
   };
 
-  const updateExtra = (extraId, updatedFields) => {
-    setExtras((prev) =>
-      prev.map((e) => {
+  const updateExtra = async (extraId, updatedFields) => {
+    setExtras((prev) => {
+      const updated = prev.map((e) => {
         if (e.id === extraId) {
-          const updated = {
+          const updatedExtra = {
             ...e,
             ...updatedFields,
             price: typeof updatedFields.price !== 'undefined' ? parseFloat(updatedFields.price) : e.price,
           };
-          saveExtraToFirestore(updated);
-          return updated;
+          saveExtraToFirestore(updatedExtra);
+          return updatedExtra;
         }
         return e;
-      })
-    );
+      });
+      saveLocal(STORAGE_KEYS.EXTRAS, updated);
+      return updated;
+    });
   };
 
-  const deleteExtra = (extraId) => {
-    setExtras((prev) => prev.filter((e) => e.id !== extraId));
-    deleteExtraFromFirestore(extraId);
+  const deleteExtra = async (extraId) => {
+    setExtras((prev) => {
+      const updated = prev.filter((e) => e.id !== extraId);
+      saveLocal(STORAGE_KEYS.EXTRAS, updated);
+      return updated;
+    });
+    await deleteExtraFromFirestore(extraId);
   };
 
   const toggleExtraActive = (extraId) => {
-    setExtras((prev) =>
-      prev.map((e) => {
+    setExtras((prev) => {
+      const updated = prev.map((e) => {
         if (e.id === extraId) {
-          const updated = { ...e, active: !e.active };
-          saveExtraToFirestore(updated);
-          return updated;
+          const updatedExtra = { ...e, active: !e.active };
+          saveExtraToFirestore(updatedExtra);
+          return updatedExtra;
         }
         return e;
-      })
-    );
+      });
+      saveLocal(STORAGE_KEYS.EXTRAS, updated);
+      return updated;
+    });
   };
 
   // Funciones de Empaques / Packaging
-  const addPackaging = (newPkg) => {
+  const addPackaging = async (newPkg) => {
     const id = `pkg_${Date.now()}`;
     const pkgWithDefaults = {
       id,
@@ -307,13 +515,17 @@ export function CatalogProvider({ children }) {
       applicableProductIds: newPkg.applicableProductIds || [],
       active: true,
     };
-    setPackagings((prev) => [...prev, pkgWithDefaults]);
-    savePackagingToFirestore(pkgWithDefaults);
+    setPackagings((prev) => {
+      const updated = [...prev, pkgWithDefaults];
+      saveLocal(STORAGE_KEYS.PACKAGINGS, updated);
+      return updated;
+    });
+    await savePackagingToFirestore(pkgWithDefaults);
 
-    // Sincronizar en los productos seleccionados
+    // Sincronizar en productos
     if (pkgWithDefaults.applicableProductIds.length > 0) {
-      setProducts((prev) =>
-        prev.map((p) => {
+      setProducts((prev) => {
+        const updated = prev.map((p) => {
           if (pkgWithDefaults.applicableProductIds.includes(p.id)) {
             const currentPkgs = p.availablePackagingIds || [];
             if (!currentPkgs.includes(id)) {
@@ -323,33 +535,36 @@ export function CatalogProvider({ children }) {
             }
           }
           return p;
-        })
-      );
+        });
+        saveLocal(STORAGE_KEYS.PRODUCTS, updated);
+        return updated;
+      });
     }
 
     return pkgWithDefaults;
   };
 
-  const updatePackaging = (pkgId, updatedFields) => {
-    setPackagings((prev) =>
-      prev.map((p) => {
+  const updatePackaging = async (pkgId, updatedFields) => {
+    setPackagings((prev) => {
+      const updated = prev.map((p) => {
         if (p.id === pkgId) {
-          const updated = {
+          const updatedPkg = {
             ...p,
             ...updatedFields,
             price: typeof updatedFields.price !== 'undefined' ? parseFloat(updatedFields.price) : p.price,
           };
-          savePackagingToFirestore(updated);
-          return updated;
+          savePackagingToFirestore(updatedPkg);
+          return updatedPkg;
         }
         return p;
-      })
-    );
+      });
+      saveLocal(STORAGE_KEYS.PACKAGINGS, updated);
+      return updated;
+    });
 
-    // Sincronizar en los productos si se cambiaron los applicableProductIds
     if (updatedFields.applicableProductIds) {
-      setProducts((prev) =>
-        prev.map((prod) => {
+      setProducts((prev) => {
+        const updated = prev.map((prod) => {
           const isAssociated = updatedFields.applicableProductIds.includes(prod.id);
           const currentPkgs = prod.availablePackagingIds || [];
           if (isAssociated && !currentPkgs.includes(pkgId)) {
@@ -365,51 +580,64 @@ export function CatalogProvider({ children }) {
             return updatedP;
           }
           return prod;
-        })
-      );
+        });
+        saveLocal(STORAGE_KEYS.PRODUCTS, updated);
+        return updated;
+      });
     }
   };
 
-  const deletePackaging = (pkgId) => {
+  const deletePackaging = async (pkgId) => {
     if (pkgId === 'pkg_ninguno') return;
-    setPackagings((prev) => prev.filter((p) => p.id !== pkgId));
-    deletePackagingFromFirestore(pkgId);
+    setPackagings((prev) => {
+      const updated = prev.filter((p) => p.id !== pkgId);
+      saveLocal(STORAGE_KEYS.PACKAGINGS, updated);
+      return updated;
+    });
+    await deletePackagingFromFirestore(pkgId);
 
-    // Limpiar en productos
-    setProducts((prev) =>
-      prev.map((prod) => {
+    setProducts((prev) => {
+      const updated = prev.map((prod) => {
         const updatedP = {
           ...prod,
           availablePackagingIds: (prod.availablePackagingIds || []).filter((id) => id !== pkgId),
         };
         saveProductToFirestore(updatedP);
         return updatedP;
-      })
-    );
+      });
+      saveLocal(STORAGE_KEYS.PRODUCTS, updated);
+      return updated;
+    });
   };
 
   const togglePackagingActive = (pkgId) => {
     if (pkgId === 'pkg_ninguno') return;
-    setPackagings((prev) =>
-      prev.map((p) => {
+    setPackagings((prev) => {
+      const updated = prev.map((p) => {
         if (p.id === pkgId) {
-          const updated = { ...p, active: !p.active };
-          savePackagingToFirestore(updated);
-          return updated;
+          const updatedPkg = { ...p, active: !p.active };
+          savePackagingToFirestore(updatedPkg);
+          return updatedPkg;
         }
         return p;
-      })
-    );
+      });
+      saveLocal(STORAGE_KEYS.PACKAGINGS, updated);
+      return updated;
+    });
   };
 
-  // Limpiar catálogo demo completamente de la base de datos
+  // Limpiar catálogo completamente
   const clearAllCatalog = async () => {
     setIsLoadingCatalog(true);
-    await clearAllDemoCatalogFromFirestore();
+    saveLocal(STORAGE_KEYS.PRODUCTS, []);
+    saveLocal(STORAGE_KEYS.CREAMS, []);
+    saveLocal(STORAGE_KEYS.EXTRAS, []);
+    saveLocal(STORAGE_KEYS.PACKAGINGS, []);
     setProducts([]);
     setCreams([]);
     setExtras([]);
     setPackagings([]);
+    await clearAllDemoCatalogFromFirestore();
     setIsLoadingCatalog(false);
   };
 
@@ -420,6 +648,9 @@ export function CatalogProvider({ children }) {
     extras,
     packagings,
     isLoadingCatalog,
+    firestoreError,
+    isFirestoreConnected,
+    syncLocalToFirestore,
     clearAllCatalog,
     addProduct,
     updateProduct,

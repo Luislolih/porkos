@@ -73,10 +73,10 @@ export async function saveOrderToFirestore(orderData) {
     });
 
     await setDoc(docRef, cleanData, { merge: true });
-    return true;
+    return { success: true };
   } catch (err) {
     console.error('Error al guardar comanda en Firestore:', err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
@@ -87,10 +87,10 @@ export async function updateOrderStatusInFirestore(orderNumber, newStatus) {
       status: newStatus,
       updatedAt: serverTimestamp(),
     });
-    return true;
+    return { success: true };
   } catch (err) {
     console.error('Error al actualizar estado en Firestore:', err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
@@ -108,10 +108,10 @@ export async function settleOrderInFirestore(orderNumber, paymentDetail) {
       ],
       updatedAt: serverTimestamp(),
     });
-    return true;
+    return { success: true };
   } catch (err) {
     console.error('Error al cerrar comanda en Firestore:', err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
@@ -147,20 +147,20 @@ export async function saveProductToFirestore(product) {
     const docRef = doc(db, 'products', product.id);
     const cleanData = sanitizePayload(product);
     await setDoc(docRef, cleanData, { merge: true });
-    return true;
+    return { success: true };
   } catch (err) {
     console.error('Error al guardar producto en Firestore:', err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
 export async function deleteProductFromFirestore(productId) {
   try {
     await deleteDoc(doc(db, 'products', productId));
-    return true;
+    return { success: true };
   } catch (err) {
     console.error('Error al eliminar producto en Firestore:', err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
@@ -195,20 +195,20 @@ export async function saveCreamToFirestore(cream) {
   try {
     const docRef = doc(db, 'creams', cream.id);
     await setDoc(docRef, sanitizePayload(cream), { merge: true });
-    return true;
+    return { success: true };
   } catch (err) {
     console.error('Error al guardar crema en Firestore:', err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
 export async function deleteCreamFromFirestore(creamId) {
   try {
     await deleteDoc(doc(db, 'creams', creamId));
-    return true;
+    return { success: true };
   } catch (err) {
     console.error('Error al eliminar crema en Firestore:', err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
@@ -243,20 +243,20 @@ export async function saveExtraToFirestore(extra) {
   try {
     const docRef = doc(db, 'extras', extra.id);
     await setDoc(docRef, sanitizePayload(extra), { merge: true });
-    return true;
+    return { success: true };
   } catch (err) {
     console.error('Error al guardar extra en Firestore:', err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
 export async function deleteExtraFromFirestore(extraId) {
   try {
     await deleteDoc(doc(db, 'extras', extraId));
-    return true;
+    return { success: true };
   } catch (err) {
     console.error('Error al eliminar extra en Firestore:', err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
@@ -291,20 +291,20 @@ export async function savePackagingToFirestore(pkg) {
   try {
     const docRef = doc(db, 'packagings', pkg.id);
     await setDoc(docRef, sanitizePayload(pkg), { merge: true });
-    return true;
+    return { success: true };
   } catch (err) {
     console.error('Error al guardar empaque en Firestore:', err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
 export async function deletePackagingFromFirestore(pkgId) {
   try {
     await deleteDoc(doc(db, 'packagings', pkgId));
-    return true;
+    return { success: true };
   } catch (err) {
     console.error('Error al eliminar empaque en Firestore:', err);
-    return false;
+    return { success: false, error: err };
   }
 }
 

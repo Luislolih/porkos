@@ -24,16 +24,50 @@ import {
 } from './services/firestoreService';
 import { Flame } from 'lucide-react';
 
+function saveOrdersLocal(ordersList) {
+  try {
+    localStorage.setItem('porkos_orders', JSON.stringify(ordersList));
+  } catch (e) {
+    console.warn('Error guardando órdenes en localStorage:', e);
+  }
+}
+
 function MainApp() {
   const [currentModule, setCurrentModule] = useState(MODULES.SALES);
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState(() => {
+    try {
+      const saved = localStorage.getItem('porkos_orders');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.map((o) => ({
+          ...o,
+          createdAt: o.createdAt ? new Date(o.createdAt) : new Date(),
+        }));
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  });
   const { setSelectedTable, setModality, setCustomerName } = useCart();
 
   // 1. Sincronización en tiempo real de órdenes con Firestore
   useEffect(() => {
-    const unsubscribe = subscribeToOrders((remoteOrders) => {
-      setOrders(remoteOrders);
-    });
+    const unsubscribe = subscribeToOrders(
+      (remoteOrders) => {
+        if (remoteOrders && remoteOrders.length > 0) {
+          setOrders(remoteOrders);
+          try {
+            localStorage.setItem('porkos_orders', JSON.stringify(remoteOrders));
+          } catch (e) {
+            console.warn('Error guardando órdenes en localStorage:', e);
+          }
+        }
+      },
+      (err) => {
+        console.warn('Suscripción de órdenes Firestore (modo local activo):', err?.message);
+      }
+    );
     return () => unsubscribe();
   }, []);
 
@@ -75,9 +109,11 @@ function MainApp() {
         };
 
         // Actualización optimista local
-        setOrders((prev) =>
-          prev.map((o) => (o.orderNumber === existingOrder.orderNumber ? updatedOrder : o))
-        );
+        setOrders((prev) => {
+          const updated = prev.map((o) => (o.orderNumber === existingOrder.orderNumber ? updatedOrder : o));
+          saveOrdersLocal(updated);
+          return updated;
+        });
 
         // Guardar en Firestore
         await saveOrderToFirestore(updatedOrder);
@@ -86,7 +122,11 @@ function MainApp() {
     }
 
     // Actualización optimista local
-    setOrders((prev) => [newOrder, ...prev]);
+    setOrders((prev) => {
+      const updated = [newOrder, ...prev];
+      saveOrdersLocal(updated);
+      return updated;
+    });
 
     // Guardar nueva orden en Firestore
     await saveOrderToFirestore(newOrder);
@@ -95,8 +135,8 @@ function MainApp() {
   // 4. Manejar el cierre y cobro de mesa
   const handleCloseTable = async (tableId, orderNumber, paymentDetail) => {
     // Optimista local
-    setOrders((prev) =>
-      prev.map((o) => {
+    setOrders((prev) => {
+      const updated = prev.map((o) => {
         if (o.orderNumber === orderNumber) {
           return {
             ...o,
@@ -111,8 +151,10 @@ function MainApp() {
           };
         }
         return o;
-      })
-    );
+      });
+      saveOrdersLocal(updated);
+      return updated;
+    });
 
     // Persistir en Firestore
     await settleOrderInFirestore(orderNumber, paymentDetail);
@@ -121,9 +163,11 @@ function MainApp() {
   // 5. Manejar avance de comanda en cocina
   const handleUpdateOrderStatus = async (orderNumber, newStatus) => {
     // Optimista local
-    setOrders((prev) =>
-      prev.map((o) => (o.orderNumber === orderNumber ? { ...o, status: newStatus } : o))
-    );
+    setOrders((prev) => {
+      const updated = prev.map((o) => (o.orderNumber === orderNumber ? { ...o, status: newStatus } : o));
+      saveOrdersLocal(updated);
+      return updated;
+    });
 
     // Persistir en Firestore
     await updateOrderStatusInFirestore(orderNumber, newStatus);
