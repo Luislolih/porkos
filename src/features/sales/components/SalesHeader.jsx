@@ -32,6 +32,7 @@ export default function SalesHeader({
         {/* Toggle Mode */}
         <div className="flex bg-zinc-900/80 p-1 rounded-xl border border-zinc-800 shrink-0">
           <button
+            type="button"
             onClick={() => {
               setSalesMode(SALES_MODES.RESTAURANT);
               setModality(ORDER_MODALITIES.MESA.id);
@@ -49,6 +50,7 @@ export default function SalesHeader({
             <span>RESTAURANTE</span>
           </button>
           <button
+            type="button"
             onClick={() => {
               setSalesMode(SALES_MODES.MARKET);
               setModality('MARKET');
@@ -80,8 +82,9 @@ export default function SalesHeader({
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs font-bold"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs font-bold cursor-pointer"
             >
               ✕
             </button>
@@ -100,7 +103,13 @@ export default function SalesHeader({
               return (
                 <button
                   key={m.id}
-                  onClick={() => setModality(m.id)}
+                  type="button"
+                  onClick={() => {
+                    setModality(m.id);
+                    if (m.id !== ORDER_MODALITIES.MESA.id) {
+                      setSelectedTable(null);
+                    }
+                  }}
                   className={`
                     flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border
                     ${
@@ -140,14 +149,20 @@ export default function SalesHeader({
               </div>
             )}
 
-            {/* Input Nombre de Cliente en Comanda Regular */}
-            <div className="relative flex-1 min-w-[140px]">
+            {/* Input Nombre de Cliente con Placeholder Contextual */}
+            <div className="relative flex-1 min-w-[150px]">
               <User className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
               <input
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Nombre cliente / comensal..."
+                placeholder={
+                  modality === ORDER_MODALITIES.PARA_LLEVAR.id
+                    ? 'Nombre para el recojo *'
+                    : modality === ORDER_MODALITIES.DELIVERY.id
+                    ? 'Cliente para delivery *'
+                    : 'Nombre cliente / comensal...'
+                }
                 className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
               />
             </div>

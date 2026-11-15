@@ -1,4 +1,16 @@
-import { Plus, Minus, Trash2, ShoppingBag, Flame, User, SlidersHorizontal, CheckCircle, Store } from 'lucide-react';
+import {
+  Plus,
+  Minus,
+  Trash2,
+  ShoppingBag,
+  Flame,
+  User,
+  SlidersHorizontal,
+  CheckCircle,
+  Store,
+  Bike,
+  Package,
+} from 'lucide-react';
 import { useCart } from '../../../context/useCart';
 import { formatCurrency } from '../../../utils/formatters';
 import Button from '../../../components/ui/Button';
@@ -39,12 +51,19 @@ export default function CartView({
     selectedTable,
     customerName,
     setCustomerName,
+    customer,
+    setCustomer,
+    packagings: orderPackagings,
+    addPackaging,
+    removePackaging,
     generalNotes,
     setGeneralNotes,
   } = useCart();
 
   const hasKitchenItems = items.some((item) => item.requiresKitchen);
   const isTableOccupied = selectedTable?.status === 'OCCUPIED';
+  const isTakeout = modality === 'PARA_LLEVAR';
+  const isDelivery = modality === 'DELIVERY';
 
   return (
     <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl">
@@ -66,6 +85,7 @@ export default function CartView({
 
         {items.length > 0 && (
           <button
+            type="button"
             onClick={clearCart}
             className="text-xs text-zinc-400 hover:text-rose-400 font-medium transition-colors cursor-pointer"
           >
@@ -74,11 +94,25 @@ export default function CartView({
         )}
       </div>
 
-      {/* Target status bar: Mesa / Cliente / Modalidad (SOLO en Restaurante) */}
+      {/* Target status bar: Mesa / Para Llevar / Delivery / Cliente (SOLO en Restaurante) */}
       {!isMarketMode && (
-        <div className="px-3.5 py-2.5 bg-black/30 border-b border-[var(--color-porkos-border)] space-y-2">
+        <div className="px-3.5 py-2.5 bg-black/40 border-b border-[var(--color-porkos-border)] space-y-2.5">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-zinc-400">Modalidad: <strong className="text-white">{modality}</strong></span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-zinc-400 font-medium">Modalidad:</span>
+              <span
+                className={`font-black px-2 py-0.5 rounded-md text-[10px] uppercase border ${
+                  isTakeout
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : isDelivery
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                }`}
+              >
+                {isTakeout ? '📦 Para Llevar' : isDelivery ? '🛵 Delivery' : '🍽️ Mesa'}
+              </span>
+            </div>
+
             {selectedTable && (
               <span
                 className={`font-black px-2 py-0.5 rounded-md text-[11px] border ${
@@ -92,6 +126,73 @@ export default function CartView({
             )}
           </div>
 
+          {/* Banner y atajos para PARA LLEVAR */}
+          {isTakeout && (
+            <div className="bg-amber-950/20 border border-amber-500/30 p-2 rounded-xl flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-[11px] text-amber-300 font-bold">
+                <ShoppingBag className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>Empaque para recojo:</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => addPackaging({ id: 'pkg_bolsa_kraft', name: 'Bolsa Kraft Reforzada', price: 0.50 })}
+                  className="px-2 py-0.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-[10px] font-bold text-zinc-200 border border-zinc-700 cursor-pointer active:scale-95"
+                >
+                  + Bolsa (S/ 0.50)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addPackaging({ id: 'pkg_taper_med', name: 'Taper Térmico Mediano', price: 1.00 })}
+                  className="px-2 py-0.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-[10px] font-bold text-zinc-200 border border-zinc-700 cursor-pointer active:scale-95"
+                >
+                  + Taper (S/ 1.00)
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Formulario rápido para DELIVERY */}
+          {isDelivery && (
+            <div className="bg-emerald-950/20 border border-emerald-500/30 p-2.5 rounded-xl space-y-1.5 text-xs">
+              <div className="flex items-center gap-1.5 text-emerald-300 font-bold text-[11px]">
+                <Bike className="w-3.5 h-3.5" />
+                <span>Datos de Envío a Domicilio</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <input
+                  type="text"
+                  value={customer.phone || ''}
+                  onChange={(e) => setCustomer((prev) => ({ ...prev, phone: e.target.value }))}
+                  placeholder="Teléfono / Celular..."
+                  className="bg-black/60 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                />
+                <input
+                  type="number"
+                  step="0.50"
+                  value={customer.deliveryFee || ''}
+                  onChange={(e) => setCustomer((prev) => ({ ...prev, deliveryFee: e.target.value }))}
+                  placeholder="Costo Delivery (S/ 0.00)..."
+                  className="bg-black/60 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white font-bold placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <input
+                type="text"
+                value={customer.address || ''}
+                onChange={(e) => setCustomer((prev) => ({ ...prev, address: e.target.value }))}
+                placeholder="Dirección exacta de entrega..."
+                className="w-full bg-black/60 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+              />
+              <input
+                type="text"
+                value={customer.reference || ''}
+                onChange={(e) => setCustomer((prev) => ({ ...prev, reference: e.target.value }))}
+                placeholder="Referencia (ej. Frente al parque, dpto 302)..."
+                className="w-full bg-black/60 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+          )}
+
           {/* Input del Nombre del Cliente en Comanda Regular */}
           <div className="relative">
             <User className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
@@ -99,10 +200,38 @@ export default function CartView({
               type="text"
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="Nombre del cliente o comensal..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              placeholder={
+                isTakeout
+                  ? 'Nombre del cliente para el recojo *'
+                  : isDelivery
+                  ? 'Nombre del cliente (Delivery) *'
+                  : 'Nombre del comensal / mesa...'
+              }
+              className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)] font-semibold"
             />
           </div>
+
+          {/* Empaques agregados a nivel comanda */}
+          {orderPackagings && orderPackagings.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {orderPackagings.map((pkg) => (
+                <span
+                  key={pkg.packagingId}
+                  className="bg-blue-950/40 border border-blue-500/40 text-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1.5"
+                >
+                  <Package className="w-3 h-3 text-blue-400" />
+                  <span>{pkg.quantity}x {pkg.name} (+{formatCurrency(pkg.total)})</span>
+                  <button
+                    type="button"
+                    onClick={() => removePackaging(pkg.packagingId)}
+                    className="hover:text-rose-400 text-zinc-400 font-extrabold cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -259,6 +388,7 @@ export default function CartView({
               <div className="flex items-center justify-between pt-1 border-t border-zinc-900">
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={() => removeItem(item.itemId)}
                     className="p-1 text-zinc-500 hover:text-rose-400 transition-colors cursor-pointer"
                     title="Eliminar de la venta"
@@ -269,6 +399,7 @@ export default function CartView({
                   {/* Botón para editar la personalización de este producto */}
                   {!isMarketMode && item.requiresKitchen && onEditItem && (
                     <button
+                      type="button"
                       onClick={() => onEditItem(item)}
                       className="flex items-center gap-1 text-[10px] font-bold text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded-md border border-zinc-700 transition-all cursor-pointer"
                       title="Editar cremas, papas, ensalada, extras o empaque"
@@ -281,6 +412,7 @@ export default function CartView({
 
                 <div className="flex items-center gap-2 bg-zinc-900 px-2 py-0.5 rounded-lg border border-zinc-800">
                   <button
+                    type="button"
                     onClick={() => updateItemQuantity(item.itemId, -1)}
                     className="text-zinc-400 hover:text-white p-1 cursor-pointer font-bold"
                   >
@@ -290,6 +422,7 @@ export default function CartView({
                     {item.quantity}
                   </span>
                   <button
+                    type="button"
                     onClick={() => updateItemQuantity(item.itemId, 1)}
                     className="text-zinc-400 hover:text-white p-1 cursor-pointer font-bold"
                   >

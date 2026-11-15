@@ -55,6 +55,7 @@ export default function ProductCard({
         <div className="flex items-center gap-1.5 pt-1">
           {/* Quick Add Button */}
           <button
+            type="button"
             onClick={() => onQuickAdd(product)}
             className="flex-1 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black font-extrabold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-1 transition-all active:scale-95 shadow-sm cursor-pointer"
             title={isMarketItem ? 'Añadir al carrito' : 'Añadir con opciones predeterminadas'}
@@ -66,6 +67,7 @@ export default function ProductCard({
           {/* Customize Button if it has options */}
           {hasCustomizations && (
             <button
+              type="button"
               onClick={() => onCustomize(product)}
               className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white p-2 rounded-xl border border-zinc-700/80 transition-all active:scale-95 cursor-pointer"
               title="Personalizar cremas, papas, ensalada o extras"

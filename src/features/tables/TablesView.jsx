@@ -143,6 +143,7 @@ export default function TablesView({
                 {isOccupied && tableOrder ? (
                   <>
                     <button
+                      type="button"
                       onClick={() => onSelectTableForOrder(table)}
                       className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-zinc-700"
                     >
@@ -151,6 +152,7 @@ export default function TablesView({
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => handleOpenCloseModal(tableOrder)}
                       className="w-full py-2.5 px-3 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-98"
                     >
@@ -160,6 +162,7 @@ export default function TablesView({
                   </>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => onSelectTableForOrder(table)}
                     className="w-full py-2.5 px-3 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-98"
                   >

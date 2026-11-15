@@ -321,6 +321,7 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
       {items.length > 0 && (
         <div className="lg:hidden fixed bottom-16 left-3 right-3 z-30 animate-in slide-in-from-bottom-4">
           <button
+            type="button"
             onClick={() => setIsMobileCartOpen(true)}
             className="w-full bg-[var(--color-porkos-orange)] text-black p-3.5 rounded-2xl flex items-center justify-between font-black shadow-xl shadow-orange-500/30 active:scale-[0.98] transition-all cursor-pointer"
           >

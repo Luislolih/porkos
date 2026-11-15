@@ -55,17 +55,18 @@ export default function OrdersView({ orders = [] }) {
           {['ALL', 'MESA', 'DELIVERY', 'PARA_LLEVAR', 'MARKET'].map((mod) => (
             <button
               key={mod}
+              type="button"
               onClick={() => setFilterModality(mod)}
               className={`
-                px-2.5 py-1 rounded-lg font-semibold transition-all
+                px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer
                 ${
                   filterModality === mod
-                    ? 'bg-zinc-700 text-white'
+                    ? 'bg-zinc-700 text-white font-bold'
                     : 'bg-zinc-800/70 text-zinc-400 hover:text-white'
                 }
               `}
             >
-              {mod === 'ALL' ? 'Todas' : mod}
+              {mod === 'ALL' ? 'Todas' : mod === 'PARA_LLEVAR' ? 'Para Llevar' : mod}
             </button>
           ))}
           <span className="text-zinc-500 font-bold flex items-center gap-1 ml-2">
@@ -74,12 +75,13 @@ export default function OrdersView({ orders = [] }) {
           {['ALL', 'PENDIENTE', 'PREPARANDO', 'LISTO', 'ENTREGADO'].map((st) => (
             <button
               key={st}
+              type="button"
               onClick={() => setFilterStatus(st)}
               className={`
-                px-2.5 py-1 rounded-lg font-semibold transition-all
+                px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer
                 ${
                   filterStatus === st
-                    ? 'bg-[var(--color-porkos-orange)] text-black'
+                    ? 'bg-[var(--color-porkos-orange)] text-black font-bold'
                     : 'bg-zinc-800/70 text-zinc-400 hover:text-white'
                 }
               `}
@@ -161,8 +163,9 @@ export default function OrdersView({ orders = [] }) {
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <button
+                          type="button"
                           onClick={() => setSelectedOrder(order)}
-                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
+                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer"
                           title="Ver Detalle"
                         >
                           <Eye className="w-4 h-4" />

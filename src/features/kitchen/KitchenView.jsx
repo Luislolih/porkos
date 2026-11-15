@@ -65,14 +65,28 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
         {/* Cabecera del Ticket */}
         <div className="space-y-1.5 pb-2.5 border-b border-zinc-800">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xl sm:text-2xl font-black text-white tracking-tight">
                 {order.orderNumber}
               </span>
-              <span className="text-xs bg-zinc-800/90 text-zinc-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 border border-zinc-700/60">
-                <ModalityIcon className="w-3.5 h-3.5 text-zinc-400" />
-                {order.tableName || order.modality}
-              </span>
+
+              {/* Distintivo de Modalidad Destacado */}
+              {order.modality === 'PARA_LLEVAR' ? (
+                <span className="text-xs bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-lg font-black flex items-center gap-1.5 border border-amber-500/40 shadow-sm">
+                  <ShoppingBag className="w-3.5 h-3.5 text-amber-400" />
+                  <span>PARA LLEVAR</span>
+                </span>
+              ) : order.modality === 'DELIVERY' ? (
+                <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded-lg font-black flex items-center gap-1.5 border border-emerald-500/40 shadow-sm">
+                  <Bike className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>DELIVERY</span>
+                </span>
+              ) : (
+                <span className="text-xs bg-zinc-800/90 text-zinc-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 border border-zinc-700/60">
+                  <ModalityIcon className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>{order.tableName || order.modality}</span>
+                </span>
+              )}
             </div>
 
             {/* Temporizador */}
@@ -91,11 +105,33 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
             </div>
           </div>
 
-          {/* Nombre de cliente */}
-          {order.customerName && (
-            <div className="text-xs font-medium text-zinc-300 bg-black/40 px-2.5 py-1 rounded-lg border border-zinc-800/60 flex items-center gap-1.5">
-              <span className="text-zinc-500 text-[10px] uppercase font-bold">Cliente:</span>
-              <span className="text-white font-bold">{order.customerName}</span>
+          {/* Nombre de cliente & Datos de entrega */}
+          {(order.customerName || order.customer?.name) && (
+            <div className="text-xs font-medium text-zinc-300 bg-black/40 px-2.5 py-1.5 rounded-lg border border-zinc-800/60 flex items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-zinc-500 text-[10px] uppercase font-bold">Cliente:</span>
+                <span className="text-white font-extrabold text-xs">{order.customerName || order.customer?.name}</span>
+              </div>
+              {order.modality === 'PARA_LLEVAR' && (
+                <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded">
+                  Recojo en barra
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Dirección en caso de Delivery */}
+          {order.modality === 'DELIVERY' && order.customer?.address && (
+            <div className="text-[11px] text-emerald-200 bg-emerald-950/20 px-2.5 py-1 rounded-lg border border-emerald-800/40 space-y-0.5">
+              <div className="font-semibold flex items-center gap-1">
+                <span>📍</span>
+                <span className="truncate">{order.customer.address}</span>
+              </div>
+              {order.customer.reference && (
+                <div className="text-[10px] text-emerald-400/80 italic">
+                  Ref: {order.customer.reference} {order.customer.phone ? `• Tel: ${order.customer.phone}` : ''}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -185,6 +221,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
         <div className="pt-2 border-t border-zinc-800">
           {currentStatus === 'PENDIENTE' && (
             <button
+              type="button"
               onClick={() => onUpdateOrderStatus(order.orderNumber, 'PREPARANDO')}
               className="w-full py-2.5 px-3 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-98"
             >
@@ -196,6 +233,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
 
           {currentStatus === 'PREPARANDO' && (
             <button
+              type="button"
               onClick={() => onUpdateOrderStatus(order.orderNumber, 'LISTO')}
               className="w-full py-2.5 px-3 rounded-xl text-xs font-black bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
             >
@@ -206,6 +244,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
 
           {currentStatus === 'LISTO' && (
             <button
+              type="button"
               onClick={() => onUpdateOrderStatus(order.orderNumber, 'ENTREGADO')}
               className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white flex items-center justify-center gap-2 transition-all cursor-pointer border border-zinc-700 active:scale-98"
             >
@@ -225,6 +264,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto scrollbar-none">
           {/* PENDIENTES */}
           <button
+            type="button"
             onClick={() => setActiveTab('PENDIENTE')}
             className={`
               flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap border
@@ -248,6 +288,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
 
           {/* PREPARANDO */}
           <button
+            type="button"
             onClick={() => setActiveTab('PREPARANDO')}
             className={`
               flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap border
@@ -273,6 +314,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
 
           {/* LISTOS */}
           <button
+            type="button"
             onClick={() => setActiveTab('LISTO')}
             className={`
               flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap border
@@ -296,6 +338,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
 
           {/* VISTA KANBAN */}
           <button
+            type="button"
             onClick={() => setActiveTab('KANBAN')}
             className={`
               hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer whitespace-nowrap border

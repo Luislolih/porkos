@@ -46,13 +46,13 @@ export default function DashboardView({ orders = [] }) {
         </div>
 
         <div className="flex items-center gap-1.5 bg-black/50 p-1 rounded-xl border border-zinc-800 text-xs font-bold">
-          <button className="px-3 py-1.5 rounded-lg bg-[var(--color-porkos-orange)] text-black">
+          <button type="button" className="px-3 py-1.5 rounded-lg bg-[var(--color-porkos-orange)] text-black cursor-pointer">
             Hoy
           </button>
-          <button className="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white">
+          <button type="button" className="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white cursor-pointer">
             Ayer
           </button>
-          <button className="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white">
+          <button type="button" className="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white cursor-pointer">
             Últimos 7 días
           </button>
         </div>

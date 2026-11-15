@@ -326,6 +326,7 @@ export default function CatalogView() {
           {/* 4 Pestañas Principales */}
           <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-zinc-800 text-xs font-bold overflow-x-auto scrollbar-none">
             <button
+              type="button"
               onClick={() => setActiveTab('products')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === 'products'
@@ -338,6 +339,7 @@ export default function CatalogView() {
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('creams')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === 'creams'
@@ -350,6 +352,7 @@ export default function CatalogView() {
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('extras')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === 'extras'
@@ -362,6 +365,7 @@ export default function CatalogView() {
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('packagings')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === 'packagings'
@@ -505,6 +509,7 @@ export default function CatalogView() {
                 <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80">
                   <div className="flex items-center gap-1.5">
                     <button
+                      type="button"
                       onClick={() => handleOpenEditProduct(p)}
                       className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer"
                       title="Editar producto"
@@ -513,6 +518,7 @@ export default function CatalogView() {
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => {
                         if (confirm(`¿Seguro que deseas eliminar "${p.name}"?`)) {
                           deleteProduct(p.id);
@@ -527,6 +533,7 @@ export default function CatalogView() {
 
                   {/* Active switch */}
                   <button
+                    type="button"
                     onClick={() => toggleProductActive(p.id)}
                     className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
                       p.active ? 'bg-emerald-500' : 'bg-zinc-700'
@@ -581,6 +588,7 @@ export default function CatalogView() {
               <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
                 <div className="flex items-center gap-1.5">
                   <button
+                    type="button"
                     onClick={() => handleOpenEditCream(c)}
                     className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer"
                     title="Editar crema"
@@ -589,6 +597,7 @@ export default function CatalogView() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => {
                       if (confirm(`¿Eliminar la crema "${c.name}"?`)) {
                         deleteCream(c.id);
@@ -602,6 +611,7 @@ export default function CatalogView() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => toggleCreamActive(c.id)}
                   className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
                     c.active ? 'bg-emerald-500' : 'bg-zinc-700'
@@ -658,6 +668,7 @@ export default function CatalogView() {
               <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
                 <div className="flex items-center gap-1.5">
                   <button
+                    type="button"
                     onClick={() => handleOpenEditExtra(ext)}
                     className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer"
                     title="Editar extra"
@@ -666,6 +677,7 @@ export default function CatalogView() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => {
                       if (confirm(`¿Eliminar el extra "${ext.name}"?`)) {
                         deleteExtra(ext.id);
@@ -679,6 +691,7 @@ export default function CatalogView() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => toggleExtraActive(ext.id)}
                   className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
                     ext.active ? 'bg-emerald-500' : 'bg-zinc-700'
@@ -777,6 +790,7 @@ export default function CatalogView() {
                   <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
                     <div className="flex items-center gap-1.5">
                       <button
+                        type="button"
                         onClick={() => handleOpenEditPackaging(pkg)}
                         className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer"
                         title="Editar empaque y productos asociados"
@@ -786,6 +800,7 @@ export default function CatalogView() {
 
                       {!isDefaultOption && (
                         <button
+                          type="button"
                           onClick={() => {
                             if (confirm(`¿Eliminar el empaque "${pkg.name}"?`)) {
                               deletePackaging(pkg.id);
@@ -801,6 +816,7 @@ export default function CatalogView() {
 
                     {!isDefaultOption && (
                       <button
+                        type="button"
                         onClick={() => togglePackagingActive(pkg.id)}
                         className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
                           pkg.active ? 'bg-emerald-500' : 'bg-zinc-700'

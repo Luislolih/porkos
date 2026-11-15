@@ -23,6 +23,7 @@ export default function SettingsView() {
         {/* Pestañas de Configuración */}
         <div className="flex items-center gap-1 bg-black/50 p-1 rounded-xl border border-zinc-800 text-xs font-bold w-full sm:w-auto">
           <button
+            type="button"
             onClick={() => setActiveTab('catalog')}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
               activeTab === 'catalog'
@@ -34,6 +35,7 @@ export default function SettingsView() {
             <span>Catálogo & Opciones</span>
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('system')}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
               activeTab === 'system'

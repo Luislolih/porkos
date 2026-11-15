@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CatalogContext } from './catalog-context';
 import {
   DEFAULT_PRODUCTS,
@@ -7,6 +7,24 @@ import {
   DEFAULT_EXTRAS,
   DEFAULT_PACKAGINGS,
 } from '../types/defaultCatalog';
+import {
+  subscribeToProducts,
+  saveProductToFirestore,
+  deleteProductFromFirestore,
+  seedProductsIfEmpty,
+  subscribeToCreams,
+  saveCreamToFirestore,
+  deleteCreamFromFirestore,
+  seedCreamsIfEmpty,
+  subscribeToExtras,
+  saveExtraToFirestore,
+  deleteExtraFromFirestore,
+  seedExtrasIfEmpty,
+  subscribeToPackagings,
+  savePackagingToFirestore,
+  deletePackagingFromFirestore,
+  seedPackagingsIfEmpty,
+} from '../services/firestoreService';
 
 export function CatalogProvider({ children }) {
   const [products, setProducts] = useState(DEFAULT_PRODUCTS);
@@ -14,6 +32,47 @@ export function CatalogProvider({ children }) {
   const [categories] = useState(DEFAULT_CATEGORIES);
   const [extras, setExtras] = useState(DEFAULT_EXTRAS);
   const [packagings, setPackagings] = useState(DEFAULT_PACKAGINGS);
+
+  // Inicializar y sincronizar con Firestore en tiempo real
+  useEffect(() => {
+    // 1. Sembrar colecciones si están vacías
+    seedProductsIfEmpty(DEFAULT_PRODUCTS);
+    seedCreamsIfEmpty(DEFAULT_CREAMS);
+    seedExtrasIfEmpty(DEFAULT_EXTRAS);
+    seedPackagingsIfEmpty(DEFAULT_PACKAGINGS);
+
+    // 2. Suscribirse a cambios en Firestore
+    const unsubProducts = subscribeToProducts((remoteProducts) => {
+      if (remoteProducts && remoteProducts.length > 0) {
+        setProducts(remoteProducts);
+      }
+    });
+
+    const unsubCreams = subscribeToCreams((remoteCreams) => {
+      if (remoteCreams && remoteCreams.length > 0) {
+        setCreams(remoteCreams);
+      }
+    });
+
+    const unsubExtras = subscribeToExtras((remoteExtras) => {
+      if (remoteExtras && remoteExtras.length > 0) {
+        setExtras(remoteExtras);
+      }
+    });
+
+    const unsubPackagings = subscribeToPackagings((remotePackagings) => {
+      if (remotePackagings && remotePackagings.length > 0) {
+        setPackagings(remotePackagings);
+      }
+    });
+
+    return () => {
+      unsubProducts();
+      unsubCreams();
+      unsubExtras();
+      unsubPackagings();
+    };
+  }, []);
 
   // Funciones de Productos
   const addProduct = (newProduct) => {
@@ -38,7 +97,7 @@ export function CatalogProvider({ children }) {
       creamsConfig: newProduct.creamsConfig || {
         enabled: true,
         availableCreamIds: creams.map((c) => c.id),
-        defaultCreamIds: [], // Sin cremas marcadas por defecto
+        defaultCreamIds: [],
         defaultMode: 'DEFAULT',
       },
       availableExtraIds: newProduct.availableExtraIds || [],
@@ -47,6 +106,7 @@ export function CatalogProvider({ children }) {
     };
 
     setProducts((prev) => [productWithDefaults, ...prev]);
+    saveProductToFirestore(productWithDefaults);
 
     // Si tiene empaques asociados, sincronizar en packagings
     if (productWithDefaults.availablePackagingIds.length > 0) {
@@ -55,7 +115,9 @@ export function CatalogProvider({ children }) {
           if (productWithDefaults.availablePackagingIds.includes(pkg.id)) {
             const currentProds = pkg.applicableProductIds || [];
             if (!currentProds.includes(id)) {
-              return { ...pkg, applicableProductIds: [...currentProds, id] };
+              const updatedPkg = { ...pkg, applicableProductIds: [...currentProds, id] };
+              savePackagingToFirestore(updatedPkg);
+              return updatedPkg;
             }
           }
           return pkg;
@@ -67,19 +129,25 @@ export function CatalogProvider({ children }) {
   };
 
   const updateProduct = (productId, updatedFields) => {
+    let updatedProdObj = null;
     setProducts((prev) =>
       prev.map((p) => {
         if (p.id === productId) {
-          return {
+          updatedProdObj = {
             ...p,
             ...updatedFields,
             price: typeof updatedFields.price !== 'undefined' ? parseFloat(updatedFields.price) : p.price,
             cost: typeof updatedFields.cost !== 'undefined' ? parseFloat(updatedFields.cost) : p.cost,
           };
+          return updatedProdObj;
         }
         return p;
       })
     );
+
+    if (updatedProdObj) {
+      saveProductToFirestore(updatedProdObj);
+    }
 
     // Sincronizar empaques si se actualizaron los availablePackagingIds
     if (updatedFields.availablePackagingIds) {
@@ -88,9 +156,13 @@ export function CatalogProvider({ children }) {
           const isAssociated = updatedFields.availablePackagingIds.includes(pkg.id);
           const currentList = pkg.applicableProductIds || [];
           if (isAssociated && !currentList.includes(productId)) {
-            return { ...pkg, applicableProductIds: [...currentList, productId] };
+            const updatedPkg = { ...pkg, applicableProductIds: [...currentList, productId] };
+            savePackagingToFirestore(updatedPkg);
+            return updatedPkg;
           } else if (!isAssociated && currentList.includes(productId)) {
-            return { ...pkg, applicableProductIds: currentList.filter((id) => id !== productId) };
+            const updatedPkg = { ...pkg, applicableProductIds: currentList.filter((id) => id !== productId) };
+            savePackagingToFirestore(updatedPkg);
+            return updatedPkg;
           }
           return pkg;
         })
@@ -100,18 +172,31 @@ export function CatalogProvider({ children }) {
 
   const deleteProduct = (productId) => {
     setProducts((prev) => prev.filter((p) => p.id !== productId));
+    deleteProductFromFirestore(productId);
+
     // Limpiar asociación en packagings
     setPackagings((prev) =>
-      prev.map((pkg) => ({
-        ...pkg,
-        applicableProductIds: (pkg.applicableProductIds || []).filter((id) => id !== productId),
-      }))
+      prev.map((pkg) => {
+        const updated = {
+          ...pkg,
+          applicableProductIds: (pkg.applicableProductIds || []).filter((id) => id !== productId),
+        };
+        savePackagingToFirestore(updated);
+        return updated;
+      })
     );
   };
 
   const toggleProductActive = (productId) => {
     setProducts((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, active: !p.active } : p))
+      prev.map((p) => {
+        if (p.id === productId) {
+          const updated = { ...p, active: !p.active };
+          saveProductToFirestore(updated);
+          return updated;
+        }
+        return p;
+      })
     );
   };
 
@@ -121,10 +206,12 @@ export function CatalogProvider({ children }) {
       prev.map((p) => {
         const matchingItem = soldItems.find((item) => item.productId === p.id);
         if (matchingItem) {
-          return {
+          const updated = {
             ...p,
             salesCount: (p.salesCount || 0) + (matchingItem.quantity || 1),
           };
+          saveProductToFirestore(updated);
+          return updated;
         }
         return p;
       })
@@ -143,6 +230,7 @@ export function CatalogProvider({ children }) {
       active: true,
     };
     setCreams((prev) => [...prev, creamWithDefaults]);
+    saveCreamToFirestore(creamWithDefaults);
     return creamWithDefaults;
   };
 
@@ -150,11 +238,13 @@ export function CatalogProvider({ children }) {
     setCreams((prev) =>
       prev.map((c) => {
         if (c.id === creamId) {
-          return {
+          const updated = {
             ...c,
             ...updatedFields,
             shortName: updatedFields.shortName ? updatedFields.shortName.toUpperCase() : c.shortName,
           };
+          saveCreamToFirestore(updated);
+          return updated;
         }
         return c;
       })
@@ -163,11 +253,19 @@ export function CatalogProvider({ children }) {
 
   const deleteCream = (creamId) => {
     setCreams((prev) => prev.filter((c) => c.id !== creamId));
+    deleteCreamFromFirestore(creamId);
   };
 
   const toggleCreamActive = (creamId) => {
     setCreams((prev) =>
-      prev.map((c) => (c.id === creamId ? { ...c, active: !c.active } : c))
+      prev.map((c) => {
+        if (c.id === creamId) {
+          const updated = { ...c, active: !c.active };
+          saveCreamToFirestore(updated);
+          return updated;
+        }
+        return c;
+      })
     );
   };
 
@@ -182,6 +280,7 @@ export function CatalogProvider({ children }) {
       active: true,
     };
     setExtras((prev) => [...prev, extraWithDefaults]);
+    saveExtraToFirestore(extraWithDefaults);
     return extraWithDefaults;
   };
 
@@ -189,11 +288,13 @@ export function CatalogProvider({ children }) {
     setExtras((prev) =>
       prev.map((e) => {
         if (e.id === extraId) {
-          return {
+          const updated = {
             ...e,
             ...updatedFields,
             price: typeof updatedFields.price !== 'undefined' ? parseFloat(updatedFields.price) : e.price,
           };
+          saveExtraToFirestore(updated);
+          return updated;
         }
         return e;
       })
@@ -202,15 +303,23 @@ export function CatalogProvider({ children }) {
 
   const deleteExtra = (extraId) => {
     setExtras((prev) => prev.filter((e) => e.id !== extraId));
+    deleteExtraFromFirestore(extraId);
   };
 
   const toggleExtraActive = (extraId) => {
     setExtras((prev) =>
-      prev.map((e) => (e.id === extraId ? { ...e, active: !e.active } : e))
+      prev.map((e) => {
+        if (e.id === extraId) {
+          const updated = { ...e, active: !e.active };
+          saveExtraToFirestore(updated);
+          return updated;
+        }
+        return e;
+      })
     );
   };
 
-  // Funciones de Empaques / Packaging (con asociación estricta a productos)
+  // Funciones de Empaques / Packaging
   const addPackaging = (newPkg) => {
     const id = `pkg_${Date.now()}`;
     const pkgWithDefaults = {
@@ -221,6 +330,7 @@ export function CatalogProvider({ children }) {
       active: true,
     };
     setPackagings((prev) => [...prev, pkgWithDefaults]);
+    savePackagingToFirestore(pkgWithDefaults);
 
     // Sincronizar en los productos seleccionados
     if (pkgWithDefaults.applicableProductIds.length > 0) {
@@ -229,7 +339,9 @@ export function CatalogProvider({ children }) {
           if (pkgWithDefaults.applicableProductIds.includes(p.id)) {
             const currentPkgs = p.availablePackagingIds || [];
             if (!currentPkgs.includes(id)) {
-              return { ...p, availablePackagingIds: [...currentPkgs, id] };
+              const updatedP = { ...p, availablePackagingIds: [...currentPkgs, id] };
+              saveProductToFirestore(updatedP);
+              return updatedP;
             }
           }
           return p;
@@ -244,11 +356,13 @@ export function CatalogProvider({ children }) {
     setPackagings((prev) =>
       prev.map((p) => {
         if (p.id === pkgId) {
-          return {
+          const updated = {
             ...p,
             ...updatedFields,
             price: typeof updatedFields.price !== 'undefined' ? parseFloat(updatedFields.price) : p.price,
           };
+          savePackagingToFirestore(updated);
+          return updated;
         }
         return p;
       })
@@ -261,12 +375,16 @@ export function CatalogProvider({ children }) {
           const isAssociated = updatedFields.applicableProductIds.includes(prod.id);
           const currentPkgs = prod.availablePackagingIds || [];
           if (isAssociated && !currentPkgs.includes(pkgId)) {
-            return { ...prod, availablePackagingIds: [...currentPkgs, pkgId] };
+            const updatedP = { ...prod, availablePackagingIds: [...currentPkgs, pkgId] };
+            saveProductToFirestore(updatedP);
+            return updatedP;
           } else if (!isAssociated && currentPkgs.includes(pkgId)) {
-            return {
+            const updatedP = {
               ...prod,
               availablePackagingIds: currentPkgs.filter((id) => id !== pkgId),
             };
+            saveProductToFirestore(updatedP);
+            return updatedP;
           }
           return prod;
         })
@@ -275,21 +393,34 @@ export function CatalogProvider({ children }) {
   };
 
   const deletePackaging = (pkgId) => {
-    if (pkgId === 'pkg_ninguno') return; // Proteger opción base
+    if (pkgId === 'pkg_ninguno') return;
     setPackagings((prev) => prev.filter((p) => p.id !== pkgId));
+    deletePackagingFromFirestore(pkgId);
+
     // Limpiar en productos
     setProducts((prev) =>
-      prev.map((prod) => ({
-        ...prod,
-        availablePackagingIds: (prod.availablePackagingIds || []).filter((id) => id !== pkgId),
-      }))
+      prev.map((prod) => {
+        const updatedP = {
+          ...prod,
+          availablePackagingIds: (prod.availablePackagingIds || []).filter((id) => id !== pkgId),
+        };
+        saveProductToFirestore(updatedP);
+        return updatedP;
+      })
     );
   };
 
   const togglePackagingActive = (pkgId) => {
     if (pkgId === 'pkg_ninguno') return;
     setPackagings((prev) =>
-      prev.map((p) => (p.id === pkgId ? { ...p, active: !p.active } : p))
+      prev.map((p) => {
+        if (p.id === pkgId) {
+          const updated = { ...p, active: !p.active };
+          savePackagingToFirestore(updated);
+          return updated;
+        }
+        return p;
+      })
     );
   };
 

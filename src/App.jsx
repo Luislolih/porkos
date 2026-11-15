@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { AuthProvider } from './context/AuthContext';
+import { useAuth } from './context/useAuth';
 import { CatalogProvider } from './context/CatalogContext';
 import { CartProvider } from './context/CartContext';
 import { useCart } from './context/useCart';
@@ -13,163 +15,86 @@ import CatalogView from './features/catalog/CatalogView';
 import ExpensesView from './features/expenses/ExpensesView';
 import DashboardView from './features/dashboard/DashboardView';
 import SettingsView from './features/settings/SettingsView';
-
-const INITIAL_TIMESTAMP = Date.now();
-
-const INITIAL_ORDERS = [
-  {
-    orderNumber: 'P-101',
-    modality: 'MESA',
-    status: 'PREPARANDO',
-    paymentStatus: 'PENDING',
-    tableId: 'mesa_02',
-    tableName: 'Mesa 2',
-    customerName: 'Cliente Mesa 2',
-    items: [
-      {
-        itemId: 'item_1',
-        productId: 'prod_porkoburger_clasica',
-        name: 'PorkoBurger Clásica',
-        basePrice: 16.00,
-        quantity: 2,
-        unitPrice: 16.00,
-        requiresKitchen: true,
-        image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=60',
-        subtotal: 32.00,
-        customization: {
-          creamsSummary: 'MAYO + KETCHUP',
-          saladSummary: 'CON ENSALADA COMPLETA',
-          selectedModifiers: [{ groupId: 'mod_papas', optionName: 'Papas Fritas' }],
-          itemNotes: 'Papas bien doradas',
-        },
-      },
-      {
-        itemId: 'item_2',
-        productId: 'prod_inca_kola_500',
-        name: 'Inca Kola 500ml',
-        basePrice: 4.00,
-        quantity: 2,
-        unitPrice: 4.00,
-        requiresKitchen: true,
-        image: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500&auto=format&fit=crop&q=60',
-        subtotal: 8.00,
-        customization: {
-          temperature: 'HELADA',
-        },
-      },
-    ],
-    packagings: [],
-    subtotal: 40.00,
-    total: 40.00,
-    createdAt: new Date(INITIAL_TIMESTAMP - 1000 * 60 * 7),
-  },
-  {
-    orderNumber: 'P-102',
-    modality: 'DELIVERY',
-    status: 'PENDIENTE',
-    paymentStatus: 'PAID',
-    customerName: 'Carlos Mendoza',
-    customer: {
-      name: 'Carlos Mendoza',
-      phone: '987654321',
-      address: 'Av. Primavera 420',
-      reference: 'Frente al parque',
-      deliveryFee: 5.00,
-    },
-    items: [
-      {
-        itemId: 'item_3',
-        productId: 'prod_choriporko_artesanal',
-        name: 'ChoriPorko Artesanal',
-        basePrice: 13.00,
-        quantity: 1,
-        unitPrice: 15.50,
-        requiresKitchen: true,
-        image: 'https://images.unsplash.com/photo-1627054234594-550302b1f07e?w=500&auto=format&fit=crop&q=60',
-        subtotal: 15.50,
-        customization: {
-          creamsSummary: 'MAYO + MOSTAZA + AJÍ',
-          selectedModifiers: [{ groupId: 'mod_chimichurri', optionName: 'Con Chimichurri' }],
-          selectedExtras: [{ id: 'ext_queso', name: 'Extra Queso', unitPrice: 2.50 }],
-        },
-      },
-    ],
-    packagings: [{ packagingId: 'pkg_taper_med', name: 'Taper Térmico Mediano', quantity: 1, unitPrice: 1.00, total: 1.00 }],
-    subtotal: 15.50,
-    packagingsTotal: 1.00,
-    deliveryFee: 5.00,
-    total: 21.50,
-    createdAt: new Date(INITIAL_TIMESTAMP - 1000 * 60 * 3),
-  },
-];
+import LoginView from './features/auth/LoginView';
+import {
+  subscribeToOrders,
+  saveOrderToFirestore,
+  updateOrderStatusInFirestore,
+  settleOrderInFirestore,
+} from './services/firestoreService';
+import { Flame } from 'lucide-react';
 
 function MainApp() {
   const [currentModule, setCurrentModule] = useState(MODULES.SALES);
-  // Inicialmente Mesa 2 está ocupada por el pedido demo P-101
-  const [tables, setTables] = useState(() =>
-    DEFAULT_TABLES.map((t) => (t.id === 'mesa_02' ? { ...t, status: 'OCCUPIED' } : t))
-  );
-  const [orders, setOrders] = useState(INITIAL_ORDERS);
+  const [orders, setOrders] = useState([]);
   const { setSelectedTable, setModality, setCustomerName } = useCart();
 
-  // Manejar creación o adición de comanda
-  const handleOrderCreated = (newOrder, shouldCloseTable = false) => {
+  // 1. Sincronización en tiempo real de órdenes con Firestore
+  useEffect(() => {
+    const unsubscribe = subscribeToOrders((remoteOrders) => {
+      setOrders(remoteOrders);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Estado reactivo de las 3 mesas según las comandas abiertas
+  const activeTableIds = useMemo(() => {
+    return orders
+      .filter((o) => o.tableId && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO')
+      .map((o) => o.tableId);
+  }, [orders]);
+
+  const tables = useMemo(() => {
+    return DEFAULT_TABLES.map((t) => ({
+      ...t,
+      status: activeTableIds.includes(t.id) ? 'OCCUPIED' : 'AVAILABLE',
+    }));
+  }, [activeTableIds]);
+
+  // 3. Manejar creación o acumulación de comanda
+  const handleOrderCreated = async (newOrder, shouldCloseTable = false) => {
     if (newOrder.tableId) {
       // Verificar si la mesa ya tiene una orden abierta
-      const existingOrderIndex = orders.findIndex(
+      const existingOrder = orders.find(
         (o) => o.tableId === newOrder.tableId && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO'
       );
 
-      if (existingOrderIndex >= 0 && !shouldCloseTable) {
+      if (existingOrder && !shouldCloseTable) {
         // La mesa sigue abierta: Acumular los nuevos productos a la comanda existente
-        setOrders((prev) => {
-          const updated = [...prev];
-          const existing = updated[existingOrderIndex];
-          const combinedItems = [...existing.items, ...newOrder.items];
-          const addedSubtotal = newOrder.items.reduce((s, i) => s + i.subtotal, 0);
-          const newTotal = existing.total + addedSubtotal;
+        const combinedItems = [...existingOrder.items, ...newOrder.items];
+        const addedSubtotal = newOrder.items.reduce((s, i) => s + i.subtotal, 0);
+        const newTotal = existingOrder.total + addedSubtotal;
 
-          updated[existingOrderIndex] = {
-            ...existing,
-            items: combinedItems,
-            subtotal: existing.subtotal + addedSubtotal,
-            total: newTotal,
-            // Si la nueva orden trajo nota o cliente, actualizar
-            customerName: newOrder.customerName || existing.customerName,
-            status: 'PREPARANDO', // Reactivar para cocina si añadió más platos
-          };
-          return updated;
-        });
+        const updatedOrder = {
+          ...existingOrder,
+          items: combinedItems,
+          subtotal: existingOrder.subtotal + addedSubtotal,
+          total: newTotal,
+          customerName: newOrder.customerName || existingOrder.customerName,
+          status: 'PREPARANDO', // Reactivar para cocina si añadió más platos
+        };
 
-        // Asegurar que la mesa permanezca abierta
-        setTables((prev) =>
-          prev.map((t) => (t.id === newOrder.tableId ? { ...t, status: 'OCCUPIED' } : t))
+        // Actualización optimista local
+        setOrders((prev) =>
+          prev.map((o) => (o.orderNumber === existingOrder.orderNumber ? updatedOrder : o))
         );
+
+        // Guardar en Firestore
+        await saveOrderToFirestore(updatedOrder);
         return;
       }
     }
 
-    // Si es un pedido nuevo regular o cobro inmediato
+    // Actualización optimista local
     setOrders((prev) => [newOrder, ...prev]);
 
-    if (newOrder.tableId) {
-      if (shouldCloseTable) {
-        // Se cobró y cerró la mesa
-        setTables((prev) =>
-          prev.map((t) => (t.id === newOrder.tableId ? { ...t, status: 'AVAILABLE' } : t))
-        );
-      } else {
-        // La mesa queda abierta para pedir más
-        setTables((prev) =>
-          prev.map((t) => (t.id === newOrder.tableId ? { ...t, status: 'OCCUPIED' } : t))
-        );
-      }
-    }
+    // Guardar nueva orden en Firestore
+    await saveOrderToFirestore(newOrder);
   };
 
-  // Manejar el cierre y cobro de mesa
-  const handleCloseTable = (tableId, orderNumber, paymentDetail) => {
-    // 1. Marcar la orden como pagada y entregada
+  // 4. Manejar el cierre y cobro de mesa
+  const handleCloseTable = async (tableId, orderNumber, paymentDetail) => {
+    // Optimista local
     setOrders((prev) =>
       prev.map((o) => {
         if (o.orderNumber === orderNumber) {
@@ -189,20 +114,22 @@ function MainApp() {
       })
     );
 
-    // 2. Liberar la mesa para nuevos clientes
-    setTables((prev) =>
-      prev.map((t) => (t.id === tableId ? { ...t, status: 'AVAILABLE' } : t))
-    );
+    // Persistir en Firestore
+    await settleOrderInFirestore(orderNumber, paymentDetail);
   };
 
-  // Manejar avance de comanda en cocina
-  const handleUpdateOrderStatus = (orderNumber, newStatus) => {
+  // 5. Manejar avance de comanda en cocina
+  const handleUpdateOrderStatus = async (orderNumber, newStatus) => {
+    // Optimista local
     setOrders((prev) =>
       prev.map((o) => (o.orderNumber === orderNumber ? { ...o, status: newStatus } : o))
     );
+
+    // Persistir en Firestore
+    await updateOrderStatusInFirestore(orderNumber, newStatus);
   };
 
-  // Seleccionar mesa para abrir comanda o seguir pidiendo
+  // 6. Seleccionar mesa para abrir comanda o seguir pidiendo
   const handleSelectTableForOrder = (table) => {
     setSelectedTable(table);
     setModality('MESA');
@@ -281,12 +208,39 @@ function MainApp() {
   );
 }
 
-export default function App() {
+function AppContent() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#080808] flex flex-col items-center justify-center p-4">
+        <div className="w-16 h-16 rounded-2xl bg-[var(--color-porkos-orange)] text-black flex items-center justify-center shadow-2xl shadow-orange-500/20 animate-bounce">
+          <Flame className="w-10 h-10 fill-current" />
+        </div>
+        <p className="mt-4 text-xs font-black uppercase tracking-widest text-zinc-400">
+          Cargando PORKOAPP...
+        </p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginView />;
+  }
+
   return (
     <CatalogProvider>
       <CartProvider>
         <MainApp />
       </CartProvider>
     </CatalogProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
