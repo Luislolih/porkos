@@ -335,6 +335,7 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
           setEditingCartItem(null);
         }}
         product={customizingProduct}
+        cartItemId={editingCartItem?.itemId}
         initialCustomization={editingCartItem?.customization || null}
         onConfirm={handleConfirmCustomization}
       />

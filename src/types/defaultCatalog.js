@@ -44,6 +44,7 @@ export const DEFAULT_EXTRAS = [
 ];
 
 export const DEFAULT_PACKAGINGS = [
+  { id: 'pkg_ninguno', name: 'Sin Empaque / Salón', price: 0, active: true },
   { id: 'pkg_taper_med', name: 'Taper Térmico Mediano', price: 1.00, active: true },
   { id: 'pkg_taper_gra', name: 'Taper Térmico Grande', price: 1.50, active: true },
   { id: 'pkg_bolsa_kraft', name: 'Bolsa Kraft Reforzada', price: 0.50, active: true },

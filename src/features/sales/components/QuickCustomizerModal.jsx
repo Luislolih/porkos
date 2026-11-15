@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { Package, Utensils, Check } from 'lucide-react';
 import Modal from '../../../components/ui/Modal';
 import Button from '../../../components/ui/Button';
 import { formatCurrency } from '../../../utils/formatters';
-import { DEFAULT_EXTRAS } from '../../../types/defaultCatalog';
+import { DEFAULT_EXTRAS, DEFAULT_PACKAGINGS } from '../../../types/defaultCatalog';
 import { useCatalog } from '../../../context/useCatalog';
 
 function CustomizerForm({ product, initialCustomization = null, onConfirm, onClose }) {
@@ -16,35 +17,40 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
 
   // 2. Cremas: lista dinámica de cremas activas
   const availableCreams = catalogCreams.filter(
-    (c) => c.active && (product.creamsConfig?.availableCreamIds?.includes(c.id) ?? true)
+    (c) => c.active && (product.creamsConfig?.availableCreamIds?.length ? product.creamsConfig.availableCreamIds.includes(c.id) : true)
   );
 
   const [selectedCreams, setSelectedCreams] = useState(() => {
     if (initialCustomization?.creamsDetail?.selected) {
       return initialCustomization.creamsDetail.selected;
     }
-    if (!product.creamsConfig?.enabled) return [];
-    if (product.creamsConfig?.defaultCreamIds?.length > 0) {
-      return product.creamsConfig.defaultCreamIds;
-    }
-    return availableCreams.slice(0, 2).map((c) => c.id);
+    // Por defecto SIN CREMAS pre-marcadas (el usuario las elige individualmente)
+    return [];
   });
 
   const [creamsMode, setCreamsMode] = useState(() => {
-    return initialCustomization?.creamsDetail?.mode || 'NORMAL';
+    return initialCustomization?.creamsDetail?.mode || 'CUSTOM';
   });
 
-  // 3. Papas
+  // 3. Papas: Fritas, Al Hilo, Sin Papas
+  const hasPapasModifier = Boolean(
+    product.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas' || m.name?.toLowerCase().includes('papa')) ||
+    product.categoryId === 'cat_burgers' ||
+    product.categoryId === 'cat_salchipapas'
+  );
+
   const [selectedModifiers, setSelectedModifiers] = useState(() => {
     const initialMods = {};
     if (initialCustomization?.selectedModifiers?.length > 0) {
       initialCustomization.selectedModifiers.forEach((m) => {
         initialMods[m.groupId] = m.optionId;
       });
-    } else {
-      product.modifiers?.forEach((mod) => {
+    } else if (product.modifiers?.length > 0) {
+      product.modifiers.forEach((mod) => {
         initialMods[mod.id] = mod.defaultOptionId;
       });
+    } else if (hasPapasModifier) {
+      initialMods['mod_papas'] = 'fritas';
     }
     return initialMods;
   });
@@ -52,11 +58,11 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
   // 4. Ensalada
   const saladIngredients = product.saladConfig?.ingredients || ['Lechuga', 'Tomate', 'Pepinillo'];
   const hasSalad = Boolean(product.saladConfig?.enabled || product.categoryId === 'cat_burgers');
-  
+
   const [saladMode, setSaladMode] = useState(() => {
     return initialCustomization?.saladDetail?.mode || 'CON_ENSALADA';
   });
-  
+
   const [selectedSaladItems, setSelectedSaladItems] = useState(() => {
     if (initialCustomization?.saladDetail?.items) {
       return initialCustomization.saladDetail.items;
@@ -64,15 +70,31 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
     return saladIngredients;
   });
 
-  // 5. Extras
-  const compatibleExtras = DEFAULT_EXTRAS.filter((e) =>
-    product.availableExtraIds?.includes(e.id)
-  );
+  // 5. Extras compatibles
+  const compatibleExtras = DEFAULT_EXTRAS.filter((e) => {
+    if (!e.active) return false;
+    if (product.availableExtraIds && product.availableExtraIds.length > 0) {
+      return product.availableExtraIds.includes(e.id);
+    }
+    if (product.categoryId && e.compatibleCategories?.includes(product.categoryId)) {
+      return true;
+    }
+    return product.type === 'RESTAURANTE';
+  });
+
   const [selectedExtras, setSelectedExtras] = useState(() => {
     return initialCustomization?.selectedExtras || [];
   });
 
-  // 6. Notas
+  // 6. Empaque / Taper para este producto individual
+  const [selectedPackaging, setSelectedPackaging] = useState(() => {
+    if (initialCustomization?.packaging) {
+      return initialCustomization.packaging;
+    }
+    return DEFAULT_PACKAGINGS[0]; // Sin empaque / Salón
+  });
+
+  // 7. Notas específicas del producto
   const [notes, setNotes] = useState(() => {
     return initialCustomization?.itemNotes || '';
   });
@@ -84,12 +106,6 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
       setSelectedCreams([]);
     } else if (preset === 'ALL') {
       setSelectedCreams(availableCreams.map((c) => c.id));
-    } else if (preset === 'NORMAL') {
-      setSelectedCreams(
-        product.creamsConfig?.defaultCreamIds?.length
-          ? product.creamsConfig.defaultCreamIds
-          : availableCreams.slice(0, 2).map((c) => c.id)
-      );
     }
   };
 
@@ -138,35 +154,55 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
     (sum, ext) => sum + ext.unitPrice * (ext.quantity || 1),
     0
   );
-  const currentTotal = product.price + extrasTotal;
+  const packagingPrice = selectedPackaging?.price || 0;
+  const currentTotal = product.price + extrasTotal + packagingPrice;
 
   // Confirmar
   const handleConfirm = () => {
     let summary = 'SIN CREMAS';
-    if (creamsMode !== 'NONE' && selectedCreams.length > 0) {
-      const creamNames = selectedCreams
-        .map((id) => availableCreams.find((c) => c.id === id)?.name)
+    if (selectedCreams.length > 0) {
+      const creamDiminutives = selectedCreams
+        .map((id) => {
+          const c = availableCreams.find((cream) => cream.id === id);
+          return c?.shortName || c?.name || '';
+        })
         .filter(Boolean);
-      summary = creamNames.join(' + ').toUpperCase();
+      summary = creamDiminutives.join(', ');
       if (creamsMode === 'LOW') {
         summary += ' (POCAS)';
       }
     }
 
     const formattedModifiers = [];
-    product.modifiers?.forEach((mod) => {
-      const optId = selectedModifiers[mod.id];
-      const opt = mod.options.find((o) => o.id === optId);
-      if (opt) {
-        formattedModifiers.push({
-          groupId: mod.id,
-          groupName: mod.name,
-          optionId: opt.id,
-          optionName: opt.name,
-          priceDelta: opt.priceDelta || 0,
-        });
-      }
-    });
+    if (product.modifiers?.length > 0) {
+      product.modifiers.forEach((mod) => {
+        const optId = selectedModifiers[mod.id];
+        const opt = mod.options.find((o) => o.id === optId);
+        if (opt) {
+          formattedModifiers.push({
+            groupId: mod.id,
+            groupName: mod.name,
+            optionId: opt.id,
+            optionName: opt.name,
+            priceDelta: opt.priceDelta || 0,
+          });
+        }
+      });
+    } else if (hasPapasModifier) {
+      const papaOptId = selectedModifiers['mod_papas'] || 'fritas';
+      const papaNames = {
+        fritas: 'Papas Fritas',
+        al_hilo: 'Papas al Hilo',
+        sin_papas: 'Sin Papas',
+      };
+      formattedModifiers.push({
+        groupId: 'mod_papas',
+        groupName: 'Tipo de Papas',
+        optionId: papaOptId,
+        optionName: papaNames[papaOptId] || 'Papas Fritas',
+        priceDelta: 0,
+      });
+    }
 
     let saladSummary = '';
     if (hasSalad) {
@@ -193,6 +229,7 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
       },
       selectedModifiers: formattedModifiers,
       selectedExtras,
+      packaging: selectedPackaging,
       itemNotes: notes.trim(),
     };
 
@@ -202,73 +239,141 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
 
   return (
     <div className="space-y-4 pb-1 text-xs">
-      {/* 1. SELECCIÓN DE TEMPERATURA (SI APLICA) */}
-      {product.temperatureConfig?.enabled && (
-        <div className="space-y-1.5">
-          <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
-            Temperatura
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {['HELADA', 'SIN_HELAR'].map((temp) => (
-              <button
-                key={temp}
-                type="button"
-                onClick={() => setTemperature(temp)}
-                className={`
-                  py-2 px-3 rounded-xl font-bold transition-all border cursor-pointer text-center
-                  ${
-                    temperature === temp
-                      ? 'bg-zinc-800 text-white border-zinc-500 font-extrabold shadow-sm'
-                      : 'bg-zinc-900/80 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-                  }
-                `}
-              >
-                {temp === 'HELADA' ? '❄️ Helada' : 'Sin Helar'}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 2. PAPAS (FRITAS O AL HILO O SIN PAPAS) */}
-      {product.modifiers?.map((mod) => (
-        <div key={mod.id} className="space-y-1.5">
-          <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
-            {mod.name}
+      {/* 1. SELECCIÓN DE PAPAS (FRITAS / AL HILO / SIN PAPAS) */}
+      {hasPapasModifier && (
+        <div className="space-y-1.5 bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/80">
+          <label className="text-[11px] font-extrabold text-orange-400 uppercase tracking-wider block flex items-center gap-1.5">
+            🍟 Tipo de Papas
           </label>
           <div className="grid grid-cols-3 gap-2">
-            {mod.options.map((opt) => {
-              const isSelected = selectedModifiers[mod.id] === opt.id;
+            {[
+              { id: 'fritas', label: 'Papas Fritas' },
+              { id: 'al_hilo', label: 'Papas al Hilo' },
+              { id: 'sin_papas', label: 'Sin Papas' },
+            ].map((pOpt) => {
+              const currentPapa = selectedModifiers['mod_papas'] || 'fritas';
+              const isSelected = currentPapa === pOpt.id;
               return (
                 <button
-                  key={opt.id}
+                  key={pOpt.id}
                   type="button"
                   onClick={() =>
-                    setSelectedModifiers((prev) => ({ ...prev, [mod.id]: opt.id }))
+                    setSelectedModifiers((prev) => ({ ...prev, mod_papas: pOpt.id }))
                   }
                   className={`
-                    py-2 px-2.5 rounded-xl font-bold transition-all border text-center cursor-pointer
+                    py-2 px-2 rounded-xl font-bold transition-all border text-center cursor-pointer text-xs
                     ${
                       isSelected
-                        ? 'bg-[var(--color-porkos-orange)] text-black border-transparent font-black shadow-sm'
+                        ? 'bg-[var(--color-porkos-orange)] text-black border-transparent font-black shadow-md'
                         : 'bg-zinc-900/80 text-zinc-300 border-zinc-800 hover:border-zinc-700'
                     }
                   `}
                 >
-                  {opt.name}
+                  {pOpt.label}
                 </button>
               );
             })}
           </div>
         </div>
-      ))}
+      )}
+
+      {/* 2. CREMAS (BOTONES DINÁMICOS CON DIMINUTIVO) */}
+      {availableCreams.length > 0 && (
+        <div className="space-y-2 bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/80">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-extrabold text-orange-400 uppercase tracking-wider flex items-center gap-1.5">
+              🥫 Cremas ({selectedCreams.length} seleccionadas)
+            </label>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleCreamPreset('ALL')}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                  selectedCreams.length === availableCreams.length
+                    ? 'bg-zinc-700 text-white border-zinc-500'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                }`}
+              >
+                Todas
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCreamPreset('NONE')}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                  selectedCreams.length === 0
+                    ? 'bg-rose-950/60 text-rose-300 border-rose-800'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                }`}
+              >
+                Sin Cremas
+              </button>
+            </div>
+          </div>
+
+          {/* Grid de cada crema con su diminutivo */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+            {availableCreams.map((cream) => {
+              const isSelected = selectedCreams.includes(cream.id);
+              const short = cream.shortName || cream.name.slice(0, 4).toUpperCase();
+              return (
+                <button
+                  key={cream.id}
+                  type="button"
+                  onClick={() => toggleCream(cream.id)}
+                  className={`
+                    flex items-center justify-between p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer
+                    ${
+                      isSelected
+                        ? 'bg-zinc-800 text-white border-[var(--color-porkos-orange)] shadow-sm'
+                        : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+                    }
+                  `}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="w-3.5 h-3.5 rounded-full shrink-0 border border-black/50"
+                      style={{ backgroundColor: cream.color }}
+                    />
+                    <span className="truncate">{cream.name}</span>
+                  </div>
+                  <span
+                    className={`text-[10px] font-mono font-black px-1.5 py-0.5 rounded ml-1 shrink-0 ${
+                      isSelected
+                        ? 'bg-[var(--color-porkos-orange)] text-black'
+                        : 'bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    {short}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedCreams.length > 0 && (
+            <div className="pt-1 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setCreamsMode((prev) => (prev === 'LOW' ? 'CUSTOM' : 'LOW'))}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                  creamsMode === 'LOW'
+                    ? 'bg-amber-950/60 text-amber-300 border-amber-800'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                }`}
+              >
+                {creamsMode === 'LOW' ? '✓ Pocas Cremas' : 'Marcar: Pocas Cremas'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 3. ENSALADA */}
       {hasSalad && (
         <div className="space-y-2 bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/80">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-              Ensalada
+            <label className="text-[11px] font-extrabold text-orange-400 uppercase tracking-wider flex items-center gap-1.5">
+              🥗 Ensalada
             </label>
             <div className="flex items-center gap-1.5">
               <button
@@ -276,18 +381,18 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
                 onClick={() => handleSaladPreset('CON_ENSALADA')}
                 className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border cursor-pointer ${
                   saladMode === 'CON_ENSALADA'
-                    ? 'bg-zinc-700 text-white border-zinc-600 font-black'
+                    ? 'bg-zinc-700 text-white border-zinc-500 font-black'
                     : 'bg-zinc-900 text-zinc-400 border-zinc-800'
                 }`}
               >
-                Con Ensalada
+                Completa
               </button>
               <button
                 type="button"
                 onClick={() => handleSaladPreset('SIN_ENSALADA')}
                 className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border cursor-pointer ${
                   saladMode === 'SIN_ENSALADA'
-                    ? 'bg-rose-950/60 text-rose-300 border-rose-800/60 font-black'
+                    ? 'bg-rose-950/60 text-rose-300 border-rose-800 font-black'
                     : 'bg-zinc-900 text-zinc-400 border-zinc-800'
                 }`}
               >
@@ -309,7 +414,7 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
                       py-1.5 px-2 rounded-lg text-xs font-semibold transition-all border text-center flex items-center justify-center gap-1 cursor-pointer
                       ${
                         isIncluded
-                          ? 'bg-zinc-800 text-zinc-100 border-zinc-600'
+                          ? 'bg-zinc-800 text-emerald-300 border-emerald-500/50'
                           : 'bg-black/40 text-zinc-500 border-zinc-900 line-through'
                       }
                     `}
@@ -338,111 +443,11 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
         </div>
       )}
 
-      {/* 4. CREMAS */}
-      {availableCreams.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-              Cremas
-            </label>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => handleCreamPreset('NORMAL')}
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
-                  creamsMode === 'NORMAL'
-                    ? 'bg-zinc-800 text-white border-zinc-600'
-                    : 'text-zinc-400 border-transparent hover:text-white'
-                }`}
-              >
-                Predeterminadas
-              </button>
-              <button
-                type="button"
-                onClick={() => handleCreamPreset('ALL')}
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
-                  creamsMode === 'ALL'
-                    ? 'bg-zinc-800 text-white border-zinc-600'
-                    : 'text-zinc-400 border-transparent hover:text-white'
-                }`}
-              >
-                Todas
-              </button>
-              <button
-                type="button"
-                onClick={() => handleCreamPreset('NONE')}
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
-                  creamsMode === 'NONE'
-                    ? 'bg-rose-950/40 text-rose-300 border-rose-900/60'
-                    : 'text-zinc-400 border-transparent hover:text-white'
-                }`}
-              >
-                Sin Cremas
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-            {availableCreams.map((cream) => {
-              const isSelected = selectedCreams.includes(cream.id);
-              return (
-                <button
-                  key={cream.id}
-                  type="button"
-                  onClick={() => toggleCream(cream.id)}
-                  className={`
-                    flex items-center justify-between p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer
-                    ${
-                      isSelected
-                        ? 'bg-zinc-800 text-white border-zinc-600 shadow-sm'
-                        : 'bg-zinc-900/60 text-zinc-400 border-zinc-800/80 hover:border-zinc-700'
-                    }
-                  `}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <span
-                      className="w-3.5 h-3.5 rounded-full shrink-0 border border-black/40"
-                      style={{ backgroundColor: cream.color }}
-                    />
-                    <span className="truncate">{cream.name}</span>
-                  </div>
-                  <span
-                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                      isSelected
-                        ? 'bg-zinc-700 text-white'
-                        : 'text-zinc-600'
-                    }`}
-                  >
-                    {isSelected ? 'SÍ' : 'NO'}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {selectedCreams.length > 0 && (
-            <div className="pt-0.5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setCreamsMode((prev) => (prev === 'LOW' ? 'CUSTOM' : 'LOW'))}
-                className={`text-[11px] font-medium px-2.5 py-0.5 rounded-lg border transition-all cursor-pointer ${
-                  creamsMode === 'LOW'
-                    ? 'bg-amber-950/40 text-amber-300 border-amber-800/50'
-                    : 'bg-zinc-900 text-zinc-400 border-zinc-800'
-                }`}
-              >
-                {creamsMode === 'LOW' ? '✓ Pocas Cremas' : 'Pocas Cremas'}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 5. EXTRAS */}
+      {/* 4. EXTRAS INDIVIDUALES PARA ESTE PRODUCTO */}
       {compatibleExtras.length > 0 && (
-        <div className="space-y-1.5">
-          <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
-            Extras Disponibles
+        <div className="space-y-1.5 bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/80">
+          <label className="text-[11px] font-extrabold text-orange-400 uppercase tracking-wider block flex items-center gap-1.5">
+            🧀 Extras para este plato
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
             {compatibleExtras.map((ext) => {
@@ -461,7 +466,10 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
                     }
                   `}
                 >
-                  <span>{ext.name}</span>
+                  <span className="flex items-center gap-1.5">
+                    {isSelected && <Check className="w-3.5 h-3.5 text-orange-400" />}
+                    <span>{ext.name}</span>
+                  </span>
                   <span className="text-[var(--color-porkos-orange)] font-bold">
                     +{formatCurrency(ext.price)}
                   </span>
@@ -472,31 +480,96 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
         </div>
       )}
 
-      {/* 6. NOTAS */}
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
-          Nota de Preparación
+      {/* 5. EMPAQUE / TAPER PARA ESTE PRODUCTO */}
+      <div className="space-y-1.5 bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/80">
+        <label className="text-[11px] font-extrabold text-orange-400 uppercase tracking-wider block flex items-center gap-1.5">
+          <Package className="w-3.5 h-3.5" /> Empaque / Taper para este producto
         </label>
-        <div className="flex flex-wrap gap-1 pb-0.5">
-          {['Papas bien doradas', 'Cremas aparte', 'Pan tostado', 'Sin sal'].map(
-            (sug) => (
+        <div className="grid grid-cols-2 gap-1.5">
+          {DEFAULT_PACKAGINGS.map((pkg) => {
+            const isSelected = selectedPackaging?.id === pkg.id;
+            return (
               <button
-                key={sug}
+                key={pkg.id}
                 type="button"
-                onClick={() => setNotes((prev) => (prev ? `${prev}, ${sug}` : sug))}
-                className="text-[10px] bg-zinc-900 hover:bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded border border-zinc-800 cursor-pointer"
+                onClick={() => setSelectedPackaging(pkg)}
+                className={`
+                  p-2 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all cursor-pointer text-left
+                  ${
+                    isSelected
+                      ? 'bg-zinc-800 text-white border-blue-400 font-bold shadow-sm'
+                      : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+                  }
+                `}
               >
-                +{sug}
+                <span className="flex items-center gap-1.5 truncate">
+                  {pkg.price > 0 ? (
+                    <Package className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  ) : (
+                    <Utensils className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                  )}
+                  <span className="truncate">{pkg.name}</span>
+                </span>
+                <span className={`text-[10px] font-bold shrink-0 ml-1 ${pkg.price > 0 ? 'text-blue-300' : 'text-zinc-500'}`}>
+                  {pkg.price > 0 ? `+${formatCurrency(pkg.price)}` : 'Gratis'}
+                </span>
               </button>
-            )
-          )}
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 6. TEMPERATURA (SI APLICA) */}
+      {product.temperatureConfig?.enabled && (
+        <div className="space-y-1.5 bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/80">
+          <label className="text-[11px] font-extrabold text-orange-400 uppercase tracking-wider block">
+            Temperatura de la Bebida
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {['HELADA', 'SIN_HELAR'].map((temp) => (
+              <button
+                key={temp}
+                type="button"
+                onClick={() => setTemperature(temp)}
+                className={`
+                  py-2 px-3 rounded-xl font-bold transition-all border cursor-pointer text-center
+                  ${
+                    temperature === temp
+                      ? 'bg-zinc-800 text-cyan-300 border-cyan-500 font-black shadow-sm'
+                      : 'bg-zinc-900/80 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+                  }
+                `}
+              >
+                {temp === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 7. NOTAS DE PREPARACIÓN */}
+      <div className="space-y-1.5 bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/80">
+        <label className="text-[11px] font-extrabold text-orange-400 uppercase tracking-wider block">
+          Nota Específica para este Plato
+        </label>
+        <div className="flex flex-wrap gap-1 pb-1">
+          {['Papas bien doradas', 'Cremas aparte', 'Término medio', 'Sin sal'].map((sug) => (
+            <button
+              key={sug}
+              type="button"
+              onClick={() => setNotes((prev) => (prev ? `${prev}, ${sug}` : sug))}
+              className="text-[10px] bg-zinc-900 hover:bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded border border-zinc-800 cursor-pointer"
+            >
+              +{sug}
+            </button>
+          ))}
         </div>
         <input
           type="text"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Indicación breve para cocina..."
-          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+          placeholder="Ej: Bien cocida, cebolla pochada..."
+          className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
         />
       </div>
 
@@ -527,6 +600,7 @@ export default function QuickCustomizerModal({
   product,
   initialCustomization = null,
   onConfirm,
+  cartItemId = null,
 }) {
   if (!isOpen || !product) return null;
 
@@ -543,7 +617,7 @@ export default function QuickCustomizerModal({
       maxWidth="max-w-lg"
     >
       <CustomizerForm
-        key={product.id + (initialCustomization ? '_editing' : '_adding')}
+        key={(cartItemId || product.id) + (initialCustomization ? '_editing' : '_adding')}
         product={product}
         initialCustomization={initialCustomization}
         onConfirm={onConfirm}

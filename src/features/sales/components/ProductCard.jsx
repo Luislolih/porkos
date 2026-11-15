@@ -14,7 +14,8 @@ export default function ProductCard({
       product.temperatureConfig?.enabled ||
       product.modifiers?.length > 0 ||
       product.availableExtraIds?.length > 0 ||
-      product.saladConfig?.enabled);
+      product.saladConfig?.enabled ||
+      product.type === 'RESTAURANTE');
 
   return (
     <div className="group relative bg-[#141414] border border-zinc-800/80 hover:border-zinc-700 rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-200 hover:shadow-lg active:scale-[0.99]">

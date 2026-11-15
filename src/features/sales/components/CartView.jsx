@@ -1,8 +1,22 @@
-import { Plus, Minus, Trash2, ShoppingBag, Flame, Box, User, CheckCircle, SlidersHorizontal } from 'lucide-react';
+import { Plus, Minus, Trash2, ShoppingBag, Flame, User, SlidersHorizontal, CheckCircle } from 'lucide-react';
 import { useCart } from '../../../context/useCart';
 import { formatCurrency } from '../../../utils/formatters';
-import { DEFAULT_PACKAGINGS } from '../../../types/defaultCatalog';
 import Button from '../../../components/ui/Button';
+
+function getPapasText(customization) {
+  const papasMod = customization?.selectedModifiers?.find(
+    (m) =>
+      m.groupId === 'mod_papas' ||
+      m.groupId === 'mod_corte_papas' ||
+      m.groupName?.toLowerCase().includes('papa')
+  );
+  if (!papasMod) return null;
+  const opt = papasMod.optionName.toLowerCase();
+  if (opt.includes('hilo')) return 'AL HILO';
+  if (opt.includes('sin')) return 'SIN PAPAS';
+  if (opt.includes('frita')) return 'FRITAS';
+  return papasMod.optionName.toUpperCase();
+}
 
 export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, onEditItem }) {
   const {
@@ -10,9 +24,6 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
     updateItemQuantity,
     removeItem,
     clearCart,
-    packagings,
-    addPackaging,
-    removePackaging,
     itemsSubtotal,
     packagingsTotal,
     deliveryFee,
@@ -122,66 +133,107 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
                 </span>
               </div>
 
-              {/* Customization Details */}
+              {/* Customization Details - Formato Gastronómico Interactivo */}
               {item.customization && (
-                <div className="text-[10px] space-y-0.5 bg-black/60 p-2 rounded-lg border border-zinc-900">
-                  {/* Cremas */}
-                  {item.customization.creamsSummary && (
-                    <div className="flex items-center gap-1 text-zinc-300">
-                      <span className="text-zinc-500 font-bold">Cremas:</span>
-                      <span className="font-semibold text-orange-300">
-                        {item.customization.creamsSummary}
+                <div
+                  onClick={() => onEditItem && onEditItem(item)}
+                  className="text-[11px] space-y-1 bg-black/60 p-2.5 rounded-xl border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer group"
+                  title="Toca para editar opciones de este producto"
+                >
+                  {/* PAPAS */}
+                  {getPapasText(item.customization) && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-orange-400 text-[10px] tracking-wider">
+                        PAPAS:
+                      </span>
+                      <span className="font-bold text-zinc-200">
+                        {getPapasText(item.customization)}
                       </span>
                     </div>
                   )}
 
-                  {/* Ensalada */}
+                  {/* CREMAS */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold text-orange-400 text-[10px] tracking-wider">
+                      CREMAS:
+                    </span>
+                    <span className="font-bold text-zinc-200">
+                      {item.customization.creamsSummary || 'SIN CREMAS'}
+                    </span>
+                  </div>
+
+                  {/* ENSALADA */}
                   {item.customization.saladSummary && (
-                    <div className="flex items-center gap-1 text-zinc-300">
-                      <span className="text-zinc-500 font-bold">Ensalada:</span>
-                      <span className="font-semibold text-emerald-400">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-emerald-400 text-[10px] tracking-wider">
+                        ENSALADA:
+                      </span>
+                      <span className="font-bold text-zinc-200">
                         {item.customization.saladSummary}
                       </span>
                     </div>
                   )}
 
-                  {/* Temperatura de bebida */}
+                  {/* EXTRAS */}
+                  {item.customization.selectedExtras?.length > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-amber-400 text-[10px] tracking-wider">
+                        EXTRAS:
+                      </span>
+                      <span className="font-bold text-amber-200">
+                        {item.customization.selectedExtras
+                          .map((e) => {
+                            const clean = e.name.replace(/^Extra\s+/i, '');
+                            return `${clean}${e.unitPrice ? ` (+${formatCurrency(e.unitPrice)})` : ''}`;
+                          })
+                          .join(', ')}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* EMPAQUE INDIVIDUAL */}
+                  {item.customization.packaging && item.customization.packaging.price > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-blue-400 text-[10px] tracking-wider">
+                        EMPAQUE:
+                      </span>
+                      <span className="font-bold text-blue-300">
+                        {item.customization.packaging.name} (+{formatCurrency(item.customization.packaging.price)})
+                      </span>
+                    </div>
+                  )}
+
+                  {/* TEMPERATURA */}
                   {item.customization.temperature && (
-                    <div className="flex items-center gap-1 text-zinc-300">
-                      <span className="text-zinc-500 font-bold">Temp:</span>
-                      <span className="font-semibold text-cyan-300">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-cyan-400 text-[10px] tracking-wider">
+                        TEMP:
+                      </span>
+                      <span className="font-bold text-cyan-300">
                         {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
                       </span>
                     </div>
                   )}
 
-                  {/* Modificadores (Papas) */}
-                  {item.customization.selectedModifiers?.map((m) => (
-                    <div key={m.groupId} className="text-zinc-400">
-                      • {m.optionName}
-                    </div>
-                  ))}
-
-                  {/* Extras */}
-                  {item.customization.selectedExtras?.map((e) => (
-                    <div key={e.id} className="text-emerald-400 font-medium">
-                      + {e.name} ({formatCurrency(e.unitPrice)})
-                    </div>
-                  ))}
-
-                  {/* Ingredientes retirados */}
-                  {item.customization.removedIngredients?.map((ing) => (
-                    <div key={ing} className="text-rose-400 line-through">
-                      Sin {ing}
-                    </div>
-                  ))}
-
-                  {/* Nota */}
+                  {/* NOTA */}
                   {item.customization.itemNotes && (
-                    <div className="text-amber-400/90 italic">
-                      Nota: &quot;{item.customization.itemNotes}&quot;
+                    <div className="flex items-start gap-1.5 pt-0.5 border-t border-zinc-800/80">
+                      <span className="font-extrabold text-zinc-400 text-[10px] tracking-wider">
+                        NOTA:
+                      </span>
+                      <span className="font-semibold text-amber-300 italic">
+                        &ldquo;{item.customization.itemNotes}&rdquo;
+                      </span>
                     </div>
                   )}
+
+                  {/* Indicador de edición interactiva */}
+                  <div className="pt-1 flex items-center justify-between text-[10px] text-zinc-500 border-t border-zinc-900 group-hover:text-zinc-400">
+                    <span>Toca para editar opciones</span>
+                    <span className="text-[var(--color-porkos-orange)] font-bold flex items-center gap-1">
+                      <SlidersHorizontal className="w-3 h-3" /> Modificar
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -196,12 +248,12 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
 
-                  {/* Botón para editar la personalización de este producto específico */}
-                  {item.requiresKitchen && onEditItem && (
+                  {/* Botón para editar la personalización de este producto */}
+                  {onEditItem && (
                     <button
                       onClick={() => onEditItem(item)}
                       className="flex items-center gap-1 text-[10px] font-bold text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded-md border border-zinc-700 transition-all cursor-pointer"
-                      title="Editar cremas, papas, ensalada o extras de este ítem"
+                      title="Editar cremas, papas, ensalada, extras o empaque de este ítem"
                     >
                       <SlidersHorizontal className="w-3 h-3 text-[var(--color-porkos-orange)]" />
                       <span>Modificar</span>
@@ -229,42 +281,6 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
               </div>
             </div>
           ))
-        )}
-
-        {/* Tapers & Empaques */}
-        {items.length > 0 && (
-          <div className="pt-2 border-t border-zinc-800 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-400 font-bold flex items-center gap-1">
-                <Box className="w-3.5 h-3.5 text-zinc-400" /> Tapers & Empaques
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-1.5">
-              {DEFAULT_PACKAGINGS.map((pkg) => {
-                const added = packagings.find((p) => p.packagingId === pkg.id);
-                return (
-                  <button
-                    key={pkg.id}
-                    onClick={() => (added ? removePackaging(pkg.id) : addPackaging(pkg))}
-                    className={`
-                      p-1.5 rounded-lg border text-[11px] font-semibold text-left transition-all flex items-center justify-between cursor-pointer
-                      ${
-                        added
-                          ? 'bg-amber-500/10 text-amber-300 border-amber-500/40'
-                          : 'bg-black/30 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-                      }
-                    `}
-                  >
-                    <span className="truncate">{pkg.name}</span>
-                    <span className="shrink-0 font-bold ml-1">
-                      {added ? `${added.quantity}x` : `+${formatCurrency(pkg.price)}`}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         )}
 
         {/* General Notes for Order */}

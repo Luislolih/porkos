@@ -23,8 +23,9 @@ export function CartProvider({ children }) {
       (sum, ext) => sum + (ext.unitPrice * (ext.quantity || 1)),
       0
     ) || 0;
+    const packagingPrice = customization?.packaging?.price || 0;
 
-    const unitPrice = product.price + extrasTotal;
+    const unitPrice = product.price + extrasTotal + packagingPrice;
     const itemId = `${product.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
 
     const newItem = {
@@ -37,10 +38,11 @@ export function CartProvider({ children }) {
       requiresKitchen: product.requiresKitchen ?? true,
       image: product.image,
       customization: customization || {
-        creamsSummary: 'NORMAL',
+        creamsSummary: 'SIN CREMAS',
         creamsDetail: { selected: [], removed: [], lowQuantity: [] },
         selectedModifiers: [],
         selectedExtras: [],
+        packaging: null,
         removedIngredients: [],
         itemNotes: '',
       },
@@ -77,7 +79,8 @@ export function CartProvider({ children }) {
             (sum, ext) => sum + (ext.unitPrice * (ext.quantity || 1)),
             0
           ) || 0;
-          const newUnitPrice = item.basePrice + extrasTotal;
+          const packagingPrice = newCustomization?.packaging?.price || 0;
+          const newUnitPrice = item.basePrice + extrasTotal + packagingPrice;
           return {
             ...item,
             unitPrice: newUnitPrice,

@@ -73,13 +73,19 @@ export function getItemTicketDetails(customization) {
     lines.push({ label: 'EXTRAS', value: extrasList, type: 'extras' });
   }
 
-  // 5. TEMPERATURA
+  // 5. EMPAQUE / TAPER
+  if (customization.packaging && customization.packaging.price > 0) {
+    const pkgName = customization.packaging.name.replace(/^Taper Térmico\s+/i, 'TAPER ');
+    lines.push({ label: 'EMPAQUE', value: pkgName.toUpperCase(), type: 'packaging' });
+  }
+
+  // 6. TEMPERATURA
   if (customization.temperature) {
     const tempVal = customization.temperature === 'HELADA' ? 'Helada' : 'Sin Helar';
     lines.push({ label: 'TEMP', value: tempVal, type: 'temp' });
   }
 
-  // 6. NOTA DE PREPARACIÓN
+  // 7. NOTA DE PREPARACIÓN
   if (customization.itemNotes) {
     lines.push({ label: 'NOTA', value: customization.itemNotes, type: 'note' });
   }

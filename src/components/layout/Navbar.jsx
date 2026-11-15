@@ -19,7 +19,15 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
     { id: MODULES.CATALOG, label: 'Productos', icon: UtensilsCrossed },
     { id: MODULES.EXPENSES, label: 'Gastos', icon: Wallet },
     { id: MODULES.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
-    { id: MODULES.SETTINGS, label: 'Ajustes', icon: Settings },
+    { id: MODULES.SETTINGS, label: 'Configuración', icon: Settings },
+  ];
+
+  const mobileNavItems = [
+    { id: MODULES.SALES, label: 'Ventas', icon: ShoppingBag },
+    { id: MODULES.KITCHEN, label: 'Cocina', icon: Flame, badge: activeOrdersCount },
+    { id: MODULES.ORDERS, label: 'Pedidos', icon: ClipboardList },
+    { id: 'mesas', label: 'Mesas', icon: Grid2X2 },
+    { id: MODULES.SETTINGS, label: 'Configuración', icon: Settings },
   ];
 
   return (
@@ -97,7 +105,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
 
       {/* Mobile Bottom Navigation Bar */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--color-porkos-surface)] border-t border-[var(--color-porkos-border)] px-2 py-1.5 flex items-center justify-around shadow-2xl">
-        {navItems.slice(0, 5).map((item) => {
+        {mobileNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentModule === item.id;
           return (
