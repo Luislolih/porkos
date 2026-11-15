@@ -200,11 +200,8 @@ export default function CatalogView() {
           </div>
           <div>
             <h2 className="text-xl font-extrabold text-white tracking-tight">
-              Administración de Catálogo
+              Catálogo & Precios
             </h2>
-            <p className="text-xs text-[var(--color-porkos-muted)]">
-              Configura productos, precios, fotos, papas, ensaladas y cremas
-            </p>
           </div>
         </div>
 
@@ -383,18 +380,18 @@ export default function CatalogView() {
             >
               <div className="flex items-center gap-3">
                 <span
-                  className="w-7 h-7 rounded-full border-2 border-white/20 shadow-md shrink-0"
+                  className="w-8 h-8 rounded-xl border border-white/20 shadow-md shrink-0 flex items-center justify-center"
                   style={{ backgroundColor: c.color }}
                 />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-bold text-sm text-white truncate">{c.name}</h4>
-                    <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-mono font-black text-orange-400 border border-zinc-700">
+                    <span className="font-mono font-black text-base text-[var(--color-porkos-orange)] tracking-wider">
                       {c.shortName || c.name.slice(0, 4).toUpperCase()}
                     </span>
+                    <span className="text-xs font-semibold text-zinc-400 truncate">({c.name})</span>
                   </div>
                   <span className={`text-[10px] font-bold ${c.active ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                    {c.active ? 'Activa para ventas' : 'Desactivada'}
+                    {c.active ? 'Activa' : 'Desactivada'}
                   </span>
                 </div>
               </div>
@@ -743,9 +740,6 @@ export default function CatalogView() {
               placeholder="Ej. MAYO, KET, MOS, AJÍ, BBQ"
               className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono font-bold uppercase tracking-wider focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
-            <span className="text-[10px] text-zinc-400 mt-1 block">
-              Aparecerá en los tickets de cocina y resumen del pedido.
-            </span>
           </div>
 
           <div>

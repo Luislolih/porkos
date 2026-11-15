@@ -99,7 +99,7 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
 
       // SIN CREMAS marcadas por defecto
       addItem(product, {
-        temperature: product.temperatureConfig?.defaultOption || 'HELADA',
+        temperature: product.temperatureConfig?.enabled ? (product.temperatureConfig?.defaultOption || 'HELADA') : null,
         creamsSummary: '',
         creamsDetail: {
           selected: [],

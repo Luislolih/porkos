@@ -52,17 +52,10 @@ export default function ProductCard({
       </div>
 
       {/* Product Details */}
-      <div className="p-3 flex-1 flex flex-col justify-between gap-2">
-        <div>
-          <h4 className="font-bold text-xs sm:text-sm text-white line-clamp-1 group-hover:text-[var(--color-porkos-orange)] transition-colors">
-            {product.name}
-          </h4>
-          {product.description && (
-            <p className="text-[11px] text-zinc-400 line-clamp-2 mt-0.5 leading-snug">
-              {product.description}
-            </p>
-          )}
-        </div>
+      <div className="p-2.5 flex-1 flex flex-col justify-between gap-2">
+        <h4 className="font-bold text-xs sm:text-sm text-white line-clamp-2 group-hover:text-[var(--color-porkos-orange)] transition-colors">
+          {product.name}
+        </h4>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-1.5 pt-1">

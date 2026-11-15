@@ -49,9 +49,6 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
                   POS
                 </span>
               </div>
-              <p className="text-[11px] text-[var(--color-porkos-muted)] hidden sm:block">
-                Hamburguesería & Choripanería Artesanal
-              </p>
             </div>
           </div>
 

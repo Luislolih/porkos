@@ -15,11 +15,8 @@ export default function SettingsView() {
           </div>
           <div>
             <h2 className="text-xl font-extrabold text-white tracking-tight">
-              Configuración del Sistema & Catálogo
+              Configuración
             </h2>
-            <p className="text-xs text-[var(--color-porkos-muted)]">
-              Edita productos, precios, fotos, cremas, diminutivos y estado de servicios
-            </p>
           </div>
         </div>
 
