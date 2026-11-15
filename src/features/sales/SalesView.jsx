@@ -43,22 +43,31 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
   } = useCart();
 
   // Filtrar productos por Línea (CLÁSICO / ARTESANAL / BEBIDAS_MARKET), Subcategoría y Búsqueda
+  // En Restaurante se pueden incluir todos los productos (incluidos gaseosas y market para comandas)
   // Ordenados POR DEFECTO de mayor a menor salida según el histórico (salesCount)
   const filteredAndSortedProducts = useMemo(() => {
     const list = products.filter((prod) => {
-      // 1. Separación estricta entre modalidades:
+      // 1. En modo MARKET (Caja Rápida), mostrar exclusivamente productos de Market
       if (salesMode === SALES_MODES.MARKET) {
         if (prod.type !== 'MARKET') return false;
       } else {
-        if (prod.type === 'MARKET') return false;
+        // En modo RESTAURANTE: todos los productos (Restaurante y Market) pueden pedirse en comandas
         // Filtrar por Línea en Restaurante (si no es TODOS)
-        if (selectedLine !== 'ALL' && prod.line !== selectedLine) return false;
+        if (selectedLine === 'CLASICO' && prod.line !== 'CLASICO') return false;
+        if (selectedLine === 'ARTESANAL' && prod.line !== 'ARTESANAL') return false;
+        if (selectedLine === 'BEBIDAS_MARKET' && prod.line !== 'BEBIDAS_MARKET' && prod.type !== 'MARKET') return false;
       }
 
-      // Filtrar por Subcategoría (si no es todas)
-      if (selectedSubcategory !== 'all' && prod.subcategory !== selectedSubcategory) return false;
+      // 2. Filtrar por Subcategoría (si no es todas)
+      if (selectedSubcategory !== 'all') {
+        if (selectedSubcategory === 'market') {
+          if (prod.subcategory !== 'market' && prod.type !== 'MARKET') return false;
+        } else if (prod.subcategory !== selectedSubcategory) {
+          return false;
+        }
+      }
 
-      // Búsqueda por texto
+      // 3. Búsqueda por texto
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         return (
@@ -76,13 +85,17 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
 
   // Añadir rápido (Por defecto SIN cremas marcadas, el usuario las personaliza o pide directo)
   const handleQuickAdd = (product) => {
-    if (product.type === SALES_MODES.MARKET) {
+    if (product.type === 'MARKET' || product.type === SALES_MODES.MARKET) {
+      // Productos de market en comandas: SIN cremas, SIN papas, SIN modificadores
       addItem(product, {
-        temperature: product.temperatureConfig?.enabled ? 'HELADA' : null,
+        temperature: product.temperatureConfig?.enabled ? (product.temperatureConfig?.defaultOption || 'HELADA') : null,
         creamsSummary: '',
+        creamsDetail: { selected: [], mode: 'NONE' },
+        saladSummary: '',
         selectedModifiers: [],
         selectedExtras: [],
         removedIngredients: [],
+        packaging: null,
         itemNotes: '',
       });
     } else {

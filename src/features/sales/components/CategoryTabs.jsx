@@ -40,11 +40,12 @@ export default function CategoryTabs({
     );
   }
 
-  // En modo RESTAURANTE, mostrar las líneas gastronómicas y subcategorías de cocina
+  // En modo RESTAURANTE, mostrar las líneas gastronómicas y subcategorías completas (incluido bebidas y market)
   const restaurantLines = [
     PRODUCT_LINES.ALL,
     PRODUCT_LINES.CLASICO,
     PRODUCT_LINES.ARTESANAL,
+    PRODUCT_LINES.BEBIDAS_MARKET,
   ];
 
   const restaurantSubcategories = [
@@ -52,7 +53,8 @@ export default function CategoryTabs({
     { id: 'hamburguesas', label: 'Hamburguesas' },
     { id: 'choripanes', label: 'Choriporkos' },
     { id: 'salchipapas', label: 'Salchiporkos' },
-    { id: 'bebidas', label: 'Bebidas de Casa' },
+    { id: 'bebidas', label: 'Bebidas & Gaseosas' },
+    { id: 'market', label: 'Snacks & Postres' },
   ];
 
   return (

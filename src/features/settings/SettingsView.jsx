@@ -31,7 +31,7 @@ export default function SettingsView() {
             }`}
           >
             <UtensilsCrossed className="w-3.5 h-3.5" />
-            <span>Productos & Cremas</span>
+            <span>Catálogo & Opciones</span>
           </button>
           <button
             onClick={() => setActiveTab('system')}

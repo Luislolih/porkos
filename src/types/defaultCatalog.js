@@ -44,10 +44,10 @@ export const DEFAULT_EXTRAS = [
 ];
 
 export const DEFAULT_PACKAGINGS = [
-  { id: 'pkg_ninguno', name: 'Sin Empaque / Salón', price: 0, active: true },
-  { id: 'pkg_taper_med', name: 'Taper Térmico Mediano', price: 1.00, active: true },
-  { id: 'pkg_taper_gra', name: 'Taper Térmico Grande', price: 1.50, active: true },
-  { id: 'pkg_bolsa_kraft', name: 'Bolsa Kraft Reforzada', price: 0.50, active: true },
+  { id: 'pkg_ninguno', name: 'Sin Empaque / Salón', price: 0, active: true, applicableProductIds: [] },
+  { id: 'pkg_taper_med', name: 'Taper Térmico Mediano', price: 1.00, active: true, applicableProductIds: ['prod_porkoburger_clasica', 'prod_choriporko_clasico', 'prod_choriporko_artesanal'] },
+  { id: 'pkg_taper_gra', name: 'Taper Térmico Grande', price: 1.50, active: true, applicableProductIds: ['prod_salchiporko_clasica', 'prod_porkoburger_doble', 'prod_salchiporko_especial'] },
+  { id: 'pkg_bolsa_kraft', name: 'Bolsa Kraft Reforzada', price: 0.50, active: true, applicableProductIds: ['prod_porkoburger_clasica', 'prod_salchiporko_clasica', 'prod_choriporko_clasico', 'prod_choriporko_artesanal', 'prod_porkoburger_doble', 'prod_salchiporko_especial'] },
 ];
 
 export const DEFAULT_PRODUCTS = [
@@ -67,6 +67,7 @@ export const DEFAULT_PRODUCTS = [
     requiresKitchen: true,
     active: true,
     defaultPackagingId: 'pkg_taper_med',
+    availablePackagingIds: ['pkg_taper_med', 'pkg_bolsa_kraft'],
     modifiers: [
       {
         id: 'mod_papas',
@@ -108,6 +109,7 @@ export const DEFAULT_PRODUCTS = [
     requiresKitchen: true,
     active: true,
     defaultPackagingId: 'pkg_taper_gra',
+    availablePackagingIds: ['pkg_taper_gra', 'pkg_bolsa_kraft'],
     modifiers: [
       {
         id: 'mod_corte_papas',
@@ -143,6 +145,7 @@ export const DEFAULT_PRODUCTS = [
     requiresKitchen: true,
     active: true,
     defaultPackagingId: 'pkg_taper_med',
+    availablePackagingIds: ['pkg_taper_med', 'pkg_bolsa_kraft'],
     modifiers: [
       {
         id: 'mod_chimichurri',
@@ -180,6 +183,7 @@ export const DEFAULT_PRODUCTS = [
     requiresKitchen: true,
     active: true,
     defaultPackagingId: 'pkg_taper_med',
+    availablePackagingIds: ['pkg_taper_med', 'pkg_bolsa_kraft'],
     modifiers: [
       {
         id: 'mod_chimichurri',
@@ -216,6 +220,7 @@ export const DEFAULT_PRODUCTS = [
     requiresKitchen: true,
     active: true,
     defaultPackagingId: 'pkg_taper_gra',
+    availablePackagingIds: ['pkg_taper_gra', 'pkg_bolsa_kraft'],
     modifiers: [
       {
         id: 'mod_papas',
@@ -257,6 +262,7 @@ export const DEFAULT_PRODUCTS = [
     requiresKitchen: true,
     active: true,
     defaultPackagingId: 'pkg_taper_gra',
+    availablePackagingIds: ['pkg_taper_gra', 'pkg_bolsa_kraft'],
     modifiers: [
       {
         id: 'mod_corte_papas',

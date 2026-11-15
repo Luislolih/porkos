@@ -5,7 +5,11 @@ import { DEFAULT_EXTRAS, DEFAULT_PACKAGINGS } from '../../../types/defaultCatalo
 import { useCatalog } from '../../../context/useCatalog';
 
 function CustomizerForm({ product, initialCustomization = null, onConfirm, onClose }) {
-  const { creams: catalogCreams } = useCatalog();
+  const {
+    creams: catalogCreams,
+    packagings: catalogPackagings,
+    extras: catalogExtras,
+  } = useCatalog();
 
   // 1. Temperatura: ÚNICAMENTE si el producto la tiene habilitada explícitamente
   const hasTemperature = Boolean(product.temperatureConfig?.enabled);
@@ -57,8 +61,9 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
     return initialCustomization?.saladDetail?.mode || 'CON_ENSALADA';
   });
 
-  // 5. Extras compatibles
-  const compatibleExtras = DEFAULT_EXTRAS.filter((e) => {
+  // 5. Extras compatibles dinámicos
+  const allExtras = catalogExtras || DEFAULT_EXTRAS;
+  const compatibleExtras = allExtras.filter((e) => {
     if (!e.active) return false;
     if (product.availableExtraIds && product.availableExtraIds.length > 0) {
       return product.availableExtraIds.includes(e.id);
@@ -73,12 +78,25 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
     return initialCustomization?.selectedExtras || [];
   });
 
-  // 6. Empaque para este producto
+  // 6. Empaques asociados estrictamente a este producto
+  const allPackagings = catalogPackagings || DEFAULT_PACKAGINGS;
+  const availablePackagings = allPackagings.filter((pkg) => {
+    if (!pkg.active) return false;
+    if (pkg.id === 'pkg_ninguno') return true;
+    const isAssociatedInProduct = product.availablePackagingIds?.includes(pkg.id);
+    const isAssociatedInPkg = pkg.applicableProductIds?.includes(product.id);
+    return isAssociatedInProduct || isAssociatedInPkg;
+  });
+
+  // Solo mostrar empaque si el producto tiene opciones de pago asociadas
+  const hasPaidPackaging = availablePackagings.some((pkg) => pkg.id !== 'pkg_ninguno');
+
   const [selectedPackaging, setSelectedPackaging] = useState(() => {
     if (initialCustomization?.packaging) {
-      return initialCustomization.packaging;
+      const match = availablePackagings.find((p) => p.id === initialCustomization.packaging.id);
+      if (match) return match;
     }
-    return DEFAULT_PACKAGINGS[0]; // Sin empaque / Salón
+    return availablePackagings[0] || { id: 'pkg_ninguno', name: 'Sin Empaque / Salón', price: 0 };
   });
 
   // 7. Notas
@@ -307,37 +325,39 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
         </div>
       )}
 
-      {/* 4. EMPAQUE / TAPER */}
-      <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-        <span className="text-xs font-black text-white uppercase tracking-wider block">
-          Empaque
-        </span>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {DEFAULT_PACKAGINGS.map((pkg) => {
-            const isSelected = selectedPackaging?.id === pkg.id;
-            return (
-              <button
-                key={pkg.id}
-                type="button"
-                onClick={() => setSelectedPackaging(pkg)}
-                className={`
-                  h-12 sm:h-14 p-2 rounded-xl border-2 flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer
-                  ${
-                    isSelected
-                      ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md'
-                      : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
-                  }
-                `}
-              >
-                <span className="text-xs font-bold leading-tight truncate">{pkg.name}</span>
-                <span className={`text-[10px] ${isSelected ? 'text-black font-extrabold' : 'text-zinc-500 font-semibold'}`}>
-                  {pkg.price > 0 ? `+${formatCurrency(pkg.price)}` : 'Gratis'}
-                </span>
-              </button>
-            );
-          })}
+      {/* 4. EMPAQUE / TAPER (ÚNICAMENTE SI TIENE EMPAQUES ASOCIADOS A ESTE PRODUCTO) */}
+      {hasPaidPackaging && (
+        <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
+          <span className="text-xs font-black text-white uppercase tracking-wider block">
+            Empaque
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {availablePackagings.map((pkg) => {
+              const isSelected = selectedPackaging?.id === pkg.id;
+              return (
+                <button
+                  key={pkg.id}
+                  type="button"
+                  onClick={() => setSelectedPackaging(pkg)}
+                  className={`
+                    h-12 sm:h-14 p-2 rounded-xl border-2 flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer
+                    ${
+                      isSelected
+                        ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md'
+                        : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                    }
+                  `}
+                >
+                  <span className="text-xs font-bold leading-tight truncate">{pkg.name}</span>
+                  <span className={`text-[10px] ${isSelected ? 'text-black font-extrabold' : 'text-zinc-500 font-semibold'}`}>
+                    {pkg.price > 0 ? `+${formatCurrency(pkg.price)}` : 'Gratis'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 5. EXTRAS */}
       {compatibleExtras.length > 0 && (
