@@ -19,37 +19,69 @@ export function CartProvider({ children }) {
   const [discount, setDiscount] = useState(0);
 
   const addItem = (product, customization = null) => {
-    const extrasTotal = customization?.selectedExtras?.reduce(
-      (sum, ext) => sum + (ext.unitPrice * (ext.quantity || 1)),
-      0
-    ) || 0;
-    const packagingPrice = customization?.packaging?.price || 0;
+    // Si es un producto de MARKET o estándar sin extras/personalizaciones, incrementar cantidad directamente
+    const isStandardItem =
+      product.type === 'MARKET' ||
+      (!customization?.selectedExtras?.length &&
+        !customization?.packaging?.price &&
+        !customization?.itemNotes);
 
-    const unitPrice = product.price + extrasTotal + packagingPrice;
-    const itemId = `${product.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+    setItems((prev) => {
+      if (isStandardItem) {
+        const idx = prev.findIndex(
+          (i) =>
+            i.productId === product.id &&
+            (!i.customization?.selectedExtras?.length &&
+              !i.customization?.packaging?.price &&
+              !i.customization?.itemNotes)
+        );
+        if (idx >= 0) {
+          return prev.map((item, index) => {
+            if (index === idx) {
+              const newQty = item.quantity + 1;
+              return {
+                ...item,
+                quantity: newQty,
+                subtotal: item.unitPrice * newQty,
+              };
+            }
+            return item;
+          });
+        }
+      }
 
-    const newItem = {
-      itemId,
-      productId: product.id,
-      name: product.name,
-      basePrice: product.price,
-      unitPrice,
-      quantity: 1,
-      requiresKitchen: product.requiresKitchen ?? true,
-      image: product.image,
-      customization: customization || {
-        creamsSummary: 'SIN CREMAS',
-        creamsDetail: { selected: [], removed: [], lowQuantity: [] },
-        selectedModifiers: [],
-        selectedExtras: [],
-        packaging: null,
-        removedIngredients: [],
-        itemNotes: '',
-      },
-      subtotal: unitPrice,
-    };
+      const extrasTotal =
+        customization?.selectedExtras?.reduce(
+          (sum, ext) => sum + ext.unitPrice * (ext.quantity || 1),
+          0
+        ) || 0;
+      const packagingPrice = customization?.packaging?.price || 0;
+      const unitPrice = product.price + extrasTotal + packagingPrice;
+      const itemId = `${product.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
 
-    setItems((prev) => [...prev, newItem]);
+      const newItem = {
+        itemId,
+        productId: product.id,
+        name: product.name,
+        basePrice: product.price,
+        unitPrice,
+        quantity: 1,
+        requiresKitchen: product.type === 'MARKET' ? false : (product.requiresKitchen ?? true),
+        image: product.image,
+        customization: customization || {
+          creamsSummary: 'SIN CREMAS',
+          creamsDetail: { selected: [], removed: [], lowQuantity: [] },
+          selectedModifiers: [],
+          selectedExtras: [],
+          packaging: null,
+          removedIngredients: [],
+          itemNotes: '',
+        },
+        subtotal: unitPrice,
+      };
+
+      return [...prev, newItem];
+    });
   };
 
   const updateItemQuantity = (itemId, delta) => {

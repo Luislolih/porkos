@@ -8,14 +8,8 @@ export default function ProductCard({
   onCustomize,
   isMarketMode = false,
 }) {
-  const hasCustomizations =
-    !isMarketMode &&
-    (product.creamsConfig?.enabled ||
-      product.temperatureConfig?.enabled ||
-      product.modifiers?.length > 0 ||
-      product.availableExtraIds?.length > 0 ||
-      product.saladConfig?.enabled ||
-      product.type === 'RESTAURANTE');
+  const isMarketItem = isMarketMode || product.type === 'MARKET';
+  const hasCustomizations = !isMarketItem && product.type === 'RESTAURANTE';
 
   return (
     <div className="group relative bg-[#141414] border border-zinc-800/80 hover:border-zinc-700 rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-200 hover:shadow-lg active:scale-[0.99]">
@@ -36,7 +30,7 @@ export default function ProductCard({
 
         {/* Badges on image */}
         <div className="absolute top-2 left-2 flex items-center gap-1">
-          {product.requiresKitchen && (
+          {product.requiresKitchen && !isMarketItem && (
             <span className="bg-black/80 text-zinc-300 text-[10px] font-bold px-1.5 py-0.5 rounded border border-zinc-700/60 flex items-center gap-1">
               <Flame className="w-3 h-3 text-[var(--color-porkos-orange)]" /> Cocina
             </span>
@@ -63,10 +57,10 @@ export default function ProductCard({
           <button
             onClick={() => onQuickAdd(product)}
             className="flex-1 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black font-extrabold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-1 transition-all active:scale-95 shadow-sm cursor-pointer"
-            title="Añadir con opciones predeterminadas"
+            title={isMarketItem ? 'Añadir al carrito' : 'Añadir con opciones predeterminadas'}
           >
             <Plus className="w-3.5 h-3.5 stroke-[3]" />
-            <span>{isMarketMode ? 'Añadir' : 'Directo'}</span>
+            <span>{isMarketItem ? 'Añadir' : 'Directo'}</span>
           </button>
 
           {/* Customize Button if it has options */}

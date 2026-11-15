@@ -32,7 +32,10 @@ export default function SalesHeader({
         {/* Toggle Mode */}
         <div className="flex bg-zinc-900/80 p-1 rounded-xl border border-zinc-800 shrink-0">
           <button
-            onClick={() => setSalesMode(SALES_MODES.RESTAURANT)}
+            onClick={() => {
+              setSalesMode(SALES_MODES.RESTAURANT);
+              setModality(ORDER_MODALITIES.MESA.id);
+            }}
             className={`
               flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer
               ${
@@ -46,12 +49,16 @@ export default function SalesHeader({
             <span>RESTAURANTE</span>
           </button>
           <button
-            onClick={() => setSalesMode(SALES_MODES.MARKET)}
+            onClick={() => {
+              setSalesMode(SALES_MODES.MARKET);
+              setModality('MARKET');
+              setSelectedTable(null);
+            }}
             className={`
               flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer
               ${
                 salesMode === SALES_MODES.MARKET
-                  ? 'bg-zinc-700 text-white font-bold shadow-sm'
+                  ? 'bg-blue-600 text-white font-black shadow-sm'
                   : 'text-zinc-400 hover:text-white'
               }
             `}

@@ -1,4 +1,4 @@
-import { Plus, Minus, Trash2, ShoppingBag, Flame, User, SlidersHorizontal, CheckCircle } from 'lucide-react';
+import { Plus, Minus, Trash2, ShoppingBag, Flame, User, SlidersHorizontal, CheckCircle, Store } from 'lucide-react';
 import { useCart } from '../../../context/useCart';
 import { formatCurrency } from '../../../utils/formatters';
 import Button from '../../../components/ui/Button';
@@ -18,7 +18,13 @@ function getPapasText(customization) {
   return papasMod.optionName.toUpperCase();
 }
 
-export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, onEditItem }) {
+export default function CartView({
+  onSendToKitchen,
+  onCheckout,
+  onSettleTable,
+  onEditItem,
+  isMarketMode = false,
+}) {
   const {
     items,
     updateItemQuantity,
@@ -45,9 +51,13 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
       {/* Header */}
       <div className="p-3.5 border-b border-[var(--color-porkos-border)] flex items-center justify-between bg-black/30">
         <div className="flex items-center gap-2">
-          <ShoppingBag className="w-5 h-5 text-[var(--color-porkos-orange)]" />
+          {isMarketMode ? (
+            <Store className="w-5 h-5 text-blue-400" />
+          ) : (
+            <ShoppingBag className="w-5 h-5 text-[var(--color-porkos-orange)]" />
+          )}
           <h3 className="font-bold text-sm sm:text-base text-white">
-            Comanda Actual
+            {isMarketMode ? 'Venta Market (Caja Rápida)' : 'Comanda Actual'}
           </h3>
           <span className="bg-zinc-800 text-zinc-300 font-extrabold text-xs px-2 py-0.5 rounded-full">
             {itemCount}
@@ -64,25 +74,25 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
         )}
       </div>
 
-      {/* Target status bar: Mesa / Cliente / Modalidad */}
-      <div className="px-3.5 py-2.5 bg-black/30 border-b border-[var(--color-porkos-border)] space-y-2">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-zinc-400">Modalidad: <strong className="text-white">{modality}</strong></span>
-          {selectedTable && (
-            <span
-              className={`font-black px-2 py-0.5 rounded-md text-[11px] border ${
-                isTableOccupied
-                  ? 'bg-orange-500/20 text-orange-400 border-orange-500/40'
-                  : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-              }`}
-            >
-              {selectedTable.label} ({isTableOccupied ? 'Mesa Abierta' : 'Libre'})
-            </span>
-          )}
-        </div>
+      {/* Target status bar: Mesa / Cliente / Modalidad (SOLO en Restaurante) */}
+      {!isMarketMode && (
+        <div className="px-3.5 py-2.5 bg-black/30 border-b border-[var(--color-porkos-border)] space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-zinc-400">Modalidad: <strong className="text-white">{modality}</strong></span>
+            {selectedTable && (
+              <span
+                className={`font-black px-2 py-0.5 rounded-md text-[11px] border ${
+                  isTableOccupied
+                    ? 'bg-orange-500/20 text-orange-400 border-orange-500/40'
+                    : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                }`}
+              >
+                {selectedTable.label} ({isTableOccupied ? 'Mesa Abierta' : 'Libre'})
+              </span>
+            )}
+          </div>
 
-        {/* Input del Nombre del Cliente en Comanda Regular */}
-        {modality !== 'MARKET' && (
+          {/* Input del Nombre del Cliente en Comanda Regular */}
           <div className="relative">
             <User className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
             <input
@@ -93,17 +103,25 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
               className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Items list */}
       <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
         {items.length === 0 ? (
           <div className="h-48 flex flex-col items-center justify-center text-center text-zinc-500">
-            <ShoppingBag className="w-10 h-10 mb-2 opacity-30" />
-            <p className="text-xs font-semibold">Comanda vacía</p>
+            {isMarketMode ? (
+              <Store className="w-10 h-10 mb-2 opacity-30 text-blue-400" />
+            ) : (
+              <ShoppingBag className="w-10 h-10 mb-2 opacity-30" />
+            )}
+            <p className="text-xs font-semibold">
+              {isMarketMode ? 'Venta vacía' : 'Comanda vacía'}
+            </p>
             <p className="text-[11px] text-zinc-600 mt-0.5">
-              Toca un producto para añadirlo
+              {isMarketMode
+                ? 'Toca un producto para cobrarlo al instante'
+                : 'Toca un producto para añadirlo a la comanda'}
             </p>
           </div>
         ) : (
@@ -114,12 +132,12 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
             >
               {/* Main row: Title, quantity, price */}
               <div className="flex items-start justify-between gap-2">
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     {item.requiresKitchen && (
                       <Flame className="w-3.5 h-3.5 text-[var(--color-porkos-orange)] shrink-0" />
                     )}
-                    <h5 className="font-bold text-xs sm:text-sm text-white leading-tight">
+                    <h5 className="font-bold text-xs sm:text-sm text-white leading-tight truncate">
                       {item.name}
                     </h5>
                   </div>
@@ -133,8 +151,8 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
                 </span>
               </div>
 
-              {/* Customization Details - Formato Gastronómico Interactivo */}
-              {item.customization && (
+              {/* Customization Details - Formato Gastronómico Interactivo (SOLO si requiere cocina y no es market) */}
+              {!isMarketMode && item.requiresKitchen && item.customization && (
                 <div
                   onClick={() => onEditItem && onEditItem(item)}
                   className="text-[11px] space-y-1 bg-black/60 p-2.5 rounded-xl border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer group"
@@ -243,17 +261,17 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
                   <button
                     onClick={() => removeItem(item.itemId)}
                     className="p-1 text-zinc-500 hover:text-rose-400 transition-colors cursor-pointer"
-                    title="Eliminar de comanda"
+                    title="Eliminar de la venta"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
 
                   {/* Botón para editar la personalización de este producto */}
-                  {onEditItem && (
+                  {!isMarketMode && item.requiresKitchen && onEditItem && (
                     <button
                       onClick={() => onEditItem(item)}
                       className="flex items-center gap-1 text-[10px] font-bold text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded-md border border-zinc-700 transition-all cursor-pointer"
-                      title="Editar cremas, papas, ensalada, extras o empaque de este ítem"
+                      title="Editar cremas, papas, ensalada, extras o empaque"
                     >
                       <SlidersHorizontal className="w-3 h-3 text-[var(--color-porkos-orange)]" />
                       <span>Modificar</span>
@@ -264,7 +282,7 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
                 <div className="flex items-center gap-2 bg-zinc-900 px-2 py-0.5 rounded-lg border border-zinc-800">
                   <button
                     onClick={() => updateItemQuantity(item.itemId, -1)}
-                    className="text-zinc-400 hover:text-white p-1 cursor-pointer"
+                    className="text-zinc-400 hover:text-white p-1 cursor-pointer font-bold"
                   >
                     <Minus className="w-3.5 h-3.5" />
                   </button>
@@ -273,7 +291,7 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
                   </span>
                   <button
                     onClick={() => updateItemQuantity(item.itemId, 1)}
-                    className="text-zinc-400 hover:text-white p-1 cursor-pointer"
+                    className="text-zinc-400 hover:text-white p-1 cursor-pointer font-bold"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
@@ -283,14 +301,14 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
           ))
         )}
 
-        {/* General Notes for Order */}
-        {items.length > 0 && (
+        {/* General Notes for Order (SOLO en Restaurante) */}
+        {!isMarketMode && items.length > 0 && (
           <div className="pt-2">
             <input
               type="text"
               value={generalNotes}
               onChange={(e) => setGeneralNotes(e.target.value)}
-              placeholder="Nota general del pedido (ej. Cliente espera afuera)..."
+              placeholder="Nota general del pedido..."
               className="w-full bg-black/40 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
@@ -302,16 +320,16 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
         {/* Price Breakdown */}
         <div className="space-y-1 text-xs">
           <div className="flex justify-between text-zinc-400">
-            <span>Subtotal Productos:</span>
+            <span>Subtotal:</span>
             <span>{formatCurrency(itemsSubtotal)}</span>
           </div>
-          {packagingsTotal > 0 && (
+          {!isMarketMode && packagingsTotal > 0 && (
             <div className="flex justify-between text-zinc-400">
               <span>Empaques / Tapers:</span>
               <span>{formatCurrency(packagingsTotal)}</span>
             </div>
           )}
-          {deliveryFee > 0 && (
+          {!isMarketMode && deliveryFee > 0 && (
             <div className="flex justify-between text-zinc-400">
               <span>Costo Delivery:</span>
               <span>{formatCurrency(deliveryFee)}</span>
@@ -319,7 +337,7 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
           )}
           <div className="flex justify-between text-white font-extrabold text-base pt-1 border-t border-zinc-800">
             <span>Total a Cobrar:</span>
-            <span className="text-[var(--color-porkos-orange)]">
+            <span className={isMarketMode ? 'text-blue-400' : 'text-[var(--color-porkos-orange)]'}>
               {formatCurrency(total)}
             </span>
           </div>
@@ -327,8 +345,8 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
 
         {/* Buttons */}
         <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            {hasKitchenItems && (
+          <div className={`grid gap-2 ${isMarketMode || !hasKitchenItems ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            {!isMarketMode && hasKitchenItems && (
               <Button
                 onClick={onSendToKitchen}
                 disabled={items.length === 0}
@@ -344,16 +362,16 @@ export default function CartView({ onSendToKitchen, onCheckout, onSettleTable, o
             <Button
               onClick={onCheckout}
               disabled={items.length === 0}
-              variant="primary"
+              variant={isMarketMode ? 'primary' : 'primary'}
               size="md"
-              className={`text-xs font-black ${!hasKitchenItems ? 'col-span-2' : ''}`}
+              className={`text-xs font-black py-3 ${isMarketMode || !hasKitchenItems ? 'w-full text-sm sm:text-base' : ''}`}
             >
-              Cobrar {formatCurrency(total)}
+              {isMarketMode ? `Cobrar ${formatCurrency(total)} (Venta Rápida)` : `Cobrar ${formatCurrency(total)}`}
             </Button>
           </div>
 
           {/* Si la mesa está ocupada y se quiere cerrar directamente desde aquí */}
-          {selectedTable && isTableOccupied && onSettleTable && (
+          {!isMarketMode && selectedTable && isTableOccupied && onSettleTable && (
             <Button
               onClick={() => onSettleTable(selectedTable)}
               variant="success"

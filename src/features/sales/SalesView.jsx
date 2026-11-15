@@ -46,11 +46,14 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
   // Ordenados POR DEFECTO de mayor a menor salida según el histórico (salesCount)
   const filteredAndSortedProducts = useMemo(() => {
     const list = products.filter((prod) => {
-      // Si estamos en modo MARKET rápido, solo mostrar productos tipo MARKET
-      if (salesMode === SALES_MODES.MARKET && prod.type !== 'MARKET') return false;
-
-      // Filtrar por Línea (si no es TODOS)
-      if (selectedLine !== 'ALL' && prod.line !== selectedLine) return false;
+      // 1. Separación estricta entre modalidades:
+      if (salesMode === SALES_MODES.MARKET) {
+        if (prod.type !== 'MARKET') return false;
+      } else {
+        if (prod.type === 'MARKET') return false;
+        // Filtrar por Línea en Restaurante (si no es TODOS)
+        if (selectedLine !== 'ALL' && prod.line !== selectedLine) return false;
+      }
 
       // Filtrar por Subcategoría (si no es todas)
       if (selectedSubcategory !== 'all' && prod.subcategory !== selectedSubcategory) return false;
@@ -185,21 +188,24 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
 
   // Cobro directo (alimenta el histórico de ventas)
   const handleConfirmPayment = (paymentDetail) => {
+    const isMarketSale = salesMode === SALES_MODES.MARKET;
     const orderData = {
-      orderNumber: `P-${Math.floor(100 + Math.random() * 900)}`,
-      modality,
-      status: items.some((i) => i.requiresKitchen) ? 'PENDIENTE' : 'LISTO',
+      orderNumber: isMarketSale
+        ? `M-${Math.floor(100 + Math.random() * 900)}`
+        : `P-${Math.floor(100 + Math.random() * 900)}`,
+      modality: isMarketSale ? 'MARKET' : modality,
+      status: isMarketSale ? 'ENTREGADO' : (items.some((i) => i.requiresKitchen) ? 'PENDIENTE' : 'ENTREGADO'),
       paymentStatus: 'PAID',
-      tableId: selectedTable?.id || null,
-      tableName: selectedTable?.label || null,
-      customerName: customerName.trim() || null,
-      customer: modality === 'DELIVERY' ? customer : null,
+      tableId: isMarketSale ? null : (selectedTable?.id || null),
+      tableName: isMarketSale ? null : (selectedTable?.label || null),
+      customerName: isMarketSale ? 'Venta Mostrador' : (customerName.trim() || null),
+      customer: !isMarketSale && modality === 'DELIVERY' ? customer : null,
       items: [...items],
-      packagings: [...packagings],
-      generalNotes,
+      packagings: isMarketSale ? [] : [...packagings],
+      generalNotes: isMarketSale ? 'Venta directa en caja' : generalNotes,
       subtotal: itemsSubtotal,
-      packagingsTotal,
-      deliveryFee,
+      packagingsTotal: isMarketSale ? 0 : packagingsTotal,
+      deliveryFee: isMarketSale ? 0 : deliveryFee,
       discount: 0,
       total,
       payments: [
@@ -215,12 +221,17 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
     recordProductSales(items);
 
     if (onOrderCreated) {
-      onOrderCreated(orderData, true);
+      onOrderCreated(orderData, Boolean(orderData.tableId));
     }
 
     clearCart();
+    setIsPaymentOpen(false);
     setIsMobileCartOpen(false);
-    showToast(`Venta ${orderData.orderNumber} cobrada con éxito`);
+    showToast(
+      isMarketSale
+        ? `Venta Market ${orderData.orderNumber} cobrada con éxito`
+        : `Pedido ${orderData.orderNumber} cobrado con éxito`
+    );
   };
 
   return (
@@ -251,6 +262,7 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
 
           {/* Categorías organizadas en CLÁSICO / ARTESANAL y Subcategorías */}
           <CategoryTabs
+            salesMode={salesMode}
             selectedLine={selectedLine}
             onSelectLine={setSelectedLine}
             selectedSubcategory={selectedSubcategory}
@@ -283,6 +295,7 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
         {/* Right Column: Desktop Cart */}
         <div className="hidden lg:block lg:col-span-5 xl:col-span-4 sticky top-20 h-[calc(100vh-6rem)]">
           <CartView
+            isMarketMode={salesMode === SALES_MODES.MARKET}
             onSendToKitchen={handleSendToKitchen}
             onCheckout={() => setIsPaymentOpen(true)}
             onSettleTable={onSettleTableOrder}
@@ -302,7 +315,9 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
               <div className="w-7 h-7 rounded-full bg-black text-white text-xs flex items-center justify-center font-extrabold">
                 {itemCount}
               </div>
-              <span className="text-sm uppercase tracking-tight">Ver Comanda</span>
+              <span className="text-sm uppercase tracking-tight">
+                {salesMode === SALES_MODES.MARKET ? 'Ver Venta Market' : 'Ver Comanda'}
+              </span>
             </div>
             <span className="text-base font-black">{formatCurrency(total)}</span>
           </button>
@@ -318,6 +333,7 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
           />
           <div className="relative z-10 max-h-[85vh] h-full flex flex-col">
             <CartView
+              isMarketMode={salesMode === SALES_MODES.MARKET}
               onSendToKitchen={handleSendToKitchen}
               onCheckout={() => setIsPaymentOpen(true)}
               onSettleTable={onSettleTableOrder}
