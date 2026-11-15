@@ -12,6 +12,7 @@ import {
   Package,
 } from 'lucide-react';
 import { useCart } from '../../../context/useCart';
+import { useCatalog } from '../../../context/useCatalog';
 import { formatCurrency } from '../../../utils/formatters';
 import Button from '../../../components/ui/Button';
 
@@ -59,7 +60,9 @@ export default function CartView({
     generalNotes,
     setGeneralNotes,
   } = useCart();
+  const { packagings: catalogPackagings } = useCatalog();
 
+  const availablePackagings = (catalogPackagings || []).filter((p) => p.active && p.id !== 'pkg_ninguno');
   const hasKitchenItems = items.some((item) => item.requiresKitchen);
   const isTableOccupied = selectedTable?.status === 'OCCUPIED';
   const isTakeout = modality === 'PARA_LLEVAR';
@@ -126,28 +129,24 @@ export default function CartView({
             )}
           </div>
 
-          {/* Banner y atajos para PARA LLEVAR */}
-          {isTakeout && (
-            <div className="bg-amber-950/20 border border-amber-500/30 p-2 rounded-xl flex items-center justify-between gap-2">
+          {/* Banner y atajos para PARA LLEVAR (Empaques dinámicos de BD) */}
+          {isTakeout && availablePackagings.length > 0 && (
+            <div className="bg-amber-950/20 border border-amber-500/30 p-2 rounded-xl flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-1.5 text-[11px] text-amber-300 font-bold">
                 <ShoppingBag className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span>Empaque para recojo:</span>
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => addPackaging({ id: 'pkg_bolsa_kraft', name: 'Bolsa Kraft Reforzada', price: 0.50 })}
-                  className="px-2 py-0.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-[10px] font-bold text-zinc-200 border border-zinc-700 cursor-pointer active:scale-95"
-                >
-                  + Bolsa (S/ 0.50)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addPackaging({ id: 'pkg_taper_med', name: 'Taper Térmico Mediano', price: 1.00 })}
-                  className="px-2 py-0.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-[10px] font-bold text-zinc-200 border border-zinc-700 cursor-pointer active:scale-95"
-                >
-                  + Taper (S/ 1.00)
-                </button>
+              <div className="flex items-center gap-1 flex-wrap">
+                {availablePackagings.map((pkg) => (
+                  <button
+                    key={pkg.id}
+                    type="button"
+                    onClick={() => addPackaging({ id: pkg.id, name: pkg.name, price: pkg.price })}
+                    className="px-2 py-0.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-[10px] font-bold text-zinc-200 border border-zinc-700 cursor-pointer active:scale-95"
+                  >
+                    + {pkg.name} ({formatCurrency(pkg.price)})
+                  </button>
+                ))}
               </div>
             </div>
           )}

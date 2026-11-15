@@ -1,69 +1,47 @@
 import { useState, useEffect } from 'react';
 import { CatalogContext } from './catalog-context';
-import {
-  DEFAULT_PRODUCTS,
-  DEFAULT_CREAMS,
-  DEFAULT_CATEGORIES,
-  DEFAULT_EXTRAS,
-  DEFAULT_PACKAGINGS,
-} from '../types/defaultCatalog';
+import { DEFAULT_CATEGORIES } from '../types/defaultCatalog';
 import {
   subscribeToProducts,
   saveProductToFirestore,
   deleteProductFromFirestore,
-  seedProductsIfEmpty,
   subscribeToCreams,
   saveCreamToFirestore,
   deleteCreamFromFirestore,
-  seedCreamsIfEmpty,
   subscribeToExtras,
   saveExtraToFirestore,
   deleteExtraFromFirestore,
-  seedExtrasIfEmpty,
   subscribeToPackagings,
   savePackagingToFirestore,
   deletePackagingFromFirestore,
-  seedPackagingsIfEmpty,
+  clearAllDemoCatalogFromFirestore,
 } from '../services/firestoreService';
 
 export function CatalogProvider({ children }) {
-  const [products, setProducts] = useState(DEFAULT_PRODUCTS);
-  const [creams, setCreams] = useState(DEFAULT_CREAMS);
+  const [products, setProducts] = useState([]);
+  const [creams, setCreams] = useState([]);
   const [categories] = useState(DEFAULT_CATEGORIES);
-  const [extras, setExtras] = useState(DEFAULT_EXTRAS);
-  const [packagings, setPackagings] = useState(DEFAULT_PACKAGINGS);
+  const [extras, setExtras] = useState([]);
+  const [packagings, setPackagings] = useState([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
 
-  // Inicializar y sincronizar con Firestore en tiempo real
+  // Inicializar y sincronizar con Firestore en tiempo real (100% dinámico desde BD)
   useEffect(() => {
-    // 1. Sembrar colecciones si están vacías
-    seedProductsIfEmpty(DEFAULT_PRODUCTS);
-    seedCreamsIfEmpty(DEFAULT_CREAMS);
-    seedExtrasIfEmpty(DEFAULT_EXTRAS);
-    seedPackagingsIfEmpty(DEFAULT_PACKAGINGS);
-
-    // 2. Suscribirse a cambios en Firestore
     const unsubProducts = subscribeToProducts((remoteProducts) => {
-      if (remoteProducts && remoteProducts.length > 0) {
-        setProducts(remoteProducts);
-      }
+      setProducts(remoteProducts || []);
+      setIsLoadingCatalog(false);
     });
 
     const unsubCreams = subscribeToCreams((remoteCreams) => {
-      if (remoteCreams && remoteCreams.length > 0) {
-        setCreams(remoteCreams);
-      }
+      setCreams(remoteCreams || []);
     });
 
     const unsubExtras = subscribeToExtras((remoteExtras) => {
-      if (remoteExtras && remoteExtras.length > 0) {
-        setExtras(remoteExtras);
-      }
+      setExtras(remoteExtras || []);
     });
 
     const unsubPackagings = subscribeToPackagings((remotePackagings) => {
-      if (remotePackagings && remotePackagings.length > 0) {
-        setPackagings(remotePackagings);
-      }
+      setPackagings(remotePackagings || []);
     });
 
     return () => {
@@ -91,11 +69,11 @@ export function CatalogProvider({ children }) {
       image: newProduct.image || '',
       requiresKitchen: newProduct.requiresKitchen ?? true,
       active: true,
-      defaultPackagingId: newProduct.defaultPackagingId || 'pkg_taper_med',
+      defaultPackagingId: newProduct.defaultPackagingId || (packagings[0]?.id || ''),
       availablePackagingIds: newProduct.availablePackagingIds || [],
       modifiers: newProduct.modifiers || [],
       creamsConfig: newProduct.creamsConfig || {
-        enabled: true,
+        enabled: creams.length > 0,
         availableCreamIds: creams.map((c) => c.id),
         defaultCreamIds: [],
         defaultMode: 'DEFAULT',
@@ -424,12 +402,25 @@ export function CatalogProvider({ children }) {
     );
   };
 
+  // Limpiar catálogo demo completamente de la base de datos
+  const clearAllCatalog = async () => {
+    setIsLoadingCatalog(true);
+    await clearAllDemoCatalogFromFirestore();
+    setProducts([]);
+    setCreams([]);
+    setExtras([]);
+    setPackagings([]);
+    setIsLoadingCatalog(false);
+  };
+
   const value = {
     products,
     creams,
     categories,
     extras,
     packagings,
+    isLoadingCatalog,
+    clearAllCatalog,
     addProduct,
     updateProduct,
     deleteProduct,

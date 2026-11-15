@@ -9,7 +9,7 @@ import QuickCustomizerModal from './components/QuickCustomizerModal';
 import CartView from './components/CartView';
 import QuickPaymentModal from './components/QuickPaymentModal';
 import { formatCurrency } from '../../utils/formatters';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, UtensilsCrossed } from 'lucide-react';
 
 export default function SalesView({ onOrderCreated, tables = [], onSettleTableOrder }) {
   const [salesMode, setSalesMode] = useState(SALES_MODES.RESTAURANT);
@@ -296,11 +296,20 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
           </div>
 
           {filteredAndSortedProducts.length === 0 && (
-            <div className="py-16 text-center text-zinc-500">
-              <p className="font-semibold text-sm">No se encontraron productos</p>
-              <p className="text-xs text-zinc-600 mt-1">
-                Puedes cambiar de línea o subcategoría
-              </p>
+            <div className="py-12 text-center text-zinc-500 bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-8 max-w-md mx-auto my-4 space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-[var(--color-porkos-orange)] border border-orange-500/20 flex items-center justify-center mx-auto">
+                <UtensilsCrossed className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-bold text-sm text-white">
+                  {products.length === 0 ? 'Tu catálogo está vacío' : 'No se encontraron productos'}
+                </p>
+                <p className="text-xs text-zinc-400">
+                  {products.length === 0
+                    ? 'Ve a la pestaña "Productos" para agregar tus hamburguesas, choripanes y bebidas desde cero.'
+                    : 'Prueba cambiando de línea, subcategoría o término de búsqueda.'}
+                </p>
+              </div>
             </div>
           )}
         </div>

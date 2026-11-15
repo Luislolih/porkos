@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   UtensilsCrossed,
   Plus,
@@ -8,10 +8,14 @@ import {
   Tag,
   Package,
   Sparkles,
+  Camera,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import { useCatalog } from '../../context/useCatalog';
 import { PRODUCT_LINES, SUBCATEGORIES } from '../../types/defaultCatalog';
 import { formatCurrency } from '../../utils/formatters';
+import { uploadProductImage } from '../../services/storageService';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 
@@ -22,6 +26,8 @@ export default function CatalogView() {
     categories,
     extras,
     packagings,
+    isLoadingCatalog,
+    clearAllCatalog,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -41,6 +47,8 @@ export default function CatalogView() {
   } = useCatalog();
 
   const [activeTab, setActiveTab] = useState('products'); // 'products' | 'creams' | 'extras' | 'packagings'
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   // Modales de Producto
   const [editingProduct, setEditingProduct] = useState(null);
@@ -63,6 +71,11 @@ export default function CatalogView() {
   const [prodSelectedCreams, setProdSelectedCreams] = useState([]);
   const [prodAvailablePackagingIds, setProdAvailablePackagingIds] = useState([]);
 
+  // Estados de carga de foto
+  const fileInputRef = useRef(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState(null);
+
   // Modales de Crema
   const [isCreamModalOpen, setIsCreamModalOpen] = useState(false);
   const [editingCream, setEditingCream] = useState(null);
@@ -84,6 +97,42 @@ export default function CatalogView() {
   const [pkgPrice, setPkgPrice] = useState('');
   const [pkgApplicableProductIds, setPkgApplicableProductIds] = useState([]);
 
+  // Manejar selección y subida de fotografía del plato
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setImageUploadError('Por favor selecciona un archivo de imagen (JPG, PNG, WebP).');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setImageUploadError('La imagen es demasiado pesada. Máximo 10MB.');
+      return;
+    }
+
+    setIsUploadingImage(true);
+    setImageUploadError(null);
+
+    try {
+      // 1. Mostrar preview local instantáneo
+      const previewUrl = URL.createObjectURL(file);
+      setProdImage(previewUrl);
+
+      // 2. Subir imagen a Firebase Storage o fallback Base64
+      const finalUrl = await uploadProductImage(file, editingProduct?.id);
+      if (finalUrl) {
+        setProdImage(finalUrl);
+      }
+    } catch (err) {
+      console.error('Error subiendo foto:', err);
+      setImageUploadError('Hubo un problema al procesar la foto.');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   // 1. Abrir modal de nuevo producto
   const handleOpenNewProduct = () => {
     setEditingProduct(null);
@@ -101,7 +150,8 @@ export default function CatalogView() {
     setProdHasSalad(true);
     setProdHasTemperature(false);
     setProdSelectedCreams(creams.map((c) => c.id));
-    setProdAvailablePackagingIds(['pkg_taper_med', 'pkg_bolsa_kraft']);
+    setProdAvailablePackagingIds([]);
+    setImageUploadError(null);
     setIsProductModalOpen(true);
   };
 
@@ -123,6 +173,7 @@ export default function CatalogView() {
     setProdHasTemperature(Boolean(prod.temperatureConfig?.enabled));
     setProdSelectedCreams(prod.creamsConfig?.availableCreamIds || creams.map((c) => c.id));
     setProdAvailablePackagingIds(prod.availablePackagingIds || []);
+    setImageUploadError(null);
     setIsProductModalOpen(true);
   };
 
@@ -422,16 +473,56 @@ export default function CatalogView() {
               Nuevo Empaque
             </Button>
           )}
+
+          {/* Botón para vaciar catálogo demo y empezar 100% de cero */}
+          {(products.length > 0 || creams.length > 0 || extras.length > 0 || packagings.length > 0) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsClearConfirmOpen(true)}
+              className="text-zinc-500 hover:text-rose-400 border border-zinc-800 hover:border-rose-900/40 text-xs shrink-0"
+              title="Vaciar catálogo para empezar 100% de cero"
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-500" />
+              Vaciar Catálogo
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* ============================================================== */}
-      {/* --- TAB 1: PRODUCTOS --- */}
-      {/* ============================================================== */}
+      {/* Estado de carga inicial desde Firestore */}
+      {isLoadingCatalog ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-zinc-500">
+          <Loader2 className="w-8 h-8 text-[var(--color-porkos-orange)] animate-spin" />
+          <span className="text-xs font-bold uppercase tracking-wider">Cargando catálogo en tiempo real...</span>
+        </div>
+      ) : (
+        <>
+          {/* ============================================================== */}
+          {/* --- TAB 1: PRODUCTOS --- */}
+          {/* ============================================================== */}
       {activeTab === 'products' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {products.map((p) => {
-            const allowedPackagingsCount = p.availablePackagingIds?.length || 0;
+        <>
+          {products.length === 0 ? (
+            <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto space-y-3.5 my-6">
+              <div className="w-14 h-14 rounded-2xl bg-orange-500/10 text-[var(--color-porkos-orange)] border border-orange-500/20 flex items-center justify-center">
+                <UtensilsCrossed className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-white">No tienes productos creados aún</h3>
+                <p className="text-xs text-zinc-400">
+                  Crea tu primer plato o bebida con su fotografía real, precio y opciones de papas, ensalada o cremas.
+                </p>
+              </div>
+              <Button type="button" onClick={handleOpenNewProduct} icon={Plus}>
+                Crear Primer Producto
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {products.map((p) => {
+                const allowedPackagingsCount = p.availablePackagingIds?.length || 0;
 
             return (
               <div
@@ -551,13 +642,32 @@ export default function CatalogView() {
             );
           })}
         </div>
+        )}
+      </>
       )}
 
       {/* ============================================================== */}
       {/* --- TAB 2: CREMAS CONFIGURABLES --- */}
       {/* ============================================================== */}
       {activeTab === 'creams' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <>
+          {creams.length === 0 ? (
+            <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto space-y-3.5 my-6">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center">
+                <Sparkles className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-white">No tienes cremas registradas</h3>
+                <p className="text-xs text-zinc-400">
+                  Agrega salsas caseras como Mayonesa, Ají PORKOS, Tártara con su abreviatura (MAYO, AJÍ) para selección táctil rápida en caja.
+                </p>
+              </div>
+              <Button type="button" onClick={handleOpenNewCream} icon={Plus}>
+                Agregar Nueva Crema
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {creams.map((c) => (
             <div
               key={c.id}
@@ -628,13 +738,32 @@ export default function CatalogView() {
             </div>
           ))}
         </div>
+        )}
+      </>
       )}
 
       {/* ============================================================== */}
       {/* --- TAB 3: EXTRAS CONFIGURABLES --- */}
       {/* ============================================================== */}
       {activeTab === 'extras' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <>
+          {extras.length === 0 ? (
+            <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto space-y-3.5 my-6">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
+                <Plus className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-white">No tienes adicionales registrados</h3>
+                <p className="text-xs text-zinc-400">
+                  Agrega adicionales como Extra Queso Cheddar, Extra Huevo, Porción de Papas para sumarlos a tus platos en comanda.
+                </p>
+              </div>
+              <Button type="button" onClick={handleOpenNewExtra} icon={Plus}>
+                Agregar Nuevo Extra
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {extras.map((ext) => (
             <div
               key={ext.id}
@@ -708,6 +837,8 @@ export default function CatalogView() {
             </div>
           ))}
         </div>
+        )}
+      </>
       )}
 
       {/* ============================================================== */}
@@ -722,8 +853,24 @@ export default function CatalogView() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {packagings.map((pkg) => {
+          {packagings.length === 0 ? (
+            <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto space-y-3.5 my-6">
+              <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center">
+                <Package className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-white">No tienes empaques registrados</h3>
+                <p className="text-xs text-zinc-400">
+                  Crea empaques como Bolsa Kraft o Taper Térmico y asócialos a tus hamburguesas o salchipapas para pedidos Para Llevar o Delivery.
+                </p>
+              </div>
+              <Button type="button" onClick={handleOpenNewPackaging} icon={Plus}>
+                Agregar Nuevo Empaque
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {packagings.map((pkg) => {
               // Calcular qué productos tienen este empaque asociado
               const associatedProducts = products.filter(
                 (p) =>
@@ -835,7 +982,10 @@ export default function CatalogView() {
               );
             })}
           </div>
+          )}
         </div>
+      )}
+      </>
       )}
 
       {/* ============================================================== */}
@@ -993,16 +1143,100 @@ export default function CatalogView() {
             </div>
           </div>
 
-          {/* URL de Fotografía */}
+          {/* Carga de Fotografía del Producto */}
           <div>
-            <label className="block text-zinc-300 font-bold mb-1">URL de Fotografía</label>
+            <label className="block text-zinc-300 font-bold mb-1.5 text-xs uppercase tracking-wider flex items-center justify-between">
+              <span>Fotografía del Producto</span>
+              {prodImage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProdImage('');
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer flex items-center gap-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Quitar foto
+                </button>
+              )}
+            </label>
+
             <input
-              type="url"
-              value={prodImage}
-              onChange={(e) => setProdImage(e.target.value)}
-              placeholder="https://..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
             />
+
+            {prodImage ? (
+              <div className="relative rounded-xl overflow-hidden border border-zinc-700 bg-black/60 group">
+                <img
+                  src={prodImage}
+                  alt="Vista previa plato"
+                  className="w-full h-44 object-cover"
+                />
+                {isUploadingImage && (
+                  <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="w-7 h-7 text-[var(--color-porkos-orange)] animate-spin" />
+                    <span className="text-xs font-bold text-white">Subiendo y optimizando foto...</span>
+                  </div>
+                )}
+                {!isUploadingImage && (
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      icon={Camera}
+                    >
+                      Cambiar foto
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingImage}
+                className="w-full h-32 rounded-xl border-2 border-dashed border-zinc-700 hover:border-[var(--color-porkos-orange)] bg-zinc-900/40 hover:bg-zinc-900 transition-all flex flex-col items-center justify-center gap-2 cursor-pointer p-4 group"
+              >
+                {isUploadingImage ? (
+                  <>
+                    <Loader2 className="w-7 h-7 text-[var(--color-porkos-orange)] animate-spin" />
+                    <span className="text-xs font-bold text-zinc-300">Subiendo foto...</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-2.5 rounded-full bg-orange-500/10 text-[var(--color-porkos-orange)] group-hover:scale-110 transition-transform">
+                      <Camera className="w-6 h-6" />
+                    </div>
+                    <div className="text-center">
+                      <span className="text-xs font-bold text-white block">Toca para cargar foto del plato</span>
+                      <span className="text-[10px] text-zinc-500">Cámara o archivo desde tu celular / PC</span>
+                    </div>
+                  </>
+                )}
+              </button>
+            )}
+
+            {imageUploadError && (
+              <p className="text-xs text-rose-400 font-semibold mt-1">{imageUploadError}</p>
+            )}
+
+            {/* Opción secundaria: URL web directa */}
+            <div className="mt-2 flex items-center gap-1.5 text-[11px] text-zinc-500">
+              <span className="shrink-0">O ingresar URL:</span>
+              <input
+                type="url"
+                value={prodImage}
+                onChange={(e) => setProdImage(e.target.value)}
+                placeholder="https://..."
+                className="flex-1 bg-black/40 border border-zinc-800 rounded-lg px-2 py-1 text-white text-xs focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              />
+            </div>
           </div>
 
           {/* Descripción */}
@@ -1418,6 +1652,53 @@ export default function CatalogView() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal de Confirmación para Vaciar Catálogo */}
+      <Modal
+        isOpen={isClearConfirmOpen}
+        onClose={() => !isClearing && setIsClearConfirmOpen(false)}
+        title="¿Vaciar todo el catálogo?"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-rose-950/30 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-start gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold">Esta acción eliminará todos los datos:</p>
+              <p>Se borrarán los productos, cremas, extras y empaques de Firebase Firestore para que puedas crear tu carta real desde cero.</p>
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isClearing}
+              onClick={() => setIsClearConfirmOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={isClearing}
+              onClick={async () => {
+                setIsClearing(true);
+                try {
+                  await clearAllCatalog();
+                  setIsClearConfirmOpen(false);
+                } catch (err) {
+                  console.error('Error al vaciar catálogo:', err);
+                } finally {
+                  setIsClearing(false);
+                }
+              }}
+            >
+              {isClearing ? 'Vaciando...' : 'Sí, Vaciar Todo'}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

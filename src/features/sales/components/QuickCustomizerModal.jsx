@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import Modal from '../../../components/ui/Modal';
 import { formatCurrency } from '../../../utils/formatters';
-import { DEFAULT_EXTRAS, DEFAULT_PACKAGINGS } from '../../../types/defaultCatalog';
 import { useCatalog } from '../../../context/useCatalog';
 
 function CustomizerForm({ product, initialCustomization = null, onConfirm, onClose }) {
@@ -62,7 +61,7 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
   });
 
   // 5. Extras compatibles dinámicos
-  const allExtras = catalogExtras || DEFAULT_EXTRAS;
+  const allExtras = catalogExtras || [];
   const compatibleExtras = allExtras.filter((e) => {
     if (!e.active) return false;
     if (product.availableExtraIds && product.availableExtraIds.length > 0) {
@@ -79,7 +78,7 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
   });
 
   // 6. Empaques asociados estrictamente a este producto
-  const allPackagings = catalogPackagings || DEFAULT_PACKAGINGS;
+  const allPackagings = catalogPackagings || [];
   const availablePackagings = allPackagings.filter((pkg) => {
     if (!pkg.active) return false;
     if (pkg.id === 'pkg_ninguno') return true;

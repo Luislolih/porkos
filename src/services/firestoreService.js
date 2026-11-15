@@ -50,7 +50,7 @@ export function subscribeToOrders(onUpdate, onError) {
         onUpdate(orders);
       },
       (err) => {
-        console.warn('Advertencia en Firestore orders (modo local activo):', err.message);
+        console.warn('Advertencia en Firestore orders:', err.message);
         if (onError) onError(err);
       }
     );
@@ -164,22 +164,6 @@ export async function deleteProductFromFirestore(productId) {
   }
 }
 
-// Sembrar productos iniciales si la colección está vacía
-export async function seedProductsIfEmpty(defaultProducts) {
-  try {
-    const colRef = collection(db, 'products');
-    const snapshot = await getDocs(colRef);
-    if (snapshot.empty) {
-      console.log('Sembrando catálogo inicial de productos en Firestore...');
-      for (const p of defaultProducts) {
-        await setDoc(doc(db, 'products', p.id), sanitizePayload(p));
-      }
-    }
-  } catch (err) {
-    console.warn('No se pudo verificar o sembrar productos:', err.message);
-  }
-}
-
 // =========================================================================
 // 3. CREMAS
 // =========================================================================
@@ -225,21 +209,6 @@ export async function deleteCreamFromFirestore(creamId) {
   } catch (err) {
     console.error('Error al eliminar crema en Firestore:', err);
     return false;
-  }
-}
-
-export async function seedCreamsIfEmpty(defaultCreams) {
-  try {
-    const colRef = collection(db, 'creams');
-    const snapshot = await getDocs(colRef);
-    if (snapshot.empty) {
-      console.log('Sembrando cremas iniciales en Firestore...');
-      for (const c of defaultCreams) {
-        await setDoc(doc(db, 'creams', c.id), sanitizePayload(c));
-      }
-    }
-  } catch (err) {
-    console.warn('No se pudo sembrar cremas:', err.message);
   }
 }
 
@@ -291,20 +260,6 @@ export async function deleteExtraFromFirestore(extraId) {
   }
 }
 
-export async function seedExtrasIfEmpty(defaultExtras) {
-  try {
-    const colRef = collection(db, 'extras');
-    const snapshot = await getDocs(colRef);
-    if (snapshot.empty) {
-      for (const e of defaultExtras) {
-        await setDoc(doc(db, 'extras', e.id), sanitizePayload(e));
-      }
-    }
-  } catch (err) {
-    console.warn('No se pudo sembrar extras:', err.message);
-  }
-}
-
 // =========================================================================
 // 5. PACKAGING / EMPAQUES
 // =========================================================================
@@ -353,20 +308,6 @@ export async function deletePackagingFromFirestore(pkgId) {
   }
 }
 
-export async function seedPackagingsIfEmpty(defaultPackagings) {
-  try {
-    const colRef = collection(db, 'packagings');
-    const snapshot = await getDocs(colRef);
-    if (snapshot.empty) {
-      for (const p of defaultPackagings) {
-        await setDoc(doc(db, 'packagings', p.id), sanitizePayload(p));
-      }
-    }
-  } catch (err) {
-    console.warn('No se pudo sembrar empaques:', err.message);
-  }
-}
-
 // =========================================================================
 // 6. GASTOS / EXPENSES
 // =========================================================================
@@ -411,6 +352,23 @@ export async function saveExpenseToFirestore(expense) {
     return true;
   } catch (err) {
     console.error('Error al guardar gasto en Firestore:', err);
+    return false;
+  }
+}
+
+// Limpiar datos de prueba si el usuario desea empezar 100% desde cero
+export async function clearAllDemoCatalogFromFirestore() {
+  try {
+    const collectionsToClear = ['products', 'creams', 'extras', 'packagings'];
+    for (const colName of collectionsToClear) {
+      const snap = await getDocs(collection(db, colName));
+      for (const d of snap.docs) {
+        await deleteDoc(d.ref);
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error('Error al limpiar datos demo:', err);
     return false;
   }
 }
