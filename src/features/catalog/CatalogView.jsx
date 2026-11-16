@@ -18,6 +18,7 @@ import { formatCurrency } from '../../utils/formatters';
 import { uploadProductImage } from '../../services/storageService';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import ProductThumbnail from '../../components/ui/ProductThumbnail';
 
 export default function CatalogView() {
   const {
@@ -90,8 +91,10 @@ export default function CatalogView() {
 
   // Estados de carga de foto
   const fileInputRef = useRef(null);
+  const [imagePreview, setImagePreview] = useState('');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imageUploadError, setImageUploadError] = useState(null);
+  const [imageStorageSource, setImageStorageSource] = useState(null); // 'firebase' | 'local' | null
 
   // Modales de Crema
   const [isCreamModalOpen, setIsCreamModalOpen] = useState(false);
@@ -120,33 +123,57 @@ export default function CatalogView() {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      setImageUploadError('Por favor selecciona un archivo de imagen (JPG, PNG, WebP).');
+      setImageUploadError('Por favor selecciona un archivo de imagen válido (JPG, PNG, WebP).');
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setImageUploadError('La imagen es demasiado pesada. Máximo 10MB.');
+    if (file.size > 15 * 1024 * 1024) {
+      setImageUploadError('La imagen es demasiado pesada. Máximo 15MB.');
       return;
     }
 
     setIsUploadingImage(true);
     setImageUploadError(null);
 
-    try {
-      // 1. Mostrar preview local instantáneo
-      const previewUrl = URL.createObjectURL(file);
-      setProdImage(previewUrl);
+    // 1. Mostrar preview local temporal de inmediato
+    const tempBlobUrl = URL.createObjectURL(file);
+    setImagePreview(tempBlobUrl);
 
-      // 2. Subir imagen a Firebase Storage o fallback Base64
-      const finalUrl = await uploadProductImage(file, editingProduct?.id);
+    try {
+      // 2. Comprimir y subir permanentemente a Firebase Storage o fallback Base64 WebP/JPEG optimizado
+      const result = await uploadProductImage(file, editingProduct?.id);
+      const finalUrl = typeof result === 'object' && result ? result.url : result;
+      const source = typeof result === 'object' && result ? result.source : 'local';
+
       if (finalUrl) {
+        // NUNCA guardamos una URL blob en prodImage
         setProdImage(finalUrl);
+        setImagePreview(finalUrl);
+        setImageStorageSource(source);
+      } else {
+        throw new Error('No se pudo procesar la imagen.');
       }
     } catch (err) {
       console.error('Error subiendo foto:', err);
-      setImageUploadError('Hubo un problema al procesar la foto.');
+      setImageUploadError(err.message || 'Hubo un problema al procesar la foto.');
+      setImagePreview(prodImage || '');
     } finally {
       setIsUploadingImage(false);
+      try {
+        URL.revokeObjectURL(tempBlobUrl);
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setProdImage('');
+    setImagePreview('');
+    setImageStorageSource(null);
+    setImageUploadError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -161,6 +188,8 @@ export default function CatalogView() {
     setProdPrice('');
     setProdCost('');
     setProdImage('');
+    setImagePreview('');
+    setImageStorageSource(null);
     setProdDescription('');
     setProdKitchen(true);
     setProdHasPapas(true);
@@ -182,7 +211,16 @@ export default function CatalogView() {
     setProdType(prod.type);
     setProdPrice(prod.price.toString());
     setProdCost((prod.cost || '').toString());
-    setProdImage(prod.image || '');
+    const existingImg = prod.image || '';
+    setProdImage(existingImg);
+    setImagePreview(existingImg);
+    setImageStorageSource(
+      existingImg.startsWith('http')
+        ? 'firebase'
+        : existingImg.startsWith('data:')
+        ? 'local'
+        : null
+    );
     setProdDescription(prod.description || '');
     setProdKitchen(prod.requiresKitchen ?? true);
     setProdHasPapas(Boolean(prod.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas')));
@@ -197,7 +235,7 @@ export default function CatalogView() {
   // Guardar Producto
   const handleSaveProduct = async (e) => {
     e.preventDefault();
-    if (!prodName.trim() || !prodPrice) return;
+    if (!prodName.trim() || !prodPrice || isUploadingImage) return;
     setIsSavingProduct(true);
 
     try {
@@ -216,6 +254,12 @@ export default function CatalogView() {
         });
       }
 
+      // Sanitizar imagen: si por algún motivo llegara a ser blob, no permitirla
+      let cleanImage = prodImage.trim();
+      if (cleanImage.startsWith('blob:')) {
+        cleanImage = '';
+      }
+
       const productPayload = {
         name: prodName.trim(),
         categoryId: prodCategory,
@@ -224,7 +268,7 @@ export default function CatalogView() {
         type: prodType,
         price: parseFloat(prodPrice) || 0,
         cost: parseFloat(prodCost) || 0,
-        image: prodImage.trim(),
+        image: cleanImage,
         description: prodDescription.trim(),
         requiresKitchen: prodKitchen,
         modifiers,
@@ -717,17 +761,12 @@ export default function CatalogView() {
               >
                 {/* Product Info */}
                 <div className="flex gap-3 items-start">
-                  {p.image ? (
-                    <img
-                      src={p.image}
-                      alt={p.name}
-                      className="w-16 h-16 rounded-xl object-cover bg-black/40 shrink-0 border border-zinc-800"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-xl bg-black/60 flex items-center justify-center text-[10px] text-zinc-500 font-bold shrink-0 uppercase border border-zinc-800">
-                      Sin foto
-                    </div>
-                  )}
+                  <ProductThumbnail
+                    src={p.image}
+                    name={p.name}
+                    className="w-16 h-16"
+                    iconSize="w-7 h-7"
+                  />
 
                   <div className="flex-1 min-w-0">
                     <h4 className="font-bold text-sm text-white truncate">
@@ -1450,21 +1489,21 @@ export default function CatalogView() {
               className="hidden"
             />
 
-            {prodImage ? (
+            {imagePreview ? (
               <div className="relative rounded-xl overflow-hidden border border-zinc-700 bg-black/60 group">
                 <img
-                  src={prodImage}
+                  src={imagePreview}
                   alt="Vista previa plato"
                   className="w-full h-44 object-cover"
                 />
                 {isUploadingImage && (
-                  <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2">
-                    <Loader2 className="w-7 h-7 text-[var(--color-porkos-orange)] animate-spin" />
-                    <span className="text-xs font-bold text-white">Subiendo y optimizando foto...</span>
+                  <div className="absolute inset-0 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="w-8 h-8 text-[var(--color-porkos-orange)] animate-spin" />
+                    <span className="text-xs font-black text-white">Optimizando y subiendo foto...</span>
                   </div>
                 )}
                 {!isUploadingImage && (
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                     <Button
                       type="button"
                       size="sm"
@@ -1472,6 +1511,15 @@ export default function CatalogView() {
                       icon={Camera}
                     >
                       Cambiar foto
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="danger"
+                      onClick={handleRemovePhoto}
+                      icon={Trash2}
+                    >
+                      Quitar foto
                     </Button>
                   </div>
                 )}
@@ -1486,7 +1534,7 @@ export default function CatalogView() {
                 {isUploadingImage ? (
                   <>
                     <Loader2 className="w-7 h-7 text-[var(--color-porkos-orange)] animate-spin" />
-                    <span className="text-xs font-bold text-zinc-300">Subiendo foto...</span>
+                    <span className="text-xs font-bold text-zinc-300">Optimizando foto...</span>
                   </>
                 ) : (
                   <>
@@ -1502,6 +1550,21 @@ export default function CatalogView() {
               </button>
             )}
 
+            {/* Indicador de almacenamiento de la foto */}
+            {imageStorageSource && !isUploadingImage && (
+              <div className="mt-1 flex items-center gap-1.5 text-[11px]">
+                {imageStorageSource === 'firebase' ? (
+                  <span className="text-emerald-400 font-bold flex items-center gap-1">
+                    ✓ Foto alojada en Firebase Storage
+                  </span>
+                ) : (
+                  <span className="text-amber-400 font-medium flex items-center gap-1">
+                    ✓ Foto optimizada localmente (~20KB). Para sincronizar a la nube de Firebase, activa las Reglas de Firebase Storage.
+                  </span>
+                )}
+              </div>
+            )}
+
             {imageUploadError && (
               <p className="text-xs text-rose-400 font-semibold mt-1">{imageUploadError}</p>
             )}
@@ -1512,7 +1575,12 @@ export default function CatalogView() {
               <input
                 type="url"
                 value={prodImage}
-                onChange={(e) => setProdImage(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setProdImage(val);
+                  setImagePreview(val);
+                  setImageStorageSource(val.startsWith('http') ? 'firebase' : null);
+                }}
                 placeholder="https://..."
                 className="flex-1 bg-black/40 border border-zinc-800 rounded-lg px-2 py-1 text-white text-xs focus:outline-none focus:border-[var(--color-porkos-orange)]"
               />
@@ -1668,8 +1736,13 @@ export default function CatalogView() {
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSavingProduct}>
-              {isSavingProduct
+            <Button
+              type="submit"
+              disabled={isSavingProduct || isUploadingImage}
+            >
+              {isUploadingImage
+                ? 'Subiendo foto...'
+                : isSavingProduct
                 ? 'Guardando...'
                 : editingProduct
                 ? 'Guardar Cambios'

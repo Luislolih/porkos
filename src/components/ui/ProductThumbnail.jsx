@@ -8,7 +8,8 @@ export default function ProductThumbnail({
   className = 'w-14 h-14',
   iconSize = 'w-6 h-6',
 }) {
-  const [hasError, setHasError] = useState(false);
+  const [failedSrc, setFailedSrc] = useState(null);
+  const hasError = Boolean(src && failedSrc === src);
 
   // Fallback icon según el tipo de producto
   const getFallbackIcon = () => {
@@ -47,7 +48,7 @@ export default function ProductThumbnail({
     <img
       src={src}
       alt={alt || name}
-      onError={() => setHasError(true)}
+      onError={() => setFailedSrc(src)}
       className={`${className} rounded-xl object-cover shrink-0 border border-zinc-800/80 shadow-md bg-zinc-900`}
       loading="lazy"
     />

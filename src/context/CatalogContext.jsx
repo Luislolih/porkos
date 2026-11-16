@@ -28,10 +28,28 @@ const STORAGE_KEYS = {
   PACKAGINGS: 'porkos_catalog_packagings',
 };
 
+// Sanitizar producto: NUNCA permitir URLs efímeras tipo "blob:"
+function sanitizeProduct(prod) {
+  if (!prod) return prod;
+  let cleanImage = prod.image || '';
+  if (typeof cleanImage === 'string' && cleanImage.trim().startsWith('blob:')) {
+    cleanImage = '';
+  }
+  return {
+    ...prod,
+    image: cleanImage,
+  };
+}
+
 function loadLocal(key, fallback = []) {
   try {
     const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : fallback;
+    if (!item) return fallback;
+    const parsed = JSON.parse(item);
+    if (key === STORAGE_KEYS.PRODUCTS && Array.isArray(parsed)) {
+      return parsed.map(sanitizeProduct);
+    }
+    return parsed;
   } catch {
     return fallback;
   }
@@ -42,6 +60,24 @@ function saveLocal(key, data) {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (err) {
     console.warn(`Error guardando localmente (${key}):`, err);
+    // Si la cuota de localStorage (5MB) fue excedida por imágenes Base64 pesadas:
+    if (err.name === 'QuotaExceededError' || err.code === 22 || err.code === 1014) {
+      try {
+        if (key === STORAGE_KEYS.PRODUCTS && Array.isArray(data)) {
+          // Guardar una versión ligera en localStorage sin Base64 masivo para no saturar memoria
+          const lightweight = data.map((p) => {
+            if (p.image && p.image.startsWith('data:image/') && p.image.length > 35000) {
+              return { ...p, image: '' };
+            }
+            return p;
+          });
+          localStorage.setItem(key, JSON.stringify(lightweight));
+          console.warn('Se protegió la cuota de localStorage guardando el catálogo en modo ligero.');
+        }
+      } catch (innerErr) {
+        console.error('Error crítico al intentar guardar en localStorage:', innerErr);
+      }
+    }
   }
 }
 
@@ -89,8 +125,9 @@ export function CatalogProvider({ children }) {
         setFirestoreError(null);
 
         if (remoteProducts && remoteProducts.length > 0) {
-          setProducts(remoteProducts);
-          saveLocal(STORAGE_KEYS.PRODUCTS, remoteProducts);
+          const sanitized = remoteProducts.map(sanitizeProduct);
+          setProducts(sanitized);
+          saveLocal(STORAGE_KEYS.PRODUCTS, sanitized);
         } else {
           // Si Firestore está vacío pero el usuario tiene productos locales, sincronizarlos a la nube
           const localItems = loadLocal(STORAGE_KEYS.PRODUCTS, []);
@@ -226,6 +263,10 @@ export function CatalogProvider({ children }) {
   // Funciones de Productos (con persistencia dual LocalStorage + Firestore)
   const addProduct = async (newProduct) => {
     const id = `prod_${Date.now()}`;
+    const cleanImage = typeof newProduct.image === 'string' && newProduct.image.trim().startsWith('blob:')
+      ? ''
+      : (newProduct.image || '').trim();
+
     const productWithDefaults = {
       id,
       name: newProduct.name || 'Nuevo Producto',
@@ -237,7 +278,7 @@ export function CatalogProvider({ children }) {
       type: newProduct.type || 'RESTAURANTE',
       price: parseFloat(newProduct.price) || 0,
       cost: parseFloat(newProduct.cost) || 0,
-      image: newProduct.image || '',
+      image: cleanImage,
       requiresKitchen: newProduct.requiresKitchen ?? true,
       active: true,
       defaultPackagingId: newProduct.defaultPackagingId || (packagings[0]?.id || ''),
@@ -296,14 +337,19 @@ export function CatalogProvider({ children }) {
 
   const updateProduct = async (productId, updatedFields) => {
     let updatedProdObj = null;
+    const cleanFields = { ...updatedFields };
+    if (typeof cleanFields.image === 'string' && cleanFields.image.trim().startsWith('blob:')) {
+      cleanFields.image = '';
+    }
+
     setProducts((prev) => {
       const updated = prev.map((p) => {
         if (p.id === productId) {
           updatedProdObj = {
             ...p,
-            ...updatedFields,
-            price: typeof updatedFields.price !== 'undefined' ? parseFloat(updatedFields.price) : p.price,
-            cost: typeof updatedFields.cost !== 'undefined' ? parseFloat(updatedFields.cost) : p.cost,
+            ...cleanFields,
+            price: typeof cleanFields.price !== 'undefined' ? parseFloat(cleanFields.price) : p.price,
+            cost: typeof cleanFields.cost !== 'undefined' ? parseFloat(cleanFields.cost) : p.cost,
           };
           return updatedProdObj;
         }

@@ -124,10 +124,18 @@ export function subscribeToProducts(onUpdate, onError) {
     return onSnapshot(
       colRef,
       (snapshot) => {
-        const products = snapshot.docs.map((docSnap) => ({
-          ...docSnap.data(),
-          id: docSnap.id,
-        }));
+        const products = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          let img = data.image || '';
+          if (typeof img === 'string' && img.startsWith('blob:')) {
+            img = '';
+          }
+          return {
+            ...data,
+            id: docSnap.id,
+            image: img,
+          };
+        });
         onUpdate(products);
       },
       (err) => {
@@ -145,7 +153,14 @@ export function subscribeToProducts(onUpdate, onError) {
 export async function saveProductToFirestore(product) {
   try {
     const docRef = doc(db, 'products', product.id);
-    const cleanData = sanitizePayload(product);
+    const sanitizedProduct = { ...product };
+    if (
+      typeof sanitizedProduct.image === 'string' &&
+      sanitizedProduct.image.trim().startsWith('blob:')
+    ) {
+      sanitizedProduct.image = '';
+    }
+    const cleanData = sanitizePayload(sanitizedProduct);
     await setDoc(docRef, cleanData, { merge: true });
     return { success: true };
   } catch (err) {
