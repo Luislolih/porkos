@@ -5,6 +5,9 @@ import {
   subscribeToProducts,
   saveProductToFirestore,
   deleteProductFromFirestore,
+  subscribeToCategories,
+  saveCategoryToFirestore,
+  deleteCategoryFromFirestore,
   subscribeToCreams,
   saveCreamToFirestore,
   deleteCreamFromFirestore,
@@ -19,6 +22,7 @@ import {
 
 const STORAGE_KEYS = {
   PRODUCTS: 'porkos_catalog_products',
+  CATEGORIES: 'porkos_catalog_categories',
   CREAMS: 'porkos_catalog_creams',
   EXTRAS: 'porkos_catalog_extras',
   PACKAGINGS: 'porkos_catalog_packagings',
@@ -44,8 +48,8 @@ function saveLocal(key, data) {
 export function CatalogProvider({ children }) {
   // Inicializar primero desde LocalStorage para que al actualizar NUNCA desaparezcan los datos
   const [products, setProducts] = useState(() => loadLocal(STORAGE_KEYS.PRODUCTS, []));
+  const [categories, setCategories] = useState(() => loadLocal(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES));
   const [creams, setCreams] = useState(() => loadLocal(STORAGE_KEYS.CREAMS, []));
-  const [categories] = useState(DEFAULT_CATEGORIES);
   const [extras, setExtras] = useState(() => loadLocal(STORAGE_KEYS.EXTRAS, []));
   const [packagings, setPackagings] = useState(() => loadLocal(STORAGE_KEYS.PACKAGINGS, []));
 
@@ -97,6 +101,22 @@ export function CatalogProvider({ children }) {
         }
       },
       (err) => handleError('products', err)
+    );
+
+    const unsubCategories = subscribeToCategories(
+      (remoteCategories) => {
+        if (!isMounted) return;
+        if (remoteCategories && remoteCategories.length > 0) {
+          setCategories(remoteCategories);
+          saveLocal(STORAGE_KEYS.CATEGORIES, remoteCategories);
+        } else {
+          const localItems = loadLocal(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES);
+          if (localItems.length > 0) {
+            localItems.forEach((c) => saveCategoryToFirestore(c));
+          }
+        }
+      },
+      (err) => handleError('categories', err)
     );
 
     const unsubCreams = subscribeToCreams(
@@ -151,6 +171,7 @@ export function CatalogProvider({ children }) {
       isMounted = false;
       clearTimeout(safetyTimeout);
       unsubProducts();
+      unsubCategories();
       unsubCreams();
       unsubExtras();
       unsubPackagings();
@@ -164,6 +185,10 @@ export function CatalogProvider({ children }) {
     try {
       for (const p of products) {
         const res = await saveProductToFirestore(p);
+        if (!res.success) lastError = res.error;
+      }
+      for (const cat of categories) {
+        const res = await saveCategoryToFirestore(cat);
         if (!res.success) lastError = res.error;
       }
       for (const c of creams) {
@@ -376,6 +401,65 @@ export function CatalogProvider({ children }) {
         return p;
       });
       saveLocal(STORAGE_KEYS.PRODUCTS, updated);
+      return updated;
+    });
+  };
+
+  // Funciones de Categorías Dinámicas
+  const addCategory = async (newCat) => {
+    const id = `cat_${Date.now()}`;
+    const categoryWithDefaults = {
+      id,
+      name: newCat.name || 'Nueva Categoría',
+      type: newCat.type || 'RESTAURANTE',
+      icon: newCat.icon || 'UtensilsCrossed',
+      order: categories.length + 1,
+      active: true,
+    };
+    setCategories((prev) => {
+      const updated = [...prev, categoryWithDefaults];
+      saveLocal(STORAGE_KEYS.CATEGORIES, updated);
+      return updated;
+    });
+    await saveCategoryToFirestore(categoryWithDefaults);
+    return categoryWithDefaults;
+  };
+
+  const updateCategory = async (catId, updatedFields) => {
+    setCategories((prev) => {
+      const updated = prev.map((c) => {
+        if (c.id === catId) {
+          const updatedCat = { ...c, ...updatedFields };
+          saveCategoryToFirestore(updatedCat);
+          return updatedCat;
+        }
+        return c;
+      });
+      saveLocal(STORAGE_KEYS.CATEGORIES, updated);
+      return updated;
+    });
+  };
+
+  const deleteCategory = async (catId) => {
+    setCategories((prev) => {
+      const updated = prev.filter((c) => c.id !== catId);
+      saveLocal(STORAGE_KEYS.CATEGORIES, updated);
+      return updated;
+    });
+    await deleteCategoryFromFirestore(catId);
+  };
+
+  const toggleCategoryActive = (catId) => {
+    setCategories((prev) => {
+      const updated = prev.map((c) => {
+        if (c.id === catId) {
+          const updatedCat = { ...c, active: !c.active };
+          saveCategoryToFirestore(updatedCat);
+          return updatedCat;
+        }
+        return c;
+      });
+      saveLocal(STORAGE_KEYS.CATEGORIES, updated);
       return updated;
     });
   };
@@ -657,6 +741,10 @@ export function CatalogProvider({ children }) {
     deleteProduct,
     toggleProductActive,
     recordProductSales,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    toggleCategoryActive,
     addCream,
     updateCream,
     deleteCream,

@@ -58,11 +58,12 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
         if (selectedLine === 'BEBIDAS_MARKET' && prod.line !== 'BEBIDAS_MARKET' && prod.type !== 'MARKET') return false;
       }
 
-      // 2. Filtrar por Subcategoría (si no es todas)
+      // 2. Filtrar por Categoría / Subcategoría dinámica
       if (selectedSubcategory !== 'all') {
-        if (selectedSubcategory === 'market') {
-          if (prod.subcategory !== 'market' && prod.type !== 'MARKET') return false;
-        } else if (prod.subcategory !== selectedSubcategory) {
+        const matchesCategory = prod.categoryId === selectedSubcategory;
+        const matchesSubcategory = prod.subcategory === selectedSubcategory;
+        const matchesMarket = selectedSubcategory === 'market' && (prod.subcategory === 'market' || prod.type === 'MARKET');
+        if (!matchesCategory && !matchesSubcategory && !matchesMarket) {
           return false;
         }
       }

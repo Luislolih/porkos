@@ -356,6 +356,55 @@ export async function saveExpenseToFirestore(expense) {
   }
 }
 
+// =========================================================================
+// 7. CATEGORÍAS (100% DINÁMICAS EN FIRESTORE)
+// =========================================================================
+export function subscribeToCategories(onUpdate, onError) {
+  try {
+    const colRef = collection(db, 'categories');
+    const q = query(colRef, orderBy('order', 'asc'));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const categories = snapshot.docs.map((docSnap) => ({
+          ...docSnap.data(),
+          id: docSnap.id,
+        }));
+        onUpdate(categories);
+      },
+      (err) => {
+        console.warn('Advertencia en Firestore categories:', err.message);
+        if (onError) onError(err);
+      }
+    );
+  } catch (err) {
+    console.warn('Error en suscripción de categorías:', err);
+    if (onError) onError(err);
+    return () => {};
+  }
+}
+
+export async function saveCategoryToFirestore(category) {
+  try {
+    const docRef = doc(db, 'categories', category.id);
+    await setDoc(docRef, sanitizePayload(category), { merge: true });
+    return { success: true };
+  } catch (err) {
+    console.error('Error al guardar categoría en Firestore:', err);
+    return { success: false, error: err };
+  }
+}
+
+export async function deleteCategoryFromFirestore(categoryId) {
+  try {
+    await deleteDoc(doc(db, 'categories', categoryId));
+    return { success: true };
+  } catch (err) {
+    console.error('Error al eliminar categoría en Firestore:', err);
+    return { success: false, error: err };
+  }
+}
+
 // Limpiar datos de prueba si el usuario desea empezar 100% desde cero
 export async function clearAllDemoCatalogFromFirestore() {
   try {

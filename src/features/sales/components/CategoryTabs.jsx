@@ -1,4 +1,5 @@
 import { PRODUCT_LINES } from '../../../types/defaultCatalog';
+import { useCatalog } from '../../../context/useCatalog';
 
 export default function CategoryTabs({
   salesMode = 'RESTAURANTE',
@@ -7,12 +8,14 @@ export default function CategoryTabs({
   selectedSubcategory,
   onSelectSubcategory,
 }) {
-  // En modo MARKET (Rápido), mostrar únicamente las categorías de market
+  const { categories } = useCatalog();
+
+  // En modo MARKET (Rápido), mostrar dinámicamente las categorías de market
   if (salesMode === 'MARKET') {
+    const marketCategories = categories.filter((c) => c.active && c.type === 'MARKET');
     const marketFilters = [
       { id: 'all', label: 'Todos de Market' },
-      { id: 'bebidas', label: 'Gaseosas & Bebidas' },
-      { id: 'market', label: 'Snacks & Postres' },
+      ...marketCategories.map((c) => ({ id: c.id, label: c.name })),
     ];
 
     return (
@@ -41,7 +44,7 @@ export default function CategoryTabs({
     );
   }
 
-  // En modo RESTAURANTE, mostrar las líneas gastronómicas y subcategorías completas (incluido bebidas y market)
+  // En modo RESTAURANTE, mostrar las líneas gastronómicas y categorías dinámicas
   const restaurantLines = [
     PRODUCT_LINES.ALL,
     PRODUCT_LINES.CLASICO,
@@ -49,13 +52,16 @@ export default function CategoryTabs({
     PRODUCT_LINES.BEBIDAS_MARKET,
   ];
 
-  const restaurantSubcategories = [
+  // Obtener categorías activas de la BD
+  const activeCategories = categories.filter((c) => {
+    if (!c.active) return false;
+    if (selectedLine === 'BEBIDAS_MARKET') return c.type === 'MARKET';
+    return true;
+  });
+
+  const categoryFilters = [
     { id: 'all', label: 'Todas las categorías' },
-    { id: 'hamburguesas', label: 'Hamburguesas' },
-    { id: 'choripanes', label: 'Choriporkos' },
-    { id: 'salchipapas', label: 'Salchiporkos' },
-    { id: 'bebidas', label: 'Bebidas & Gaseosas' },
-    { id: 'market', label: 'Snacks & Postres' },
+    ...activeCategories.map((c) => ({ id: c.id, label: c.name })),
   ];
 
   return (
@@ -87,9 +93,9 @@ export default function CategoryTabs({
         })}
       </div>
 
-      {/* 2. Subcategorías gastronómicas */}
+      {/* 2. Categorías gastronómicas dinámicas desde la BD */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-        {restaurantSubcategories.map((sub) => {
+        {categoryFilters.map((sub) => {
           const isSelected = selectedSubcategory === sub.id;
           return (
             <button

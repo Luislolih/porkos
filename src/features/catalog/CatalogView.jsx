@@ -34,6 +34,10 @@ export default function CatalogView() {
     updateProduct,
     deleteProduct,
     toggleProductActive,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    toggleCategoryActive,
     addCream,
     updateCream,
     deleteCream,
@@ -48,12 +52,19 @@ export default function CatalogView() {
     togglePackagingActive,
   } = useCatalog();
 
-  const [activeTab, setActiveTab] = useState('products'); // 'products' | 'creams' | 'extras' | 'packagings'
+  const [activeTab, setActiveTab] = useState('products'); // 'products' | 'categories' | 'creams' | 'extras' | 'packagings'
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [statusToast, setStatusToast] = useState(null);
+
+  // Modales de Categoría
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [catName, setCatName] = useState('');
+  const [catType, setCatType] = useState('RESTAURANTE');
+  const [catIcon, setCatIcon] = useState('UtensilsCrossed');
 
   // Modales de Producto
   const [editingProduct, setEditingProduct] = useState(null);
@@ -271,6 +282,45 @@ export default function CatalogView() {
       setIsSavingProduct(false);
       setTimeout(() => setStatusToast(null), 5000);
     }
+  };
+
+  // 1.5. Categorías Handlers
+  const handleOpenNewCategory = () => {
+    setEditingCategory(null);
+    setCatName('');
+    setCatType('RESTAURANTE');
+    setCatIcon('UtensilsCrossed');
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleOpenEditCategory = (cat) => {
+    setEditingCategory(cat);
+    setCatName(cat.name);
+    setCatType(cat.type || 'RESTAURANTE');
+    setCatIcon(cat.icon || 'UtensilsCrossed');
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleSaveCategory = async (e) => {
+    e.preventDefault();
+    if (!catName.trim()) return;
+
+    const payload = {
+      name: catName.trim(),
+      type: catType,
+      icon: catIcon,
+    };
+
+    if (editingCategory) {
+      await updateCategory(editingCategory.id, payload);
+      setStatusToast({ type: 'success', msg: `Categoría "${catName}" actualizada` });
+    } else {
+      await addCategory(payload);
+      setStatusToast({ type: 'success', msg: `Categoría "${catName}" creada con éxito` });
+    }
+
+    setIsCategoryModalOpen(false);
+    setTimeout(() => setStatusToast(null), 4000);
   };
 
   // 2. Cremas Handlers
@@ -500,6 +550,19 @@ export default function CatalogView() {
 
             <button
               type="button"
+              onClick={() => setActiveTab('categories')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'categories'
+                  ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>Categorías ({categories.length})</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('creams')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === 'creams'
@@ -547,6 +610,17 @@ export default function CatalogView() {
               className="text-xs font-bold shrink-0"
             >
               Nuevo Producto
+            </Button>
+          )}
+
+          {activeTab === 'categories' && (
+            <Button
+              onClick={handleOpenNewCategory}
+              icon={Plus}
+              size="sm"
+              className="text-xs font-bold shrink-0"
+            >
+              Nueva Categoría
             </Button>
           )}
 
@@ -753,6 +827,94 @@ export default function CatalogView() {
         </div>
         )}
       </>
+      )}
+
+      {/* ============================================================== */}
+      {/* --- TAB: CATEGORÍAS CONFIGURABLES --- */}
+      {/* ============================================================== */}
+      {activeTab === 'categories' && (
+        <div className="space-y-4">
+          <div className="bg-orange-950/20 border border-orange-500/30 p-3.5 rounded-2xl flex items-center gap-3">
+            <Tag className="w-5 h-5 text-[var(--color-porkos-orange)] shrink-0" />
+            <p className="text-xs text-orange-200 leading-relaxed">
+              <strong>Categorías 100% dinámicas:</strong> Puedes agregar tantas categorías como desees (Hamburguesas, Salchipapas, Alitas, Costillas, Bebidas, etc.). Cada categoría aparecerá automáticamente como una pestaña en la vista de Ventas y en el filtro de productos.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {categories.map((cat) => {
+              const assignedProductsCount = products.filter((p) => p.categoryId === cat.id).length;
+              return (
+                <div
+                  key={cat.id}
+                  className={`bg-[var(--color-porkos-surface)] border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all ${
+                    cat.active ? 'border-[var(--color-porkos-border)]' : 'border-zinc-800/40 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-[var(--color-porkos-orange)] shrink-0" />
+                        <h4 className="font-extrabold text-sm text-white truncate">{cat.name}</h4>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1.5 text-[10px]">
+                        <span className={`px-2 py-0.5 rounded font-bold uppercase ${
+                          cat.type === 'MARKET' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                        }`}>
+                          {cat.type}
+                        </span>
+                        <span className="text-zinc-500 font-semibold">
+                          {assignedProductsCount} plato{assignedProductsCount === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditCategory(cat)}
+                        className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer"
+                        title="Editar categoría"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`¿Eliminar la categoría "${cat.name}"?`)) {
+                            deleteCategory(cat.id);
+                          }
+                        }}
+                        className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/40 text-rose-400 transition-colors cursor-pointer"
+                        title="Eliminar categoría"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleCategoryActive(cat.id)}
+                      className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
+                        cat.active ? 'bg-emerald-500' : 'bg-zinc-700'
+                      }`}
+                      title={cat.active ? 'Desactivar categoría' : 'Activar categoría'}
+                    >
+                      <div
+                        className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                          cat.active ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* ============================================================== */}
@@ -1123,11 +1285,20 @@ export default function CatalogView() {
             </div>
 
             <div>
-              <label className="block text-zinc-300 font-bold mb-1">Categoría</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-zinc-300 font-bold">Categoría *</label>
+                <button
+                  type="button"
+                  onClick={() => handleOpenNewCategory()}
+                  className="text-[11px] text-[var(--color-porkos-orange)] hover:underline font-bold cursor-pointer"
+                >
+                  + Nueva
+                </button>
+              </div>
               <select
                 value={prodCategory}
                 onChange={(e) => setProdCategory(e.target.value)}
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
               >
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -1865,6 +2036,70 @@ service cloud.firestore {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal Crear / Editar Categoría */}
+      <Modal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        title={editingCategory ? `Editar: ${editingCategory.name}` : 'Nueva Categoría'}
+        subtitle="Crea o edita categorías para agrupar tus platos en ventas y cocina"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleSaveCategory} className="space-y-4 text-xs">
+          <div>
+            <label className="block text-zinc-300 font-bold mb-1">Nombre de la Categoría *</label>
+            <input
+              type="text"
+              required
+              value={catName}
+              onChange={(e) => setCatName(e.target.value)}
+              placeholder="Ej. Alitas, Costillas, Combos, Tragos..."
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-zinc-300 font-bold mb-1">Tipo de Categoría</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCatType('RESTAURANTE')}
+                className={`py-2 rounded-xl font-bold border transition-all cursor-pointer ${
+                  catType === 'RESTAURANTE'
+                    ? 'bg-[var(--color-porkos-orange)] text-black border-transparent font-extrabold shadow-sm'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                }`}
+              >
+                Restaurante / Cocina
+              </button>
+              <button
+                type="button"
+                onClick={() => setCatType('MARKET')}
+                className={`py-2 rounded-xl font-bold border transition-all cursor-pointer ${
+                  catType === 'MARKET'
+                    ? 'bg-blue-600 text-white border-transparent font-extrabold shadow-sm'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                }`}
+              >
+                Market / Bebidas
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCategoryModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit">
+              {editingCategory ? 'Guardar Cambios' : 'Crear Categoría'}
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );
