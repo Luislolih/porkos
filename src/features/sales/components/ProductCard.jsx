@@ -1,23 +1,36 @@
-import { Plus, SlidersHorizontal, Flame } from 'lucide-react';
+import { Flame, Plus } from 'lucide-react';
 import { formatCurrency } from '../../../utils/formatters';
 import ProductThumbnail from '../../../components/ui/ProductThumbnail';
 
 export default function ProductCard({
   product,
   onQuickAdd,
-  onCustomize,
   isMarketMode = false,
 }) {
   const isMarketItem = isMarketMode || product.type === 'MARKET' || product.line === 'MARKET';
-  const hasCustomizations = !isMarketItem && product.type === 'RESTAURANTE';
+
+  const handleClick = () => {
+    onQuickAdd(product);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onQuickAdd(product);
+    }
+  };
 
   return (
-    <div className="group relative bg-[#141414] border border-zinc-800/80 hover:border-zinc-700 rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-200 hover:shadow-lg active:scale-[0.99]">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      className="group relative bg-[#141414] border border-zinc-800/80 hover:border-[var(--color-porkos-orange)]/60 rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-200 hover:shadow-lg active:scale-[0.98] cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-[var(--color-porkos-orange)]/50"
+      title={`Toca para añadir "${product.name}"`}
+    >
       {/* Product Image */}
-      <div
-        className="relative h-28 sm:h-32 w-full overflow-hidden bg-zinc-900 cursor-pointer"
-        onClick={() => (hasCustomizations ? onCustomize(product) : onQuickAdd(product))}
-      >
+      <div className="relative h-28 sm:h-32 w-full overflow-hidden bg-zinc-900">
         <ProductThumbnail
           src={product.image}
           name={product.name}
@@ -31,14 +44,19 @@ export default function ProductCard({
         {/* Badges on image */}
         <div className="absolute top-2 left-2 flex items-center gap-1">
           {product.requiresKitchen && !isMarketItem && (
-            <span className="bg-black/80 text-zinc-300 text-[10px] font-bold px-1.5 py-0.5 rounded border border-zinc-700/60 flex items-center gap-1">
+            <span className="bg-black/80 text-zinc-300 text-[10px] font-bold px-1.5 py-0.5 rounded border border-zinc-700/60 flex items-center gap-1 shadow-sm">
               <Flame className="w-3 h-3 text-[var(--color-porkos-orange)]" /> Cocina
             </span>
           )}
         </div>
 
+        {/* Quick Add floating pill icon */}
+        <div className="absolute top-2 right-2 w-7 h-7 rounded-xl bg-black/75 group-hover:bg-[var(--color-porkos-orange)] text-zinc-300 group-hover:text-black flex items-center justify-center transition-colors shadow-md border border-zinc-800 group-hover:border-[var(--color-porkos-orange)]">
+          <Plus className="w-4 h-4 stroke-[2.5]" />
+        </div>
+
         {/* Price Tag */}
-        <div className="absolute bottom-2 right-2 bg-black/85 px-2 py-0.5 rounded-lg border border-zinc-800">
+        <div className="absolute bottom-2 right-2 bg-black/85 px-2 py-0.5 rounded-lg border border-zinc-800 shadow-sm">
           <span className="text-white font-extrabold text-xs sm:text-sm">
             {formatCurrency(product.price)}
           </span>
@@ -46,36 +64,15 @@ export default function ProductCard({
       </div>
 
       {/* Product Details */}
-      <div className="p-2.5 flex-1 flex flex-col justify-between gap-2">
-        <h4 className="font-bold text-xs sm:text-sm text-white line-clamp-2 group-hover:text-[var(--color-porkos-orange)] transition-colors">
+      <div className="p-2.5 flex-1 flex flex-col justify-between gap-1.5">
+        <h4 className="font-bold text-xs sm:text-sm text-white line-clamp-2 group-hover:text-[var(--color-porkos-orange)] transition-colors leading-tight">
           {product.name}
         </h4>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-1.5 pt-1">
-          {/* Quick Add Button */}
-          <button
-            type="button"
-            onClick={() => onQuickAdd(product)}
-            className="flex-1 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black font-extrabold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-1 transition-all active:scale-95 shadow-sm cursor-pointer"
-            title={isMarketItem ? 'Añadir al carrito' : 'Añadir con opciones predeterminadas'}
-          >
-            <Plus className="w-3.5 h-3.5 stroke-[3]" />
-            <span>{isMarketItem ? 'Añadir' : 'Directo'}</span>
-          </button>
-
-          {/* Customize Button if it has options */}
-          {hasCustomizations && (
-            <button
-              type="button"
-              onClick={() => onCustomize(product)}
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white p-2 rounded-xl border border-zinc-700/80 transition-all active:scale-95 cursor-pointer"
-              title="Personalizar cremas, papas, ensalada o extras"
-              aria-label="Personalizar"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-            </button>
-          )}
+        <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-0.5">
+          <span>{isMarketItem ? 'Venta Market' : 'Toca para pedir'}</span>
+          <span className="text-[var(--color-porkos-orange)] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+            + Añadir
+          </span>
         </div>
       </div>
     </div>

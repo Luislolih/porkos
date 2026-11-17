@@ -1312,7 +1312,7 @@ export default function CatalogView() {
         subtitle="Configura nombre, precio, opciones y empaques asociados"
         maxWidth="max-w-2xl"
       >
-        <form onSubmit={handleSaveProduct} className="space-y-4 text-xs">
+        <form onSubmit={handleSaveProduct} className="space-y-4 text-xs sm:text-sm">
           {/* Nombre del Producto */}
           <div>
             <label className="block text-zinc-300 font-bold mb-1">Nombre del Producto *</label>
@@ -1322,7 +1322,7 @@ export default function CatalogView() {
               value={prodName}
               onChange={(e) => setProdName(e.target.value)}
               placeholder="Ej. Hamburguesa Parrillera, Inka Cola 500ml..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 
@@ -1403,7 +1403,7 @@ export default function CatalogView() {
                 value={prodPrice}
                 onChange={(e) => setProdPrice(e.target.value)}
                 placeholder="0.00"
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-extrabold text-sm focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-extrabold focus:outline-none focus:border-[var(--color-porkos-orange)]"
               />
             </div>
 
@@ -1415,7 +1415,7 @@ export default function CatalogView() {
                 value={prodCost}
                 onChange={(e) => setProdCost(e.target.value)}
                 placeholder="0.00"
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-300 font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-zinc-300 font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
               />
             </div>
           </div>
@@ -1448,7 +1448,7 @@ export default function CatalogView() {
                 setImageStorageSource(val.startsWith('http') ? 'web_url' : null);
               }}
               placeholder="https://ejemplo.com/hamburguesa.jpg (Cloudinary, Imgur, direct link)"
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-medium text-xs focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-mono placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
 
             <input
@@ -1527,7 +1527,7 @@ export default function CatalogView() {
               value={prodDescription}
               onChange={(e) => setProdDescription(e.target.value)}
               placeholder="Carne 150g, pan artesanal..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl p-3 text-base sm:text-sm text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 
@@ -1663,6 +1663,7 @@ export default function CatalogView() {
           {/* Botones de guardar */}
           <div className="pt-2 flex justify-end gap-2">
             <Button
+              type="button"
               variant="outline"
               onClick={() => setIsProductModalOpen(false)}
             >
@@ -1693,7 +1694,7 @@ export default function CatalogView() {
         title={editingCream ? `Editar Crema: ${editingCream.name}` : 'Nueva Crema'}
         subtitle="Configura el nombre y abreviatura para la comanda"
       >
-        <form onSubmit={handleSaveCream} className="space-y-4 text-xs">
+        <form onSubmit={handleSaveCream} className="space-y-4 text-xs sm:text-sm">
           <div>
             <label className="block text-zinc-300 font-bold mb-1">Nombre de la Crema *</label>
             <input
@@ -1702,7 +1703,7 @@ export default function CatalogView() {
               value={creamName}
               onChange={(e) => setCreamName(e.target.value)}
               placeholder="Ej. Mayonesa Casera..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 
@@ -1714,7 +1715,7 @@ export default function CatalogView() {
               value={creamShortName}
               onChange={(e) => setCreamShortName(e.target.value.toUpperCase())}
               placeholder="Ej. MAYO, KET, MOS, AJÍ, BBQ"
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono font-bold uppercase tracking-wider focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-mono font-bold uppercase tracking-wider focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 
@@ -1733,6 +1734,7 @@ export default function CatalogView() {
 
           <div className="pt-2 flex justify-end gap-2">
             <Button
+              type="button"
               variant="outline"
               onClick={() => setIsCreamModalOpen(false)}
             >
@@ -1754,7 +1756,7 @@ export default function CatalogView() {
         title={editingExtra ? `Editar Extra: ${editingExtra.name}` : 'Nuevo Extra'}
         subtitle="Configura ingredientes adicionales y su precio"
       >
-        <form onSubmit={handleSaveExtra} className="space-y-4 text-xs">
+        <form onSubmit={handleSaveExtra} className="space-y-4 text-xs sm:text-sm">
           <div>
             <label className="block text-zinc-300 font-bold mb-1">Nombre del Extra *</label>
             <input
@@ -1763,7 +1765,7 @@ export default function CatalogView() {
               value={extraName}
               onChange={(e) => setExtraName(e.target.value)}
               placeholder="Ej. Extra Tocino Crocante..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 
@@ -1776,7 +1778,7 @@ export default function CatalogView() {
               value={extraPrice}
               onChange={(e) => setExtraPrice(e.target.value)}
               placeholder="2.50"
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-black text-sm focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-black focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 
@@ -1812,6 +1814,7 @@ export default function CatalogView() {
 
           <div className="pt-2 flex justify-end gap-2">
             <Button
+              type="button"
               variant="outline"
               onClick={() => setIsExtraModalOpen(false)}
             >
@@ -1834,7 +1837,7 @@ export default function CatalogView() {
         subtitle="Configura el empaque y asócialo a los productos permitidos"
         maxWidth="max-w-xl"
       >
-        <form onSubmit={handleSavePackaging} className="space-y-4 text-xs">
+        <form onSubmit={handleSavePackaging} className="space-y-4 text-xs sm:text-sm">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-zinc-300 font-bold mb-1">Nombre del Empaque / Taper *</label>
@@ -1844,7 +1847,7 @@ export default function CatalogView() {
                 value={pkgName}
                 onChange={(e) => setPkgName(e.target.value)}
                 placeholder="Ej. Taper Térmico Mediano..."
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
               />
             </div>
 
@@ -1856,7 +1859,7 @@ export default function CatalogView() {
                 value={pkgPrice}
                 onChange={(e) => setPkgPrice(e.target.value)}
                 placeholder="1.00"
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-black text-sm focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-black focus:outline-none focus:border-[var(--color-porkos-orange)]"
               />
             </div>
           </div>
@@ -1931,6 +1934,7 @@ export default function CatalogView() {
 
           <div className="pt-2 flex justify-end gap-2">
             <Button
+              type="button"
               variant="outline"
               onClick={() => setIsPackagingModalOpen(false)}
             >
@@ -2051,7 +2055,7 @@ service cloud.firestore {
         subtitle="Crea o edita categorías para agrupar tus platos en ventas y cocina"
         maxWidth="max-w-md"
       >
-        <form onSubmit={handleSaveCategory} className="space-y-4 text-xs">
+        <form onSubmit={handleSaveCategory} className="space-y-4 text-xs sm:text-sm">
           <div>
             <label className="block text-zinc-300 font-bold mb-1">Nombre de la Categoría *</label>
             <input
@@ -2060,7 +2064,7 @@ service cloud.firestore {
               value={catName}
               onChange={(e) => setCatName(e.target.value)}
               placeholder="Ej. Alitas, Costillas, Combos, Tragos..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 

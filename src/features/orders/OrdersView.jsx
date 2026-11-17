@@ -1,222 +1,455 @@
 import { useState, useMemo } from 'react';
-import { Search, Filter, Eye } from 'lucide-react';
-import { formatCurrency, formatTime } from '../../utils/formatters';
+import {
+  Search,
+  Eye,
+  Clock,
+  CheckCircle2,
+  Flame,
+  ChefHat,
+  ShoppingBag,
+  Bike,
+  Store,
+  Utensils,
+  X,
+  Package,
+} from 'lucide-react';
+import { formatCurrency, formatTime, formatElapsedTime } from '../../utils/formatters';
 import { ORDER_STATUS, PAYMENT_STATUS } from '../../types/constants';
 import Modal from '../../components/ui/Modal';
 
 export default function OrdersView({ orders = [] }) {
+  const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'HISTORY'
   const [filterModality, setFilterModality] = useState('ALL');
-  const [filterStatus, setFilterStatus] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
-      if (filterModality !== 'ALL' && o.modality !== filterModality) return false;
-      if (filterStatus !== 'ALL' && o.status !== filterStatus) return false;
+      // Filtro por pestaña (Activas vs Historial)
+      if (activeTab === 'ACTIVE') {
+        const isActive = o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO';
+        if (!isActive) return false;
+      } else if (activeTab === 'HISTORY') {
+        const isHistory = o.status === 'ENTREGADO' || o.status === 'CANCELADO';
+        if (!isHistory) return false;
+      }
+
+      // Filtro por Modalidad
+      if (filterModality !== 'ALL') {
+        if (filterModality === 'MESA' && o.modality !== 'MESA') return false;
+        if (filterModality === 'DELIVERY' && o.modality !== 'DELIVERY') return false;
+        if (filterModality === 'PARA_LLEVAR' && o.modality !== 'PARA_LLEVAR' && o.modality !== 'CONSUMO_EXTERNO') return false;
+        if (filterModality === 'MARKET' && o.modality !== 'MARKET') return false;
+      }
+
+      // Búsqueda por texto
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchesNum = o.orderNumber?.toLowerCase().includes(query);
-        const matchesClient = o.customer?.name?.toLowerCase().includes(query);
+        const matchesClient = o.customerName?.toLowerCase().includes(query) || o.customer?.name?.toLowerCase().includes(query);
         const matchesPhone = o.customer?.phone?.includes(query);
-        return matchesNum || matchesClient || matchesPhone;
+        const matchesTable = o.tableName?.toLowerCase().includes(query);
+        return matchesNum || matchesClient || matchesPhone || matchesTable;
       }
+
       return true;
     });
-  }, [orders, filterModality, filterStatus, searchQuery]);
+  }, [orders, activeTab, filterModality, searchQuery]);
+
+  const activeCount = useMemo(() => {
+    return orders.filter((o) => o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO').length;
+  }, [orders]);
+
+  const historyCount = useMemo(() => {
+    return orders.filter((o) => o.status === 'ENTREGADO' || o.status === 'CANCELADO').length;
+  }, [orders]);
+
+  const getModalityIcon = (mod) => {
+    switch (mod) {
+      case 'MESA':
+        return <Utensils className="w-3.5 h-3.5 text-blue-400" />;
+      case 'DELIVERY':
+        return <Bike className="w-3.5 h-3.5 text-emerald-400" />;
+      case 'PARA_LLEVAR':
+      case 'CONSUMO_EXTERNO':
+        return <ShoppingBag className="w-3.5 h-3.5 text-amber-400" />;
+      case 'MARKET':
+        return <Store className="w-3.5 h-3.5 text-purple-400" />;
+      default:
+        return <Package className="w-3.5 h-3.5 text-zinc-400" />;
+    }
+  };
+
+  const getStepStatusIndex = (status) => {
+    switch (status) {
+      case 'PENDIENTE':
+        return 0;
+      case 'PREPARANDO':
+        return 1;
+      case 'LISTO':
+        return 2;
+      case 'ENTREGADO':
+        return 3;
+      default:
+        return 0;
+    }
+  };
 
   return (
-    <div className="space-y-4 pb-20 lg:pb-6">
+    <div className="space-y-3 pb-20 lg:pb-6">
       {/* Filters Bar */}
-      <div className="bg-[var(--color-porkos-surface)] p-4 rounded-2xl border border-[var(--color-porkos-border)] space-y-3">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <h2 className="text-lg font-bold text-white tracking-tight">
-            Historial de Pedidos y Ventas
-          </h2>
+      <div className="bg-[var(--color-porkos-surface)] p-3 sm:p-4 rounded-2xl border border-[var(--color-porkos-border)] space-y-3">
+        {/* Top: Tabs & Search */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+          {/* Segmented Control / Tabs */}
+          <div className="flex bg-black/60 p-1 rounded-xl border border-zinc-800 shrink-0">
+            {[
+              { id: 'ALL', label: 'Todas', count: orders.length },
+              { id: 'ACTIVE', label: 'En Curso', count: activeCount },
+              { id: 'HISTORY', label: 'Historial', count: historyCount },
+            ].map((tab) => {
+              const isSelected = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`
+                    px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5
+                    ${
+                      isSelected
+                        ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    }
+                  `}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                      isSelected
+                        ? 'bg-black text-white font-extrabold'
+                        : 'bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
           {/* Search bar */}
-          <div className="relative max-w-sm w-full">
+          <div className="relative flex-1 max-w-sm">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar por N° pedido o cliente..."
-              className="w-full bg-black/50 border border-zinc-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              placeholder="Buscar por N° pedido, cliente o mesa..."
+              className="w-full bg-black/50 border border-zinc-800 rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white text-xs cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-zinc-800/80 text-xs">
-          <span className="text-zinc-500 font-bold flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5" /> Modalidad:
+        {/* Filter Pills: Modalidad */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none text-xs">
+          <span className="text-zinc-500 font-semibold text-[11px] shrink-0 mr-1">
+            Modalidad:
           </span>
-          {['ALL', 'MESA', 'DELIVERY', 'PARA_LLEVAR', 'MARKET'].map((mod) => (
-            <button
-              key={mod}
-              type="button"
-              onClick={() => setFilterModality(mod)}
-              className={`
-                px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer
-                ${
-                  filterModality === mod
-                    ? 'bg-zinc-700 text-white font-bold'
-                    : 'bg-zinc-800/70 text-zinc-400 hover:text-white'
-                }
-              `}
-            >
-              {mod === 'ALL' ? 'Todas' : mod === 'PARA_LLEVAR' ? 'Para Llevar' : mod}
-            </button>
-          ))}
-          <span className="text-zinc-500 font-bold flex items-center gap-1 ml-2">
-            Estado:
-          </span>
-          {['ALL', 'PENDIENTE', 'PREPARANDO', 'LISTO', 'ENTREGADO'].map((st) => (
-            <button
-              key={st}
-              type="button"
-              onClick={() => setFilterStatus(st)}
-              className={`
-                px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer
-                ${
-                  filterStatus === st
-                    ? 'bg-[var(--color-porkos-orange)] text-black font-bold'
-                    : 'bg-zinc-800/70 text-zinc-400 hover:text-white'
-                }
-              `}
-            >
-              {st === 'ALL' ? 'Todos' : ORDER_STATUS[st]?.label || st}
-            </button>
-          ))}
+          {[
+            { id: 'ALL', label: 'Todas' },
+            { id: 'MESA', label: 'Mesas' },
+            { id: 'PARA_LLEVAR', label: 'Para Llevar' },
+            { id: 'DELIVERY', label: 'Delivery' },
+            { id: 'MARKET', label: 'Market' },
+          ].map((m) => {
+            const isSelected = filterModality === m.id;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setFilterModality(m.id)}
+                className={`
+                  px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border
+                  ${
+                    isSelected
+                      ? 'bg-zinc-800 text-white border-zinc-600 font-bold shadow-xs'
+                      : 'bg-zinc-900/60 text-zinc-400 border-zinc-800/80 hover:text-white'
+                  }
+                `}
+              >
+                {m.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Orders List / Table */}
-      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl overflow-hidden">
+      {/* Orders List / Cards */}
+      <div className="space-y-2">
         {filteredOrders.length === 0 ? (
-          <div className="py-16 text-center text-zinc-500">
-            <p className="font-semibold text-sm">No se encontraron pedidos</p>
+          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl py-12 text-center text-zinc-500">
+            <p className="font-bold text-sm text-zinc-400">No se encontraron pedidos</p>
             <p className="text-xs text-zinc-600 mt-1">
-              Las nuevas ventas y comandas aparecerán aquí
+              Prueba cambiando los filtros o la búsqueda
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-black/40 text-zinc-400 font-bold uppercase tracking-wider border-b border-zinc-800">
-                <tr>
-                  <th className="py-3 px-4">Pedido</th>
-                  <th className="py-3 px-4">Hora</th>
-                  <th className="py-3 px-4">Modalidad</th>
-                  <th className="py-3 px-4">Estado</th>
-                  <th className="py-3 px-4">Pago</th>
-                  <th className="py-3 px-4 text-right">Total</th>
-                  <th className="py-3 px-4 text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/60 font-medium">
-                {filteredOrders.map((order) => {
-                  const statusConf = ORDER_STATUS[order.status] || {};
-                  const payConf = PAYMENT_STATUS[order.paymentStatus] || {};
-                  return (
-                    <tr
-                      key={order.orderNumber}
-                      className="hover:bg-white/[0.02] transition-colors"
-                    >
-                      <td className="py-3.5 px-4 font-black text-white">
+          filteredOrders.map((order) => {
+            const statusConf = ORDER_STATUS[order.status] || {};
+            const payConf = PAYMENT_STATUS[order.paymentStatus] || {};
+            const isFinished = order.status === 'ENTREGADO' || order.status === 'CANCELADO';
+
+            return (
+              <div
+                key={order.orderNumber}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedOrder(order)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedOrder(order);
+                  }
+                }}
+                className={`
+                  group bg-[#141414] border rounded-2xl p-3 sm:p-3.5 transition-all cursor-pointer flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 hover:border-zinc-700 active:scale-[0.99]
+                  ${
+                    !isFinished
+                      ? 'border-zinc-800 hover:border-[var(--color-porkos-orange)]/50'
+                      : 'border-zinc-850 opacity-90'
+                  }
+                `}
+                title="Toca para ver el seguimiento y detalle del pedido"
+              >
+                {/* Left: Info, Number, Client, Modality */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                      order.status === 'ENTREGADO'
+                        ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
+                        : order.status === 'LISTO'
+                        ? 'bg-amber-950/40 border-amber-500/30 text-amber-400'
+                        : 'bg-orange-950/40 border-orange-500/30 text-[var(--color-porkos-orange)]'
+                    }`}
+                  >
+                    {getModalityIcon(order.modality)}
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-black text-sm sm:text-base text-white group-hover:text-[var(--color-porkos-orange)] transition-colors">
                         {order.orderNumber}
-                      </td>
-                      <td className="py-3.5 px-4 text-zinc-400">
+                      </h4>
+                      <span className="text-[11px] text-zinc-500 font-semibold">
                         {formatTime(order.createdAt)}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className="font-semibold text-zinc-200 block">
-                          {order.tableName || order.modality}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-zinc-400 mt-0.5 flex-wrap">
+                      <span className="font-semibold text-zinc-300">
+                        {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Para Llevar' : order.modality)}
+                      </span>
+                      {order.customerName && (
+                        <span className="text-amber-400 font-bold truncate">
+                          • {order.customerName}
                         </span>
-                        {order.customerName && (
-                          <span className="text-[10px] text-orange-400/90 font-medium block">
-                            {order.customerName}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                            statusConf.badgeClass || 'bg-zinc-800 text-zinc-300'
-                          }`}
-                        >
-                          {statusConf.label || order.status}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            payConf.badgeClass || 'text-zinc-300'
-                          }`}
-                        >
-                          {payConf.label || order.paymentStatus}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-extrabold text-white text-sm">
-                        {formatCurrency(order.total)}
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedOrder(order)}
-                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-                          title="Ver Detalle"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      )}
+                      <span className="text-zinc-500 text-[11px]">
+                        ({order.items?.length || 0} items)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Status Pill, Elapsed, Total, Tap CTA */}
+                <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-850">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
+                        statusConf.badgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                      }`}
+                    >
+                      {statusConf.label || order.status}
+                    </span>
+
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        payConf.badgeClass || 'text-zinc-400 bg-zinc-850'
+                      }`}
+                    >
+                      {payConf.label || order.paymentStatus}
+                    </span>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <div className="font-black text-sm sm:text-base text-white">
+                      {formatCurrency(order.total)}
+                    </div>
+                    <div className="text-[10px] text-zinc-500 flex items-center justify-end gap-1">
+                      <Clock className="w-2.5 h-2.5" />
+                      <span>{formatElapsedTime(order.createdAt)}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="p-1.5 rounded-lg bg-zinc-800/80 group-hover:bg-[var(--color-porkos-orange)] text-zinc-400 group-hover:text-black transition-colors shrink-0"
+                    aria-label="Ver detalle"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
 
-      {/* Order Detail Modal */}
+      {/* Modal de Seguimiento y Detalle de la Orden */}
       <Modal
         isOpen={Boolean(selectedOrder)}
         onClose={() => setSelectedOrder(null)}
-        title={`Detalle de Venta ${selectedOrder?.orderNumber}`}
+        title={`Seguimiento: ${selectedOrder?.orderNumber}`}
         subtitle={`Modalidad: ${selectedOrder?.tableName || selectedOrder?.modality}`}
+        maxWidth="max-w-xl"
       >
         {selectedOrder && (
           <div className="space-y-4 text-xs">
+            {/* Timeline de Seguimiento */}
+            <div className="bg-black/60 p-3 sm:p-4 rounded-2xl border border-zinc-800 space-y-2.5">
+              <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
+                Estado del Pedido
+              </span>
+
+              <div className="grid grid-cols-4 gap-1 sm:gap-2">
+                {[
+                  { id: 'PENDIENTE', label: '1. Recibido', icon: Clock },
+                  { id: 'PREPARANDO', label: '2. Cocina', icon: Flame },
+                  { id: 'LISTO', label: '3. Listo', icon: ChefHat },
+                  { id: 'ENTREGADO', label: '4. Entregado', icon: CheckCircle2 },
+                ].map((step, idx) => {
+                  const currentIdx = getStepStatusIndex(selectedOrder.status);
+                  const isDone = idx < currentIdx;
+                  const isCurrent = idx === currentIdx;
+                  const StepIcon = step.icon;
+
+                  return (
+                    <div
+                      key={step.id}
+                      className={`p-2 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all ${
+                        isCurrent
+                          ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md'
+                          : isDone
+                          ? 'bg-zinc-850 text-emerald-400 border-emerald-500/30 font-bold'
+                          : 'bg-zinc-900/60 text-zinc-600 border-zinc-800'
+                      }`}
+                    >
+                      <StepIcon className="w-3.5 h-3.5" />
+                      <span className="text-[10px] leading-tight">{step.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Datos del Cliente y Modalidad */}
+            <div className="bg-black/40 p-3 rounded-xl border border-zinc-800/80 flex items-center justify-between text-xs">
+              <div>
+                <span className="text-zinc-500 text-[10px] block">Cliente:</span>
+                <span className="font-bold text-white text-sm">
+                  {selectedOrder.customerName || selectedOrder.customer?.name || 'Cliente en Salón'}
+                </span>
+                {selectedOrder.customer?.phone && (
+                  <p className="text-[11px] text-zinc-400">Tel: {selectedOrder.customer.phone}</p>
+                )}
+                {selectedOrder.customer?.address && (
+                  <p className="text-[11px] text-zinc-400 truncate">
+                    Dir: {selectedOrder.customer.address}
+                  </p>
+                )}
+              </div>
+
+              <div className="text-right">
+                <span className="text-zinc-500 text-[10px] block">Hora de registro:</span>
+                <span className="font-bold text-zinc-200">
+                  {formatTime(selectedOrder.createdAt)}
+                </span>
+                <span className="text-[10px] text-zinc-500 block">
+                  {formatElapsedTime(selectedOrder.createdAt)}
+                </span>
+              </div>
+            </div>
+
+            {/* Detalle de Productos y Opciones */}
             <div className="bg-black/50 p-3 rounded-xl space-y-2 border border-zinc-800">
               <h5 className="font-bold text-white uppercase tracking-wider text-[11px]">
-                Productos Registrados
+                Productos del Pedido ({selectedOrder.items?.length || 0})
               </h5>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-56 overflow-y-auto">
                 {selectedOrder.items?.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-start">
-                    <div>
-                      <span className="font-bold text-white">
-                        {item.quantity}x {item.name}
+                  <div
+                    key={idx}
+                    className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/60 flex justify-between items-start text-xs"
+                  >
+                    <div className="space-y-0.5">
+                      <span className="font-extrabold text-white">
+                        {item.quantity}× {item.name}
                       </span>
+
+                      {/* Cremas */}
                       {item.customization?.creamsSummary && (
-                        <p className="text-[11px] text-orange-300">
+                        <p className="text-[11px] text-orange-400 font-semibold">
                           Cremas: {item.customization.creamsSummary}
                         </p>
                       )}
+
+                      {/* Ensalada */}
+                      {item.customization?.saladSummary && (
+                        <p className="text-[10px] text-emerald-400 font-medium">
+                          • {item.customization.saladSummary}
+                        </p>
+                      )}
+
+                      {/* Papas y Modificadores */}
                       {item.customization?.selectedModifiers?.map((m) => (
                         <p key={m.groupId} className="text-[10px] text-zinc-400">
                           • {m.optionName}
                         </p>
                       ))}
+
+                      {/* Extras */}
                       {item.customization?.selectedExtras?.map((e) => (
-                        <p key={e.id} className="text-[10px] text-emerald-400">
+                        <p key={e.id} className="text-[10px] text-amber-300 font-medium">
                           + {e.name}
                         </p>
                       ))}
+
+                      {/* Empaque individual */}
+                      {item.customization?.packaging && item.customization.packaging.price > 0 && (
+                        <p className="text-[10px] text-blue-300 font-medium">
+                          📦 {item.customization.packaging.name}
+                        </p>
+                      )}
+
+                      {/* Nota */}
+                      {item.customization?.itemNotes && (
+                        <p className="text-[10px] text-amber-300 italic">
+                          &ldquo;{item.customization.itemNotes}&rdquo;
+                        </p>
+                      )}
                     </div>
-                    <span className="font-bold text-white">
+
+                    <span className="font-extrabold text-white text-xs shrink-0 ml-2">
                       {formatCurrency(item.subtotal)}
                     </span>
                   </div>
@@ -224,21 +457,21 @@ export default function OrdersView({ orders = [] }) {
               </div>
             </div>
 
-            {/* Totals */}
-            <div className="space-y-1 pt-2 border-t border-zinc-800 font-semibold">
+            {/* Totales y Pago */}
+            <div className="space-y-1.5 pt-2 border-t border-zinc-800 font-semibold text-xs">
               <div className="flex justify-between text-zinc-400">
                 <span>Subtotal:</span>
                 <span>{formatCurrency(selectedOrder.subtotal)}</span>
               </div>
               {selectedOrder.packagingsTotal > 0 && (
                 <div className="flex justify-between text-zinc-400">
-                  <span>Empaques:</span>
+                  <span>Empaques / Tapers:</span>
                   <span>{formatCurrency(selectedOrder.packagingsTotal)}</span>
                 </div>
               )}
               {selectedOrder.deliveryFee > 0 && (
                 <div className="flex justify-between text-zinc-400">
-                  <span>Delivery:</span>
+                  <span>Costo Delivery:</span>
                   <span>{formatCurrency(selectedOrder.deliveryFee)}</span>
                 </div>
               )}

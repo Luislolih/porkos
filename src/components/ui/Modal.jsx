@@ -13,15 +13,9 @@ export default function Modal({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Calcular el ancho del scrollbar para compensar y evitar saltos de pantalla
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    // Prevenir scroll en el fondo mientras el modal está abierto
     const originalOverflow = document.body.style.overflow;
-    const originalPaddingRight = document.body.style.paddingRight;
-
     document.body.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
 
     // Cerrar modal al presionar Escape
     const handleKeyDown = (e) => {
@@ -33,7 +27,6 @@ export default function Modal({
 
     return () => {
       document.body.style.overflow = originalOverflow;
-      document.body.style.paddingRight = originalPaddingRight;
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);
@@ -46,7 +39,7 @@ export default function Modal({
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
     >
-      {/* Backdrop con desenfoque suave */}
+      {/* Backdrop con desenfoque suave y color mate */}
       <div
         className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity duration-200"
         onClick={onClose}
@@ -57,13 +50,13 @@ export default function Modal({
       <div
         className={`
           relative w-full ${maxWidth} bg-[#141414]
-          border border-zinc-800/90 shadow-2xl shadow-black/90
+          border border-zinc-800/90 shadow-2xl shadow-black/95
           rounded-2xl sm:rounded-3xl flex flex-col max-h-[92vh] sm:max-h-[88vh]
           z-10 my-auto animate-modal-enter overflow-hidden
         `}
       >
         {/* Cabecera del Modal */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/90 bg-[#161616] shrink-0">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-zinc-800/90 bg-[#161616] shrink-0">
           <div className="min-w-0 pr-3">
             <h3 className="text-base sm:text-lg font-black text-white tracking-tight truncate">
               {title}
@@ -86,8 +79,8 @@ export default function Modal({
           )}
         </div>
 
-        {/* Contenido / Campos del formulario con scroll contenido */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 overscroll-contain">
+        {/* Contenido / Campos del formulario con scroll fluido y contenido */}
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 overscroll-contain flex-1">
           {children}
         </div>
       </div>

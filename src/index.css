@@ -65,3 +65,19 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-porkos-orange);
 }
+
+/* Prevenir auto-zoom y comportamientos pegajosos en inputs móviles (iOS Safari / Android Chrome) */
+@media screen and (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+input,
+select,
+textarea,
+button {
+  touch-action: manipulation;
+}

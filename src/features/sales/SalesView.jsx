@@ -21,7 +21,7 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [successToast, setSuccessToast] = useState(null);
 
-  const { products, recordProductSales } = useCatalog();
+  const { products, packagings: catalogPackagings, recordProductSales } = useCatalog();
 
   const {
     items,
@@ -80,6 +80,26 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
 
   // Añadir rápido (Por defecto SIN cremas marcadas, el usuario las personaliza o pide directo)
   const handleQuickAdd = (product) => {
+    // Si la modalidad es para llevar o delivery, asociar el packaging predeterminado del producto
+    const isTakeoutOrDelivery =
+      salesMode !== SALES_MODES.MARKET &&
+      (modality === 'PARA_LLEVAR' ||
+        modality === 'DELIVERY' ||
+        modality === 'CONSUMO_EXTERNO' ||
+        modality === 'LLEVAR');
+
+    let defaultPackaging = null;
+    if (isTakeoutOrDelivery) {
+      defaultPackaging =
+        (catalogPackagings || []).find(
+          (pkg) =>
+            pkg.active &&
+            pkg.id !== 'pkg_ninguno' &&
+            (product.availablePackagingIds?.includes(pkg.id) ||
+              pkg.applicableProductIds?.includes(product.id))
+        ) || null;
+    }
+
     if (product.type === 'MARKET' || product.line === 'MARKET' || product.type === SALES_MODES.MARKET) {
       // Productos de market en comandas: SIN cremas, SIN papas, SIN modificadores
       addItem(product, {
@@ -119,6 +139,7 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
         saladSummary: product.saladConfig?.enabled ? 'CON ENSALADA COMPLETA' : '',
         selectedModifiers: defaultMods,
         selectedExtras: [],
+        packaging: defaultPackaging,
         removedIngredients: [],
         itemNotes: '',
       });
@@ -367,6 +388,7 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
         product={customizingProduct}
         cartItemId={editingCartItem?.itemId}
         initialCustomization={editingCartItem?.customization || null}
+        modality={modality}
         onConfirm={handleConfirmCustomization}
       />
 

@@ -5,11 +5,11 @@ import {
   ShoppingBag,
   Flame,
   User,
-  SlidersHorizontal,
   CheckCircle,
   Store,
   Bike,
   Package,
+  CreditCard,
 } from 'lucide-react';
 import { useCart } from '../../../context/useCart';
 import { useCatalog } from '../../../context/useCatalog';
@@ -79,9 +79,9 @@ export default function CartView({
             <ShoppingBag className="w-5 h-5 text-[var(--color-porkos-orange)]" />
           )}
           <h3 className="font-bold text-sm sm:text-base text-white">
-            {isMarketMode ? 'Venta Market (Caja Rápida)' : 'Comanda Actual'}
+            {isMarketMode ? 'Caja Market' : 'Comanda Restaurante'}
           </h3>
-          <span className="bg-zinc-800 text-zinc-300 font-extrabold text-xs px-2 py-0.5 rounded-full">
+          <span className={`font-extrabold text-xs px-2 py-0.5 rounded-full ${isMarketMode ? 'bg-blue-950 text-blue-300 border border-blue-800' : 'bg-zinc-800 text-zinc-300'}`}>
             {itemCount}
           </span>
         </div>
@@ -244,193 +244,189 @@ export default function CartView({
               <ShoppingBag className="w-10 h-10 mb-2 opacity-30" />
             )}
             <p className="text-xs font-semibold">
-              {isMarketMode ? 'Venta vacía' : 'Comanda vacía'}
+              {isMarketMode ? 'Caja sin productos' : 'Comanda vacía'}
             </p>
             <p className="text-[11px] text-zinc-600 mt-0.5">
               {isMarketMode
-                ? 'Toca un producto para cobrarlo al instante'
-                : 'Toca un producto para añadirlo a la comanda'}
+                ? 'Toca cualquier producto para cobrarlo al instante'
+                : 'Toca un producto para comandar (da clic sobre él para cambiar opciones)'}
             </p>
           </div>
         ) : (
-          items.map((item) => (
-            <div
-              key={item.itemId}
-              className="bg-black/40 border border-zinc-800/80 rounded-xl p-2.5 space-y-2 transition-all hover:border-zinc-700"
-            >
-              {/* Main row: Title, quantity, price */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    {item.requiresKitchen && (
-                      <Flame className="w-3.5 h-3.5 text-[var(--color-porkos-orange)] shrink-0" />
-                    )}
-                    <h5 className="font-bold text-xs sm:text-sm text-white leading-tight truncate">
-                      {item.name}
-                    </h5>
+          items.map((item) => {
+            const isCustomizable = !isMarketMode && item.requiresKitchen;
+
+            return (
+              <div
+                key={item.itemId}
+                className="bg-black/40 border border-zinc-800/80 rounded-xl p-2.5 space-y-2 transition-all hover:border-zinc-700"
+              >
+                {/* Main row: Title, quantity, price */}
+                <div
+                  onClick={() => isCustomizable && onEditItem && onEditItem(item)}
+                  className={`flex items-start justify-between gap-2 ${
+                    isCustomizable ? 'cursor-pointer group' : ''
+                  }`}
+                  title={isCustomizable ? 'Toca para personalizar cremas, papas, etc.' : undefined}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      {item.requiresKitchen && (
+                        <Flame className="w-3.5 h-3.5 text-[var(--color-porkos-orange)] shrink-0" />
+                      )}
+                      <h5 className={`font-bold text-xs sm:text-sm text-white leading-tight truncate ${isCustomizable ? 'group-hover:text-[var(--color-porkos-orange)]' : ''}`}>
+                        {item.name}
+                      </h5>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[11px] text-zinc-400 font-medium">
+                        {formatCurrency(item.unitPrice)} c/u
+                      </span>
+                      {isCustomizable && (
+                        <span className="text-[10px] text-[var(--color-porkos-orange)] font-bold group-hover:underline">
+                          • Toca para personalizar
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-[11px] text-zinc-400 font-medium">
-                    {formatCurrency(item.unitPrice)} c/u
+
+                  <span className="font-extrabold text-xs sm:text-sm text-white shrink-0">
+                    {formatCurrency(item.subtotal)}
                   </span>
                 </div>
 
-                <span className="font-extrabold text-xs sm:text-sm text-white shrink-0">
-                  {formatCurrency(item.subtotal)}
-                </span>
-              </div>
+                {/* Customization Details - Formato Gastronómico Interactivo */}
+                {!isMarketMode && item.requiresKitchen && item.customization && (
+                  <div
+                    onClick={() => onEditItem && onEditItem(item)}
+                    className="text-[11px] space-y-1 bg-black/60 p-2.5 rounded-xl border border-zinc-800 hover:border-[var(--color-porkos-orange)]/60 transition-all cursor-pointer group"
+                    title="Toca para editar opciones de este producto"
+                  >
+                    {/* PAPAS */}
+                    {getPapasText(item.customization) && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-orange-400 text-[10px] tracking-wider">
+                          PAPAS:
+                        </span>
+                        <span className="font-bold text-zinc-200">
+                          {getPapasText(item.customization)}
+                        </span>
+                      </div>
+                    )}
 
-              {/* Customization Details - Formato Gastronómico Interactivo (SOLO si requiere cocina y no es market) */}
-              {!isMarketMode && item.requiresKitchen && item.customization && (
-                <div
-                  onClick={() => onEditItem && onEditItem(item)}
-                  className="text-[11px] space-y-1 bg-black/60 p-2.5 rounded-xl border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer group"
-                  title="Toca para editar opciones de este producto"
-                >
-                  {/* PAPAS */}
-                  {getPapasText(item.customization) && (
+                    {/* CREMAS */}
                     <div className="flex items-center gap-1.5">
                       <span className="font-extrabold text-orange-400 text-[10px] tracking-wider">
-                        PAPAS:
+                        CREMAS:
                       </span>
                       <span className="font-bold text-zinc-200">
-                        {getPapasText(item.customization)}
+                        {item.customization.creamsSummary || 'SIN CREMAS'}
                       </span>
                     </div>
-                  )}
 
-                  {/* CREMAS */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-extrabold text-orange-400 text-[10px] tracking-wider">
-                      CREMAS:
-                    </span>
-                    <span className="font-bold text-zinc-200">
-                      {item.customization.creamsSummary || 'SIN CREMAS'}
-                    </span>
+                    {/* ENSALADA */}
+                    {item.customization.saladSummary && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-emerald-400 text-[10px] tracking-wider">
+                          ENSALADA:
+                        </span>
+                        <span className="font-bold text-zinc-200">
+                          {item.customization.saladSummary}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* EXTRAS */}
+                    {item.customization.selectedExtras?.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-amber-400 text-[10px] tracking-wider">
+                          EXTRAS:
+                        </span>
+                        <span className="font-bold text-amber-200">
+                          {item.customization.selectedExtras
+                            .map((e) => {
+                              const clean = e.name.replace(/^Extra\s+/i, '');
+                              return `${clean}${e.unitPrice ? ` (+${formatCurrency(e.unitPrice)})` : ''}`;
+                            })
+                            .join(', ')}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* EMPAQUE INDIVIDUAL */}
+                    {item.customization.packaging && item.customization.packaging.price > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-blue-400 text-[10px] tracking-wider">
+                          EMPAQUE:
+                        </span>
+                        <span className="font-bold text-blue-300">
+                          {item.customization.packaging.name} (+{formatCurrency(item.customization.packaging.price)})
+                        </span>
+                      </div>
+                    )}
+
+                    {/* TEMPERATURA */}
+                    {item.customization.temperature && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-cyan-400 text-[10px] tracking-wider">
+                          TEMP:
+                        </span>
+                        <span className="font-bold text-cyan-300">
+                          {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* NOTA */}
+                    {item.customization.itemNotes && (
+                      <div className="flex items-start gap-1.5 pt-0.5 border-t border-zinc-800/80">
+                        <span className="font-extrabold text-zinc-400 text-[10px] tracking-wider">
+                          NOTA:
+                        </span>
+                        <span className="font-semibold text-amber-300 italic">
+                          &ldquo;{item.customization.itemNotes}&rdquo;
+                        </span>
+                      </div>
+                    )}
                   </div>
+                )}
 
-                  {/* ENSALADA */}
-                  {item.customization.saladSummary && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-extrabold text-emerald-400 text-[10px] tracking-wider">
-                        ENSALADA:
-                      </span>
-                      <span className="font-bold text-zinc-200">
-                        {item.customization.saladSummary}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* EXTRAS */}
-                  {item.customization.selectedExtras?.length > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-extrabold text-amber-400 text-[10px] tracking-wider">
-                        EXTRAS:
-                      </span>
-                      <span className="font-bold text-amber-200">
-                        {item.customization.selectedExtras
-                          .map((e) => {
-                            const clean = e.name.replace(/^Extra\s+/i, '');
-                            return `${clean}${e.unitPrice ? ` (+${formatCurrency(e.unitPrice)})` : ''}`;
-                          })
-                          .join(', ')}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* EMPAQUE INDIVIDUAL */}
-                  {item.customization.packaging && item.customization.packaging.price > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-extrabold text-blue-400 text-[10px] tracking-wider">
-                        EMPAQUE:
-                      </span>
-                      <span className="font-bold text-blue-300">
-                        {item.customization.packaging.name} (+{formatCurrency(item.customization.packaging.price)})
-                      </span>
-                    </div>
-                  )}
-
-                  {/* TEMPERATURA */}
-                  {item.customization.temperature && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-extrabold text-cyan-400 text-[10px] tracking-wider">
-                        TEMP:
-                      </span>
-                      <span className="font-bold text-cyan-300">
-                        {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* NOTA */}
-                  {item.customization.itemNotes && (
-                    <div className="flex items-start gap-1.5 pt-0.5 border-t border-zinc-800/80">
-                      <span className="font-extrabold text-zinc-400 text-[10px] tracking-wider">
-                        NOTA:
-                      </span>
-                      <span className="font-semibold text-amber-300 italic">
-                        &ldquo;{item.customization.itemNotes}&rdquo;
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Indicador de edición interactiva */}
-                  <div className="pt-1 flex items-center justify-between text-[10px] text-zinc-500 border-t border-zinc-900 group-hover:text-zinc-400">
-                    <span>Toca para editar opciones</span>
-                    <span className="text-[var(--color-porkos-orange)] font-bold flex items-center gap-1">
-                      <SlidersHorizontal className="w-3 h-3" /> Modificar
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Controls: Edit customization, quantity, remove */}
-              <div className="flex items-center justify-between pt-1 border-t border-zinc-900">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => removeItem(item.itemId)}
-                    className="p-1 text-zinc-500 hover:text-rose-400 transition-colors cursor-pointer"
-                    title="Eliminar de la venta"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-
-                  {/* Botón para editar la personalización de este producto */}
-                  {!isMarketMode && item.requiresKitchen && onEditItem && (
+                {/* Controls: Delete & Quantity */}
+                <div className="flex items-center justify-between pt-1 border-t border-zinc-900">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => onEditItem(item)}
-                      className="flex items-center gap-1 text-[10px] font-bold text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded-md border border-zinc-700 transition-all cursor-pointer"
-                      title="Editar cremas, papas, ensalada, extras o empaque"
+                      onClick={() => removeItem(item.itemId)}
+                      className="p-1 text-zinc-500 hover:text-rose-400 transition-colors cursor-pointer"
+                      title="Eliminar de la comanda"
                     >
-                      <SlidersHorizontal className="w-3 h-3 text-[var(--color-porkos-orange)]" />
-                      <span>Modificar</span>
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                  )}
-                </div>
+                  </div>
 
-                <div className="flex items-center gap-2 bg-zinc-900 px-2 py-0.5 rounded-lg border border-zinc-800">
-                  <button
-                    type="button"
-                    onClick={() => updateItemQuantity(item.itemId, -1)}
-                    className="text-zinc-400 hover:text-white p-1 cursor-pointer font-bold"
-                  >
-                    <Minus className="w-3.5 h-3.5" />
-                  </button>
-                  <span className="font-bold text-xs text-white min-w-[16px] text-center">
-                    {item.quantity}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => updateItemQuantity(item.itemId, 1)}
-                    className="text-zinc-400 hover:text-white p-1 cursor-pointer font-bold"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-2 bg-zinc-900 px-2 py-0.5 rounded-lg border border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => updateItemQuantity(item.itemId, -1)}
+                      className="text-zinc-400 hover:text-white p-1 cursor-pointer font-bold"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="font-bold text-xs text-white min-w-[16px] text-center">
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateItemQuantity(item.itemId, 1)}
+                      className="text-zinc-400 hover:text-white p-1 cursor-pointer font-bold"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
 
         {/* General Notes for Order (SOLO en Restaurante) */}
@@ -468,39 +464,66 @@ export default function CartView({
             </div>
           )}
           <div className="flex justify-between text-white font-extrabold text-base pt-1 border-t border-zinc-800">
-            <span>Total a Cobrar:</span>
+            <span>Total:</span>
             <span className={isMarketMode ? 'text-blue-400' : 'text-[var(--color-porkos-orange)]'}>
               {formatCurrency(total)}
             </span>
           </div>
         </div>
 
-        {/* Buttons */}
+        {/* Actions diferenciadas para Market vs Restaurante */}
         <div className="space-y-2">
-          <div className={`grid gap-2 ${isMarketMode || !hasKitchenItems ? 'grid-cols-1' : 'grid-cols-2'}`}>
-            {!isMarketMode && hasKitchenItems && (
-              <Button
-                onClick={onSendToKitchen}
-                disabled={items.length === 0}
-                variant="secondary"
-                size="md"
-                icon={Flame}
-                className="text-xs font-bold"
-              >
-                {selectedTable ? 'Mandar a Cocina (Mesa abierta)' : 'Comanda Cocina'}
-              </Button>
-            )}
-
+          {isMarketMode ? (
+            /* EN MODO MARKET: Acción directa y limpia de COBRAR */
             <Button
               onClick={onCheckout}
               disabled={items.length === 0}
-              variant={isMarketMode ? 'primary' : 'primary'}
-              size="md"
-              className={`text-xs font-black py-3 ${isMarketMode || !hasKitchenItems ? 'w-full text-sm sm:text-base' : ''}`}
+              variant="primary"
+              size="lg"
+              className="w-full text-sm sm:text-base font-black bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-600/20 py-3.5 cursor-pointer"
             >
-              {isMarketMode ? `Cobrar ${formatCurrency(total)} (Venta Rápida)` : `Cobrar ${formatCurrency(total)}`}
+              Cobrar {formatCurrency(total)}
             </Button>
-          </div>
+          ) : (
+            /* EN MODO RESTAURANTE: Mandar a cocina como acción principal, cobrar directo como alternativa */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {hasKitchenItems ? (
+                <>
+                  <Button
+                    onClick={onSendToKitchen}
+                    disabled={items.length === 0}
+                    variant="primary"
+                    size="md"
+                    icon={Flame}
+                    className="text-xs sm:text-sm font-black py-3 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20"
+                  >
+                    {selectedTable ? `Mandar a Cocina (${selectedTable.label})` : 'Mandar a Cocina'}
+                  </Button>
+
+                  <Button
+                    onClick={onCheckout}
+                    disabled={items.length === 0}
+                    variant="secondary"
+                    size="md"
+                    icon={CreditCard}
+                    className="text-xs font-bold py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700"
+                  >
+                    Cobrar en Caja ({formatCurrency(total)})
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  onClick={onCheckout}
+                  disabled={items.length === 0}
+                  variant="primary"
+                  size="md"
+                  className="w-full text-xs sm:text-sm font-black py-3 bg-[var(--color-porkos-orange)] text-black"
+                >
+                  Cobrar {formatCurrency(total)}
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* Si la mesa está ocupada y se quiere cerrar directamente desde aquí */}
           {!isMarketMode && selectedTable && isTableOccupied && onSettleTable && (
@@ -512,7 +535,7 @@ export default function CartView({
               icon={CheckCircle}
               className="text-xs font-black"
             >
-              Cobrar y Cerrar Mesa {selectedTable.label}
+              Cerrar y Cobrar Mesa {selectedTable.label}
             </Button>
           )}
         </div>

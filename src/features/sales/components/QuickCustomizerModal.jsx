@@ -3,35 +3,30 @@ import Modal from '../../../components/ui/Modal';
 import { formatCurrency } from '../../../utils/formatters';
 import { useCatalog } from '../../../context/useCatalog';
 
-function CustomizerForm({ product, initialCustomization = null, onConfirm, onClose }) {
+function CustomizerForm({
+  product,
+  initialCustomization = null,
+  modality = 'MESA',
+  onConfirm,
+  onClose,
+}) {
   const {
     creams: catalogCreams,
     packagings: catalogPackagings,
     extras: catalogExtras,
   } = useCatalog();
 
-  // 1. Temperatura: ÚNICAMENTE si el producto la tiene habilitada explícitamente
-  const hasTemperature = Boolean(product.temperatureConfig?.enabled);
-  const [temperature, setTemperature] = useState(() => {
-    if (!hasTemperature) return null;
-    if (initialCustomization?.temperature) return initialCustomization.temperature;
-    return product.temperatureConfig?.defaultOption || 'HELADA';
-  });
-
-  // 2. Cremas: lista dinámica de cremas activas
-  const availableCreams = catalogCreams.filter(
-    (c) => c.active && (product.creamsConfig?.availableCreamIds?.length ? product.creamsConfig.availableCreamIds.includes(c.id) : true)
+  // 1. Ensalada
+  const hasSalad = Boolean(
+    product.saladConfig?.enabled ||
+    product.categoryId === 'cat_clasico' ||
+    product.line === 'CLASICO'
   );
-
-  const [selectedCreams, setSelectedCreams] = useState(() => {
-    if (initialCustomization?.creamsDetail?.selected) {
-      return initialCustomization.creamsDetail.selected;
-    }
-    // Por defecto SIN cremas marcadas (el usuario las elige tocando cada caja)
-    return [];
+  const [saladMode, setSaladMode] = useState(() => {
+    return initialCustomization?.saladDetail?.mode || 'CON_ENSALADA';
   });
 
-  // 3. Papas: Fritas, Al Hilo, Sin Papas
+  // 2. Papas: Fritas, Al Hilo, Sin Papas
   const hasPapasModifier = Boolean(
     product.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas' || m.name?.toLowerCase().includes('papa')) ||
     product.categoryId === 'cat_clasico' ||
@@ -56,17 +51,20 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
     return initialMods;
   });
 
-  // 4. Ensalada
-  const hasSalad = Boolean(
-    product.saladConfig?.enabled ||
-    product.categoryId === 'cat_clasico' ||
-    product.line === 'CLASICO'
+  // 3. Cremas: lista dinámica de cremas activas
+  const availableCreams = (catalogCreams || []).filter(
+    (c) => c.active && (product.creamsConfig?.availableCreamIds?.length ? product.creamsConfig.availableCreamIds.includes(c.id) : true)
   );
-  const [saladMode, setSaladMode] = useState(() => {
-    return initialCustomization?.saladDetail?.mode || 'CON_ENSALADA';
+
+  const [selectedCreams, setSelectedCreams] = useState(() => {
+    if (initialCustomization?.creamsDetail?.selected) {
+      return initialCustomization.creamsDetail.selected;
+    }
+    // Por defecto SIN cremas marcadas (el usuario las elige tocando cada caja)
+    return [];
   });
 
-  // 5. Extras compatibles dinámicos
+  // 4. Extras compatibles dinámicos
   const allExtras = catalogExtras || [];
   const compatibleExtras = allExtras.filter((e) => {
     if (!e.active) return false;
@@ -86,7 +84,7 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
     return initialCustomization?.selectedExtras || [];
   });
 
-  // 6. Empaques asociados estrictamente a este producto
+  // 5. Empaques asociados estrictamente a este producto
   const allPackagings = catalogPackagings || [];
   const availablePackagings = allPackagings.filter((pkg) => {
     if (!pkg.active) return false;
@@ -96,7 +94,7 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
     return isAssociatedInProduct || isAssociatedInPkg;
   });
 
-  // Solo mostrar empaque si el producto tiene opciones de pago asociadas
+  // Solo mostrar empaque si el producto tiene opciones asociadas
   const hasPaidPackaging = availablePackagings.some((pkg) => pkg.id !== 'pkg_ninguno');
 
   const [selectedPackaging, setSelectedPackaging] = useState(() => {
@@ -104,7 +102,27 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
       const match = availablePackagings.find((p) => p.id === initialCustomization.packaging.id);
       if (match) return match;
     }
+    // Si es para llevar o delivery, seleccionar por defecto el packaging asociado al producto
+    const isTakeoutOrDelivery =
+      modality === 'PARA_LLEVAR' ||
+      modality === 'DELIVERY' ||
+      modality === 'CONSUMO_EXTERNO' ||
+      modality === 'LLEVAR';
+
+    if (isTakeoutOrDelivery) {
+      const associated = availablePackagings.find((p) => p.id !== 'pkg_ninguno');
+      if (associated) return associated;
+    }
+
     return availablePackagings[0] || { id: 'pkg_ninguno', name: 'Sin Empaque / Salón', price: 0 };
+  });
+
+  // 6. Temperatura: ÚNICAMENTE si el producto la tiene habilitada explícitamente
+  const hasTemperature = Boolean(product.temperatureConfig?.enabled);
+  const [temperature, setTemperature] = useState(() => {
+    if (!hasTemperature) return null;
+    if (initialCustomization?.temperature) return initialCustomization.temperature;
+    return product.temperatureConfig?.defaultOption || 'HELADA';
   });
 
   // 7. Notas
@@ -153,7 +171,7 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
     if (product.modifiers?.length > 0) {
       product.modifiers.forEach((mod) => {
         const optId = selectedModifiers[mod.id];
-        const opt = mod.options.find((o) => o.id === optId);
+        const opt = mod.options?.find((o) => o.id === optId);
         if (opt) {
           formattedModifiers.push({
             groupId: mod.id,
@@ -203,11 +221,45 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
 
   return (
     <div className="space-y-3 pb-1 text-xs">
-      {/* 1. PAPAS (CAJAS AMPLIAS) */}
+      {/* 1. ENSALADA (ORDEN SOLICITADO: 1º ENSALADA) */}
+      {hasSalad && (
+        <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
+          <span className="text-xs font-black text-white uppercase tracking-wider block">
+            1. Ensalada
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { mode: 'CON_ENSALADA', label: 'CON ENSALADA' },
+              { mode: 'SIN_ENSALADA', label: 'SIN ENSALADA' },
+            ].map((sOpt) => {
+              const isSelected = saladMode === sOpt.mode;
+              return (
+                <button
+                  key={sOpt.mode}
+                  type="button"
+                  onClick={() => setSaladMode(sOpt.mode)}
+                  className={`
+                    h-12 sm:h-14 rounded-xl font-black text-xs sm:text-sm border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
+                    ${
+                      isSelected
+                        ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] shadow-md'
+                        : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                    }
+                  `}
+                >
+                  {sOpt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 2. PAPAS (ORDEN SOLICITADO: 2º PAPAS) */}
       {hasPapasModifier && (
         <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
           <span className="text-xs font-black text-white uppercase tracking-wider block">
-            Papas
+            2. Papas
           </span>
           <div className="grid grid-cols-3 gap-2">
             {[
@@ -241,12 +293,12 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
         </div>
       )}
 
-      {/* 2. CREMAS (SOLO ABREVIATURAS EN CAJAS AMPLIAS Y VISUALES) */}
+      {/* 3. CREMAS (ORDEN SOLICITADO: 3º CREMAS) */}
       {availableCreams.length > 0 && (
         <div className="space-y-2 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-              Cremas ({selectedCreams.length})
+              3. Cremas ({selectedCreams.length})
             </span>
             <div className="flex items-center gap-1.5">
               <button
@@ -266,7 +318,6 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
             </div>
           </div>
 
-          {/* Cajas amplias con solo la abreviatura grande y color */}
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {availableCreams.map((cream) => {
               const isSelected = selectedCreams.includes(cream.id);
@@ -299,79 +350,11 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
         </div>
       )}
 
-      {/* 3. ENSALADA */}
-      {hasSalad && (
-        <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-          <span className="text-xs font-black text-white uppercase tracking-wider block">
-            Ensalada
-          </span>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { mode: 'CON_ENSALADA', label: 'CON ENSALADA' },
-              { mode: 'SIN_ENSALADA', label: 'SIN ENSALADA' },
-            ].map((sOpt) => {
-              const isSelected = saladMode === sOpt.mode;
-              return (
-                <button
-                  key={sOpt.mode}
-                  type="button"
-                  onClick={() => setSaladMode(sOpt.mode)}
-                  className={`
-                    h-12 sm:h-14 rounded-xl font-black text-xs sm:text-sm border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
-                    ${
-                      isSelected
-                        ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] shadow-md'
-                        : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
-                    }
-                  `}
-                >
-                  {sOpt.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 4. EMPAQUE / TAPER (ÚNICAMENTE SI TIENE EMPAQUES ASOCIADOS A ESTE PRODUCTO) */}
-      {hasPaidPackaging && (
-        <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-          <span className="text-xs font-black text-white uppercase tracking-wider block">
-            Empaque
-          </span>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {availablePackagings.map((pkg) => {
-              const isSelected = selectedPackaging?.id === pkg.id;
-              return (
-                <button
-                  key={pkg.id}
-                  type="button"
-                  onClick={() => setSelectedPackaging(pkg)}
-                  className={`
-                    h-12 sm:h-14 p-2 rounded-xl border-2 flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer
-                    ${
-                      isSelected
-                        ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md'
-                        : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
-                    }
-                  `}
-                >
-                  <span className="text-xs font-bold leading-tight truncate">{pkg.name}</span>
-                  <span className={`text-[10px] ${isSelected ? 'text-black font-extrabold' : 'text-zinc-500 font-semibold'}`}>
-                    {pkg.price > 0 ? `+${formatCurrency(pkg.price)}` : 'Gratis'}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 5. EXTRAS */}
+      {/* 4. EXTRAS (ORDEN SOLICITADO: 4º EXTRAS) */}
       {compatibleExtras.length > 0 && (
         <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
           <span className="text-xs font-black text-white uppercase tracking-wider block">
-            Extras
+            4. Extras
           </span>
           <div className="grid grid-cols-2 gap-2">
             {compatibleExtras.map((ext) => {
@@ -402,11 +385,52 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
         </div>
       )}
 
+      {/* 5. PACKAGING / EMPAQUE (ORDEN SOLICITADO: 5º PACKAGING) */}
+      {hasPaidPackaging && (
+        <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-white uppercase tracking-wider block">
+              5. Packaging / Empaque
+            </span>
+            {(modality === 'PARA_LLEVAR' || modality === 'DELIVERY') && (
+              <span className="text-[10px] font-bold text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-500/30">
+                Seleccionado por {modality === 'DELIVERY' ? 'Delivery' : 'Llevar'}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {availablePackagings.map((pkg) => {
+              const isSelected = selectedPackaging?.id === pkg.id;
+              return (
+                <button
+                  key={pkg.id}
+                  type="button"
+                  onClick={() => setSelectedPackaging(pkg)}
+                  className={`
+                    h-12 sm:h-14 p-2 rounded-xl border-2 flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer
+                    ${
+                      isSelected
+                        ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md'
+                        : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                    }
+                  `}
+                >
+                  <span className="text-xs font-bold leading-tight truncate">{pkg.name}</span>
+                  <span className={`text-[10px] ${isSelected ? 'text-black font-extrabold' : 'text-zinc-500 font-semibold'}`}>
+                    {pkg.price > 0 ? `+${formatCurrency(pkg.price)}` : 'Gratis'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 6. TEMPERATURA (ÚNICAMENTE SI ESTÁ HABILITADA PARA ESTE PRODUCTO) */}
       {hasTemperature && (
         <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
           <span className="text-xs font-black text-white uppercase tracking-wider block">
-            Temperatura
+            6. Temperatura
           </span>
           <div className="grid grid-cols-2 gap-2">
             {[
@@ -468,6 +492,7 @@ export default function QuickCustomizerModal({
   onClose,
   product,
   initialCustomization = null,
+  modality = 'MESA',
   onConfirm,
   cartItemId = null,
 }) {
@@ -489,6 +514,7 @@ export default function QuickCustomizerModal({
         key={(cartItemId || product.id) + (initialCustomization ? '_editing' : '_adding')}
         product={product}
         initialCustomization={initialCustomization}
+        modality={modality}
         onConfirm={onConfirm}
         onClose={onClose}
       />
