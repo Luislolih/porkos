@@ -20,6 +20,7 @@ html {
   color: var(--color-porkos-light);
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -28,6 +29,22 @@ body {
   min-height: 100vh;
   background-color: var(--color-porkos-bg);
   overflow-x: hidden;
+}
+
+/* Animación fluida de apertura de modales */
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-modal-enter {
+  animation: modalEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Custom scrollbar for POS touch screens */

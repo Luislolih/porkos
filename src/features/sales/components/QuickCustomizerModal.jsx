@@ -34,8 +34,10 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
   // 3. Papas: Fritas, Al Hilo, Sin Papas
   const hasPapasModifier = Boolean(
     product.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas' || m.name?.toLowerCase().includes('papa')) ||
-    product.categoryId === 'cat_burgers' ||
-    product.categoryId === 'cat_salchipapas'
+    product.categoryId === 'cat_clasico' ||
+    product.categoryId === 'cat_artesanal' ||
+    product.line === 'CLASICO' ||
+    product.line === 'ARTESANAL'
   );
 
   const [selectedModifiers, setSelectedModifiers] = useState(() => {
@@ -55,7 +57,11 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
   });
 
   // 4. Ensalada
-  const hasSalad = Boolean(product.saladConfig?.enabled || product.categoryId === 'cat_burgers');
+  const hasSalad = Boolean(
+    product.saladConfig?.enabled ||
+    product.categoryId === 'cat_clasico' ||
+    product.line === 'CLASICO'
+  );
   const [saladMode, setSaladMode] = useState(() => {
     return initialCustomization?.saladDetail?.mode || 'CON_ENSALADA';
   });
@@ -67,7 +73,10 @@ function CustomizerForm({ product, initialCustomization = null, onConfirm, onClo
     if (product.availableExtraIds && product.availableExtraIds.length > 0) {
       return product.availableExtraIds.includes(e.id);
     }
-    if (product.categoryId && e.compatibleCategories?.includes(product.categoryId)) {
+    const cats = (e.compatibleCategories || []).map((c) =>
+      c === 'cat_burgers' || c === 'cat_salchipapas' || c === 'cat_choripanes' ? 'cat_clasico' : c
+    );
+    if (product.categoryId && (cats.includes(product.categoryId) || (cats.includes('cat_clasico') && product.categoryId === 'cat_artesanal'))) {
       return true;
     }
     return product.type === 'RESTAURANTE';

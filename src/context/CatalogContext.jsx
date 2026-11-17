@@ -83,6 +83,21 @@ function sanitizeProduct(prod) {
   });
 }
 
+// Normalizar categorías de Extras (eliminar legacy IDs como cat_burgers)
+function normalizeExtraCategories(cats = []) {
+  if (!cats || !Array.isArray(cats) || cats.length === 0) return ['cat_clasico', 'cat_artesanal'];
+  const mapped = cats.map((catId) => {
+    if (catId === 'cat_burgers' || catId === 'cat_salchipapas' || catId === 'cat_choripanes') {
+      return 'cat_clasico';
+    }
+    return catId;
+  });
+  if (mapped.includes('cat_clasico') && !mapped.includes('cat_artesanal')) {
+    mapped.push('cat_artesanal');
+  }
+  return Array.from(new Set(mapped));
+}
+
 function loadLocal(key, fallback = []) {
   try {
     const item = localStorage.getItem(key);
@@ -90,6 +105,12 @@ function loadLocal(key, fallback = []) {
     const parsed = JSON.parse(item);
     if (key === STORAGE_KEYS.PRODUCTS && Array.isArray(parsed)) {
       return parsed.map(sanitizeProduct);
+    }
+    if (key === STORAGE_KEYS.EXTRAS && Array.isArray(parsed)) {
+      return parsed.map((e) => ({
+        ...e,
+        compatibleCategories: normalizeExtraCategories(e.compatibleCategories),
+      }));
     }
     return parsed;
   } catch {
@@ -230,12 +251,25 @@ export function CatalogProvider({ children }) {
       (remoteExtras) => {
         if (!isMounted) return;
         if (remoteExtras && remoteExtras.length > 0) {
-          setExtras(remoteExtras);
-          saveLocal(STORAGE_KEYS.EXTRAS, remoteExtras);
+          const sanitizedExtras = remoteExtras.map((e) => {
+            const normalizedCats = normalizeExtraCategories(e.compatibleCategories);
+            if (e.compatibleCategories?.some((c) => c === 'cat_burgers' || c === 'cat_salchipapas' || c === 'cat_choripanes')) {
+              saveExtraToFirestore({ ...e, compatibleCategories: normalizedCats });
+            }
+            return {
+              ...e,
+              compatibleCategories: normalizedCats,
+            };
+          });
+          setExtras(sanitizedExtras);
+          saveLocal(STORAGE_KEYS.EXTRAS, sanitizedExtras);
         } else {
           const localItems = loadLocal(STORAGE_KEYS.EXTRAS, []);
           if (localItems.length > 0) {
-            localItems.forEach((e) => saveExtraToFirestore(e));
+            localItems.forEach((e) => saveExtraToFirestore({
+              ...e,
+              compatibleCategories: normalizeExtraCategories(e.compatibleCategories),
+            }));
           }
         }
       },
@@ -638,7 +672,7 @@ export function CatalogProvider({ children }) {
       id,
       name: newExtra.name || 'Nuevo Extra',
       price: parseFloat(newExtra.price) || 0,
-      compatibleCategories: newExtra.compatibleCategories || ['cat_burgers', 'cat_salchipapas', 'cat_choripanes'],
+      compatibleCategories: normalizeExtraCategories(newExtra.compatibleCategories),
       active: true,
     };
     setExtras((prev) => {
@@ -654,10 +688,14 @@ export function CatalogProvider({ children }) {
     setExtras((prev) => {
       const updated = prev.map((e) => {
         if (e.id === extraId) {
+          const cleanFields = { ...updatedFields };
+          if (cleanFields.compatibleCategories) {
+            cleanFields.compatibleCategories = normalizeExtraCategories(cleanFields.compatibleCategories);
+          }
           const updatedExtra = {
             ...e,
-            ...updatedFields,
-            price: typeof updatedFields.price !== 'undefined' ? parseFloat(updatedFields.price) : e.price,
+            ...cleanFields,
+            price: typeof cleanFields.price !== 'undefined' ? parseFloat(cleanFields.price) : e.price,
           };
           saveExtraToFirestore(updatedExtra);
           return updatedExtra;

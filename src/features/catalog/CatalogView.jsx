@@ -106,7 +106,7 @@ export default function CatalogView() {
   const [editingExtra, setEditingExtra] = useState(null);
   const [extraName, setExtraName] = useState('');
   const [extraPrice, setExtraPrice] = useState('');
-  const [extraCategories, setExtraCategories] = useState(['cat_burgers', 'cat_salchipapas', 'cat_choripanes']);
+  const [extraCategories, setExtraCategories] = useState(['cat_clasico', 'cat_artesanal']);
 
   // Modales de Packaging / Empaque
   const [isPackagingModalOpen, setIsPackagingModalOpen] = useState(false);
@@ -395,7 +395,7 @@ export default function CatalogView() {
     setEditingExtra(null);
     setExtraName('');
     setExtraPrice('');
-    setExtraCategories(['cat_burgers', 'cat_salchipapas', 'cat_choripanes']);
+    setExtraCategories(['cat_clasico', 'cat_artesanal']);
     setIsExtraModalOpen(true);
   };
 
@@ -403,7 +403,14 @@ export default function CatalogView() {
     setEditingExtra(extra);
     setExtraName(extra.name);
     setExtraPrice((extra.price || 0).toString());
-    setExtraCategories(extra.compatibleCategories || ['cat_burgers', 'cat_salchipapas', 'cat_choripanes']);
+    const rawCats = extra.compatibleCategories || [];
+    const normalizedCats = rawCats.map((c) =>
+      c === 'cat_burgers' || c === 'cat_salchipapas' || c === 'cat_choripanes' ? 'cat_clasico' : c
+    );
+    if (normalizedCats.includes('cat_clasico') && !normalizedCats.includes('cat_artesanal')) {
+      normalizedCats.push('cat_artesanal');
+    }
+    setExtraCategories(normalizedCats.length > 0 ? Array.from(new Set(normalizedCats)) : ['cat_clasico', 'cat_artesanal']);
     setIsExtraModalOpen(true);
   };
 
@@ -1078,11 +1085,22 @@ export default function CatalogView() {
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1 mt-2 text-[10px]">
-                  {ext.compatibleCategories?.map((catId) => {
-                    const cat = categories.find((c) => c.id === catId);
+                  {(ext.compatibleCategories || []).map((catId) => {
+                    const normalizedId =
+                      catId === 'cat_burgers' || catId === 'cat_salchipapas' || catId === 'cat_choripanes'
+                        ? 'cat_clasico'
+                        : catId;
+                    const cat = categories.find((c) => c.id === normalizedId);
+                    const label =
+                      cat?.name ||
+                      (normalizedId === 'cat_clasico'
+                        ? 'Clásico'
+                        : normalizedId === 'cat_artesanal'
+                        ? 'Artesanal'
+                        : 'Market');
                     return (
                       <span key={catId} className="bg-zinc-800/80 text-zinc-300 px-2 py-0.5 rounded border border-zinc-700/60 font-semibold">
-                        {cat?.name || catId}
+                        {label}
                       </span>
                     );
                   })}
