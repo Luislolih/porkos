@@ -64,9 +64,20 @@ export function AuthProvider({ children }) {
       return loggedUser;
     } catch (err) {
       console.error('Error al iniciar sesión con Google:', err);
-      setAuthError(err.message || 'Error al iniciar sesión con Google');
+      let userFriendlyMessage = err.message || 'Error al iniciar sesión con Google';
+
+      if (err.code === 'auth/unauthorized-domain') {
+        const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'este dominio';
+        userFriendlyMessage = `Dominio no autorizado (${currentDomain}): Para solucionarlo, ve a Firebase Console > Authentication > Configuración > Dominios autorizados y agrega "${currentDomain}".`;
+      } else if (err.code === 'auth/popup-blocked') {
+        userFriendlyMessage = 'El navegador bloqueó la ventana emergente de inicio de sesión. Por favor permite los pop-ups en este sitio.';
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        userFriendlyMessage = 'Se cerró la ventana de inicio de sesión antes de completar el acceso.';
+      }
+
+      setAuthError(userFriendlyMessage);
       setLoading(false);
-      throw err;
+      throw new Error(userFriendlyMessage, { cause: err });
     }
   };
 
