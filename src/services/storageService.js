@@ -2,10 +2,37 @@ import { ref, uploadBytes, getDownloadURL, getStorage } from 'firebase/storage';
 import { storage, app, firebaseConfig } from '../lib/firebase';
 
 /**
- * Comprime una imagen usando Canvas para optimizar el peso antes de subirla o guardarla.
- * Produce un WebP/JPEG de máx 450px (~15KB-30KB) manteniendo excelente nitidez en pantallas Retina.
+ * Control central de Firebase Storage.
+ * En el plan Spark (gratuito) se mantiene en false para no activar facturación Blaze ni depender de Storage.
+ * Cambiar a true únicamente cuando decidas activar Firebase Storage en Blaze.
  */
-export function compressImage(file, maxWidth = 450, quality = 0.75) {
+export const IS_STORAGE_ENABLED = false;
+
+// Tipos de imagen permitidos
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MB
+
+/**
+ * Valida que el archivo cumpla con los estándares de seguridad (MIME y tamaño).
+ */
+export function validateImageFile(file) {
+  if (!file) {
+    return { valid: false, error: 'No se seleccionó ningún archivo.' };
+  }
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    return { valid: false, error: 'Formato no compatible. Solo se permiten imágenes JPG, PNG o WebP.' };
+  }
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return { valid: false, error: 'El archivo excede el tamaño máximo permitido (3 MB).' };
+  }
+  return { valid: true, error: null };
+}
+
+/**
+ * Comprime una imagen usando Canvas para generar una vista previa ultra liviana en el navegador.
+ * Produce un WebP/JPEG de máx 400px (~15KB-25KB).
+ */
+export function compressImage(file, maxWidth = 400, quality = 0.75) {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -17,7 +44,6 @@ export function compressImage(file, maxWidth = 450, quality = 0.75) {
         let width = img.width;
         let height = img.height;
 
-        // Mantener proporción ajustando a la dimensión máxima
         const maxDim = maxWidth;
         if (width > maxDim || height > maxDim) {
           if (width > height) {
@@ -37,7 +63,6 @@ export function compressImage(file, maxWidth = 450, quality = 0.75) {
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
 
-        // 1. Probar WebP primero (formato moderno de compresión superior)
         let mimeType = 'image/webp';
         let dataUrl = '';
         try {
@@ -51,7 +76,6 @@ export function compressImage(file, maxWidth = 450, quality = 0.75) {
           dataUrl = elem.toDataURL('image/jpeg', quality);
         }
 
-        // 2. Generar Blob ligero para Firebase Storage
         elem.toBlob(
           (blob) => {
             resolve({
@@ -83,25 +107,41 @@ export function compressImage(file, maxWidth = 450, quality = 0.75) {
 }
 
 /**
- * Sube una imagen a Firebase Storage con fallback automático ultra-optimizado.
- * Devuelve un objeto con { url, source: 'firebase' | 'local', error }
+ * Procesa la imagen del producto.
+ * - Si IS_STORAGE_ENABLED === false (Plan Spark): no llama a Firebase Storage, genera preview local
+ *   y NO persiste Base64 en Firestore.
+ * - Si IS_STORAGE_ENABLED === true (Plan Blaze futuro): sube el archivo a Firebase Storage y retorna la URL pública.
  */
 export async function uploadProductImage(file, productId = null) {
-  if (!file) return null;
+  const validation = validateImageFile(file);
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
 
-  // 1. Comprimir en cliente para reducir transferencias de MB a KB
+  // 1. Comprimir en cliente para optimización visual
   let compressed = null;
   try {
-    compressed = await compressImage(file, 450, 0.75);
+    compressed = await compressImage(file, 400, 0.75);
   } catch (compErr) {
     console.warn('Compresión en canvas no disponible:', compErr);
   }
 
   const uploadBlob = compressed?.blob || file;
   const mimeType = compressed?.mimeType || file.type || 'image/jpeg';
-  const dataUrlFallback = compressed?.dataUrl || null;
+  const localPreviewUrl = compressed?.dataUrl || null;
 
-  // 2. Intentar subir a Firebase Storage
+  // 2. Si Firebase Storage está desactivado (Plan Spark actual):
+  if (!IS_STORAGE_ENABLED) {
+    return {
+      url: null, // Sin URL en la nube
+      localPreviewUrl, // Solo para visualización local en el dispositivo actual
+      source: 'local_preview',
+      isStorageEnabled: false,
+      error: null,
+    };
+  }
+
+  // 3. Si Firebase Storage está activado (Futuro con plan Blaze):
   try {
     const timestamp = Date.now();
     const ext = mimeType === 'image/webp' ? 'webp' : 'jpg';
@@ -118,12 +158,10 @@ export async function uploadProductImage(file, productId = null) {
     try {
       snapshot = await uploadBytes(storageRef, uploadBlob, metadata);
     } catch (primaryErr) {
-      // Si el bucket falla por nombre o configuración de dominio (.appspot.com vs .firebasestorage.app)
       if (
         primaryErr.code === 'storage/bucket-not-found' ||
         primaryErr.message?.toLowerCase().includes('bucket')
       ) {
-        console.warn('Bucket principal no encontrado. Probando bucket appspot.com alternativo...');
         const altBucket = `${firebaseConfig.projectId}.appspot.com`;
         const altStorage = getStorage(app, `gs://${altBucket}`);
         const altRef = ref(altStorage, storagePath);
@@ -136,24 +174,19 @@ export async function uploadProductImage(file, productId = null) {
     const downloadURL = await getDownloadURL(snapshot.ref);
     return {
       url: downloadURL,
+      localPreviewUrl: downloadURL,
       source: 'firebase',
+      isStorageEnabled: true,
       error: null,
     };
   } catch (storageErr) {
-    console.warn(
-      `Firebase Storage no disponible (código: ${storageErr.code || 'desconocido'}). ` +
-      `Se usará respaldo optimizado local (Data URL WebP/JPEG ~20KB):`,
-      storageErr.message
-    );
-
-    if (dataUrlFallback) {
-      return {
-        url: dataUrlFallback,
-        source: 'local',
-        error: storageErr,
-      };
-    }
-
-    throw storageErr;
+    console.warn('Error subiendo imagen a Firebase Storage:', storageErr);
+    return {
+      url: null,
+      localPreviewUrl,
+      source: 'local_preview',
+      isStorageEnabled: false,
+      error: storageErr,
+    };
   }
 }

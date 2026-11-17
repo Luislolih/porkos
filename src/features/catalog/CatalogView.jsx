@@ -13,7 +13,6 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useCatalog } from '../../context/useCatalog';
-import { PRODUCT_LINES, SUBCATEGORIES } from '../../types/defaultCatalog';
 import { formatCurrency } from '../../utils/formatters';
 import { uploadProductImage } from '../../services/storageService';
 import Button from '../../components/ui/Button';
@@ -74,9 +73,8 @@ export default function CatalogView() {
 
   // Form state de Producto
   const [prodName, setProdName] = useState('');
-  const [prodCategory, setProdCategory] = useState('cat_burgers');
+  const [prodCategory, setProdCategory] = useState('cat_clasico');
   const [prodLine, setProdLine] = useState('CLASICO');
-  const [prodSubcategory, setProdSubcategory] = useState('hamburguesas');
   const [prodType, setProdType] = useState('RESTAURANTE');
   const [prodPrice, setProdPrice] = useState('');
   const [prodCost, setProdCost] = useState('');
@@ -122,16 +120,6 @@ export default function CatalogView() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      setImageUploadError('Por favor selecciona un archivo de imagen válido (JPG, PNG, WebP).');
-      return;
-    }
-
-    if (file.size > 15 * 1024 * 1024) {
-      setImageUploadError('La imagen es demasiado pesada. Máximo 15MB.');
-      return;
-    }
-
     setIsUploadingImage(true);
     setImageUploadError(null);
 
@@ -140,23 +128,22 @@ export default function CatalogView() {
     setImagePreview(tempBlobUrl);
 
     try {
-      // 2. Comprimir y subir permanentemente a Firebase Storage o fallback Base64 WebP/JPEG optimizado
       const result = await uploadProductImage(file, editingProduct?.id);
-      const finalUrl = typeof result === 'object' && result ? result.url : result;
-      const source = typeof result === 'object' && result ? result.source : 'local';
-
-      if (finalUrl) {
-        // NUNCA guardamos una URL blob en prodImage
-        setProdImage(finalUrl);
-        setImagePreview(finalUrl);
-        setImageStorageSource(source);
-      } else {
-        throw new Error('No se pudo procesar la imagen.');
+      if (result?.url) {
+        setProdImage(result.url);
+        setImagePreview(result.url);
+        setImageStorageSource('firebase');
+      } else if (result?.localPreviewUrl) {
+        // En Plan Spark (sin Storage): mantenemos la vista previa local sin persistir Base64 en Firestore
+        setProdImage('');
+        setImagePreview(result.localPreviewUrl);
+        setImageStorageSource('local_preview');
       }
     } catch (err) {
-      console.error('Error subiendo foto:', err);
+      console.error('Error procesando foto:', err);
       setImageUploadError(err.message || 'Hubo un problema al procesar la foto.');
       setImagePreview(prodImage || '');
+      setImageStorageSource(null);
     } finally {
       setIsUploadingImage(false);
       try {
@@ -181,9 +168,8 @@ export default function CatalogView() {
   const handleOpenNewProduct = () => {
     setEditingProduct(null);
     setProdName('');
-    setProdCategory('cat_burgers');
+    setProdCategory('cat_clasico');
     setProdLine('CLASICO');
-    setProdSubcategory('hamburguesas');
     setProdType('RESTAURANTE');
     setProdPrice('');
     setProdCost('');
@@ -205,10 +191,13 @@ export default function CatalogView() {
   const handleOpenEditProduct = (prod) => {
     setEditingProduct(prod);
     setProdName(prod.name);
-    setProdCategory(prod.categoryId);
-    setProdLine(prod.line || (prod.type === 'MARKET' ? 'BEBIDAS_MARKET' : 'CLASICO'));
-    setProdSubcategory(prod.subcategory || 'hamburguesas');
-    setProdType(prod.type);
+    const cat = prod.categoryId || (prod.line === 'MARKET' ? 'cat_market' : prod.line === 'ARTESANAL' ? 'cat_artesanal' : 'cat_clasico');
+    const line = prod.line || (cat === 'cat_market' ? 'MARKET' : cat === 'cat_artesanal' ? 'ARTESANAL' : 'CLASICO');
+    const type = line === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
+
+    setProdCategory(cat);
+    setProdLine(line);
+    setProdType(type);
     setProdPrice(prod.price.toString());
     setProdCost((prod.cost || '').toString());
     const existingImg = prod.image || '';
@@ -216,15 +205,13 @@ export default function CatalogView() {
     setImagePreview(existingImg);
     setImageStorageSource(
       existingImg.startsWith('http')
-        ? 'firebase'
-        : existingImg.startsWith('data:')
-        ? 'local'
+        ? 'web_url'
         : null
     );
     setProdDescription(prod.description || '');
-    setProdKitchen(prod.requiresKitchen ?? true);
+    setProdKitchen(line === 'MARKET' ? false : (prod.requiresKitchen ?? true));
     setProdHasPapas(Boolean(prod.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas')));
-    setProdHasSalad(Boolean(prod.saladConfig?.enabled || prod.categoryId === 'cat_burgers'));
+    setProdHasSalad(Boolean(prod.saladConfig?.enabled || cat === 'cat_clasico'));
     setProdHasTemperature(Boolean(prod.temperatureConfig?.enabled));
     setProdSelectedCreams(prod.creamsConfig?.availableCreamIds || creams.map((c) => c.id));
     setProdAvailablePackagingIds(prod.availablePackagingIds || []);
@@ -240,7 +227,7 @@ export default function CatalogView() {
 
     try {
       const modifiers = [];
-      if (prodHasPapas) {
+      if (prodHasPapas && prodType === 'RESTAURANTE') {
         modifiers.push({
           id: 'mod_papas',
           name: 'Tipo de Papas',
@@ -254,9 +241,9 @@ export default function CatalogView() {
         });
       }
 
-      // Sanitizar imagen: si por algún motivo llegara a ser blob, no permitirla
+      // Sanitizar imagen: Solo URLs http o https válidas. NUNCA Base64 ni blob en Firestore
       let cleanImage = prodImage.trim();
-      if (cleanImage.startsWith('blob:')) {
+      if (!cleanImage.startsWith('http://') && !cleanImage.startsWith('https://')) {
         cleanImage = '';
       }
 
@@ -264,16 +251,15 @@ export default function CatalogView() {
         name: prodName.trim(),
         categoryId: prodCategory,
         line: prodLine,
-        subcategory: prodSubcategory,
         type: prodType,
         price: parseFloat(prodPrice) || 0,
         cost: parseFloat(prodCost) || 0,
         image: cleanImage,
         description: prodDescription.trim(),
-        requiresKitchen: prodKitchen,
+        requiresKitchen: prodType === 'MARKET' ? false : prodKitchen,
         modifiers,
         availablePackagingIds: prodAvailablePackagingIds,
-        saladConfig: prodHasSalad
+        saladConfig: prodHasSalad && prodType === 'RESTAURANTE'
           ? {
               enabled: true,
               defaultMode: 'CON_ENSALADA',
@@ -287,8 +273,8 @@ export default function CatalogView() {
             }
           : null,
         creamsConfig: {
-          enabled: prodSelectedCreams.length > 0,
-          availableCreamIds: prodSelectedCreams,
+          enabled: prodType === 'RESTAURANTE' && prodSelectedCreams.length > 0,
+          availableCreamIds: prodType === 'RESTAURANTE' ? prodSelectedCreams : [],
           defaultCreamIds: [],
           defaultMode: 'CUSTOM',
         },
@@ -876,7 +862,7 @@ export default function CatalogView() {
           <div className="bg-orange-950/20 border border-orange-500/30 p-3.5 rounded-2xl flex items-center gap-3">
             <Tag className="w-5 h-5 text-[var(--color-porkos-orange)] shrink-0" />
             <p className="text-xs text-orange-200 leading-relaxed">
-              <strong>Categorías 100% dinámicas:</strong> Puedes agregar tantas categorías como desees (Hamburguesas, Salchipapas, Alitas, Costillas, Bebidas, etc.). Cada categoría aparecerá automáticamente como una pestaña en la vista de Ventas y en el filtro de productos.
+              <strong>Categorías Oficiales:</strong> Tu carta está organizada en <strong>TODAS</strong>, <strong>CLÁSICO</strong>, <strong>ARTESANAL</strong> y <strong>MARKET</strong> (bebidas, postres y snacks). Sin subcategorías complejas para mayor agilidad en ventas.
             </p>
           </div>
 
@@ -1309,121 +1295,75 @@ export default function CatalogView() {
         maxWidth="max-w-2xl"
       >
         <form onSubmit={handleSaveProduct} className="space-y-4 text-xs">
-          {/* Nombre y Categoría */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-zinc-300 font-bold mb-1">Nombre del Producto *</label>
-              <input
-                type="text"
-                required
-                value={prodName}
-                onChange={(e) => setProdName(e.target.value)}
-                placeholder="Ej. Hamburguesa Parrillera..."
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-zinc-300 font-bold">Categoría *</label>
-                <button
-                  type="button"
-                  onClick={() => handleOpenNewCategory()}
-                  className="text-[11px] text-[var(--color-porkos-orange)] hover:underline font-bold cursor-pointer"
-                >
-                  + Nueva
-                </button>
-              </div>
-              <select
-                value={prodCategory}
-                onChange={(e) => setProdCategory(e.target.value)}
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.type})
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Nombre del Producto */}
+          <div>
+            <label className="block text-zinc-300 font-bold mb-1">Nombre del Producto *</label>
+            <input
+              type="text"
+              required
+              value={prodName}
+              onChange={(e) => setProdName(e.target.value)}
+              placeholder="Ej. Hamburguesa Parrillera, Inka Cola 500ml..."
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+            />
           </div>
 
-          {/* Clasificación: Línea y Subcategoría */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-black/30 p-3 rounded-xl border border-zinc-800/80">
-            <div>
-              <label className="block text-zinc-300 font-bold mb-1 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
-                Línea Principal (Filtro Superior)
-              </label>
-              <select
-                value={prodLine}
-                onChange={(e) => setProdLine(e.target.value)}
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
-              >
-                {Object.values(PRODUCT_LINES)
-                  .filter((pl) => pl.id !== 'ALL')
-                  .map((pl) => (
-                    <option key={pl.id} value={pl.id}>
-                      {pl.label}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-zinc-300 font-bold mb-1">Subcategoría (Filtro Secundario)</label>
-              <select
-                value={prodSubcategory}
-                onChange={(e) => setProdSubcategory(e.target.value)}
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
-              >
-                {SUBCATEGORIES.filter((s) => s.id !== 'all').map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Tipo (Restaurante o Market) y Cocina */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-black/40 p-3 rounded-xl border border-zinc-800">
-            <div>
-              <label className="block text-zinc-300 font-bold mb-1">Modalidad de Venta</label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setProdType('RESTAURANTE')}
-                  className={`flex-1 py-2 rounded-lg font-bold border ${
-                    prodType === 'RESTAURANTE'
-                      ? 'bg-[var(--color-porkos-orange)] text-black border-transparent'
-                      : 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                  }`}
-                >
-                  Restaurante
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProdType('MARKET');
-                    setProdKitchen(false);
-                    setProdAvailablePackagingIds([]);
-                  }}
-                  className={`flex-1 py-2 rounded-lg font-bold border ${
-                    prodType === 'MARKET'
-                      ? 'bg-blue-500 text-white border-transparent'
-                      : 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                  }`}
-                >
-                  Market (Rápido)
-                </button>
-              </div>
-            </div>
-
+          {/* Categoría Única Oficial: CLÁSICO, ARTESANAL, MARKET */}
+          <div className="bg-black/40 p-3 rounded-xl border border-zinc-800/80 space-y-2">
             <div className="flex items-center justify-between">
+              <label className="text-zinc-300 font-bold flex items-center gap-1.5 text-xs">
+                <Tag className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
+                Categoría del Producto *
+              </label>
+              <span className="text-[10px] text-zinc-500 font-medium">
+                Pestaña principal en Ventas
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'cat_clasico', line: 'CLASICO', type: 'RESTAURANTE', label: 'CLÁSICO', desc: 'Hamburguesas / Papas' },
+                { id: 'cat_artesanal', line: 'ARTESANAL', type: 'RESTAURANTE', label: 'ARTESANAL', desc: 'Línea de la Casa' },
+                { id: 'cat_market', line: 'MARKET', type: 'MARKET', label: 'MARKET', desc: 'Bebidas & Postres' },
+              ].map((opt) => {
+                const isSelected = prodCategory === opt.id || prodLine === opt.line;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      setProdCategory(opt.id);
+                      setProdLine(opt.line);
+                      setProdType(opt.type);
+                      if (opt.type === 'MARKET') {
+                        setProdKitchen(false);
+                        setProdAvailablePackagingIds([]);
+                      } else {
+                        setProdKitchen(true);
+                      }
+                    }}
+                    className={`py-2.5 px-2 rounded-xl text-xs font-black border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 text-center ${
+                      isSelected
+                        ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-sm'
+                        : 'bg-zinc-900 text-zinc-400 hover:text-white border-zinc-800'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    <span className={`text-[10px] font-semibold truncate ${isSelected ? 'text-black/80' : 'text-zinc-500'}`}>
+                      {opt.desc}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Si es restaurante: opción de cocina */}
+          {prodType === 'RESTAURANTE' && (
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800">
               <div>
-                <label className="block text-zinc-300 font-bold">¿Requiere Cocina?</label>
-                <span className="text-[10px] text-zinc-500">Muestra la orden en pantalla KDS</span>
+                <label className="block text-zinc-300 font-bold text-xs">¿Requiere Cocina?</label>
+                <span className="text-[10px] text-zinc-500">Muestra la comanda en la pantalla de cocina</span>
               </div>
               <input
                 type="checkbox"
@@ -1432,7 +1372,7 @@ export default function CatalogView() {
                 className="w-5 h-5 accent-[var(--color-porkos-orange)] cursor-pointer"
               />
             </div>
-          </div>
+          )}
 
           {/* Precio y Costo */}
           <div className="grid grid-cols-2 gap-3">
@@ -1462,24 +1402,36 @@ export default function CatalogView() {
             </div>
           </div>
 
-          {/* Carga de Fotografía del Producto */}
-          <div>
-            <label className="block text-zinc-300 font-bold mb-1.5 text-xs uppercase tracking-wider flex items-center justify-between">
-              <span>Fotografía del Producto</span>
+          {/* Carga y Gestión de Fotografía */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-zinc-300 font-bold text-xs">
+                URL de Imagen Web (Opcional - Sincronizada en la nube)
+              </label>
               {prodImage && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setProdImage('');
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                  }}
+                  onClick={handleRemovePhoto}
                   className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer flex items-center gap-1"
                 >
                   <Trash2 className="w-3 h-3" />
                   Quitar foto
                 </button>
               )}
-            </label>
+            </div>
+
+            <input
+              type="url"
+              value={prodImage}
+              onChange={(e) => {
+                const val = e.target.value.trim();
+                setProdImage(val);
+                setImagePreview(val);
+                setImageStorageSource(val.startsWith('http') ? 'web_url' : null);
+              }}
+              placeholder="https://ejemplo.com/hamburguesa.jpg (Cloudinary, Imgur, direct link)"
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-medium text-xs focus:outline-none focus:border-[var(--color-porkos-orange)]"
+            />
 
             <input
               ref={fileInputRef}
@@ -1494,97 +1446,59 @@ export default function CatalogView() {
                 <img
                   src={imagePreview}
                   alt="Vista previa plato"
-                  className="w-full h-44 object-cover"
+                  className="w-full h-40 object-cover"
                 />
-                {isUploadingImage && (
-                  <div className="absolute inset-0 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center gap-2">
-                    <Loader2 className="w-8 h-8 text-[var(--color-porkos-orange)] animate-spin" />
-                    <span className="text-xs font-black text-white">Optimizando y subiendo foto...</span>
-                  </div>
-                )}
-                {!isUploadingImage && (
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
-                      icon={Camera}
-                    >
-                      Cambiar foto
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="danger"
-                      onClick={handleRemovePhoto}
-                      icon={Trash2}
-                    >
-                      Quitar foto
-                    </Button>
-                  </div>
-                )}
+                <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="danger"
+                    onClick={handleRemovePhoto}
+                    icon={Trash2}
+                  >
+                    Quitar
+                  </Button>
+                </div>
               </div>
             ) : (
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploadingImage}
-                className="w-full h-32 rounded-xl border-2 border-dashed border-zinc-700 hover:border-[var(--color-porkos-orange)] bg-zinc-900/40 hover:bg-zinc-900 transition-all flex flex-col items-center justify-center gap-2 cursor-pointer p-4 group"
+                className="w-full h-20 rounded-xl border-2 border-dashed border-zinc-800 hover:border-zinc-700 bg-zinc-900/30 hover:bg-zinc-900/60 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer p-3 group"
               >
-                {isUploadingImage ? (
-                  <>
-                    <Loader2 className="w-7 h-7 text-[var(--color-porkos-orange)] animate-spin" />
-                    <span className="text-xs font-bold text-zinc-300">Optimizando foto...</span>
-                  </>
-                ) : (
-                  <>
-                    <div className="p-2.5 rounded-full bg-orange-500/10 text-[var(--color-porkos-orange)] group-hover:scale-110 transition-transform">
-                      <Camera className="w-6 h-6" />
-                    </div>
-                    <div className="text-center">
-                      <span className="text-xs font-bold text-white block">Toca para cargar foto del plato</span>
-                      <span className="text-[10px] text-zinc-500">Cámara o archivo desde tu celular / PC</span>
-                    </div>
-                  </>
-                )}
+                <Camera className="w-5 h-5 text-zinc-500 group-hover:text-[var(--color-porkos-orange)] transition-colors" />
+                <span className="text-[11px] font-bold text-zinc-400 group-hover:text-zinc-200">
+                  O seleccionar archivo desde tu galería / PC para vista previa local
+                </span>
               </button>
             )}
 
-            {/* Indicador de almacenamiento de la foto */}
-            {imageStorageSource && !isUploadingImage && (
-              <div className="mt-1 flex items-center gap-1.5 text-[11px]">
-                {imageStorageSource === 'firebase' ? (
-                  <span className="text-emerald-400 font-bold flex items-center gap-1">
-                    ✓ Foto alojada en Firebase Storage
-                  </span>
-                ) : (
-                  <span className="text-amber-400 font-medium flex items-center gap-1">
-                    ✓ Foto optimizada localmente (~20KB). Para sincronizar a la nube de Firebase, activa las Reglas de Firebase Storage.
-                  </span>
-                )}
+            {/* Mensajes informativos de almacenamiento */}
+            {imageStorageSource === 'web_url' && (
+              <p className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                ✓ Enlace web válido: se sincronizará en todos los dispositivos y comandas.
+              </p>
+            )}
+
+            {imageStorageSource === 'local_preview' && (
+              <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-800/40 text-[11px] text-amber-300 space-y-1">
+                <span className="font-bold block">ⓘ Vista previa local en este navegador (Plan Spark activo)</span>
+                <span className="text-zinc-400 block text-[10px] leading-relaxed">
+                  Para no requerir facturación Blaze ni saturar Firestore, esta foto no se sube a la nube. Para que se vea en todas tus tablets y celulares, ingresa una URL web directa arriba o déjalo vacío para usar el icono automático de comida.
+                </span>
               </div>
+            )}
+
+            {!imagePreview && (
+              <p className="text-[10px] text-zinc-500 italic">
+                ⓘ Si no colocas foto, el sistema mostrará automáticamente el icono de su categoría.
+              </p>
             )}
 
             {imageUploadError && (
               <p className="text-xs text-rose-400 font-semibold mt-1">{imageUploadError}</p>
             )}
-
-            {/* Opción secundaria: URL web directa */}
-            <div className="mt-2 flex items-center gap-1.5 text-[11px] text-zinc-500">
-              <span className="shrink-0">O ingresar URL:</span>
-              <input
-                type="url"
-                value={prodImage}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setProdImage(val);
-                  setImagePreview(val);
-                  setImageStorageSource(val.startsWith('http') ? 'firebase' : null);
-                }}
-                placeholder="https://..."
-                className="flex-1 bg-black/40 border border-zinc-800 rounded-lg px-2 py-1 text-white text-xs focus:outline-none focus:border-[var(--color-porkos-orange)]"
-              />
-            </div>
           </div>
 
           {/* Descripción */}

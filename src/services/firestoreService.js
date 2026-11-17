@@ -127,7 +127,11 @@ export function subscribeToProducts(onUpdate, onError) {
         const products = snapshot.docs.map((docSnap) => {
           const data = docSnap.data();
           let img = data.image || '';
-          if (typeof img === 'string' && img.startsWith('blob:')) {
+          // Limpiar URLs de memoria (blob) y Base64 pesados para no saturar Firestore
+          if (
+            typeof img === 'string' &&
+            (img.startsWith('blob:') || img.startsWith('data:image/'))
+          ) {
             img = '';
           }
           return {
@@ -154,12 +158,20 @@ export async function saveProductToFirestore(product) {
   try {
     const docRef = doc(db, 'products', product.id);
     const sanitizedProduct = { ...product };
-    if (
-      typeof sanitizedProduct.image === 'string' &&
-      sanitizedProduct.image.trim().startsWith('blob:')
-    ) {
-      sanitizedProduct.image = '';
+
+    // REGLA ESTRICTA: Solo URLs web externas válidas (http/https).
+    // NUNCA guardar Base64 ni blob en documentos de Firestore.
+    let img = sanitizedProduct.image;
+    if (typeof img === 'string') {
+      img = img.trim();
+      if (!img.startsWith('http://') && !img.startsWith('https://')) {
+        img = '';
+      }
+    } else {
+      img = '';
     }
+    sanitizedProduct.image = img;
+
     const cleanData = sanitizePayload(sanitizedProduct);
     await setDoc(docRef, cleanData, { merge: true });
     return { success: true };

@@ -8,7 +8,7 @@ export default function ProductCard({
   onCustomize,
   isMarketMode = false,
 }) {
-  const isMarketItem = isMarketMode || product.type === 'MARKET';
+  const isMarketItem = isMarketMode || product.type === 'MARKET' || product.line === 'MARKET';
   const hasCustomizations = !isMarketItem && product.type === 'RESTAURANTE';
 
   return (

@@ -14,7 +14,6 @@ import { CheckCircle2, UtensilsCrossed } from 'lucide-react';
 export default function SalesView({ onOrderCreated, tables = [], onSettleTableOrder }) {
   const [salesMode, setSalesMode] = useState(SALES_MODES.RESTAURANT);
   const [selectedLine, setSelectedLine] = useState('ALL');
-  const [selectedSubcategory, setSelectedSubcategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [customizingProduct, setCustomizingProduct] = useState(null);
   const [editingCartItem, setEditingCartItem] = useState(null);
@@ -42,33 +41,28 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
     clearCart,
   } = useCart();
 
-  // Filtrar productos por Línea (CLÁSICO / ARTESANAL / BEBIDAS_MARKET), Subcategoría y Búsqueda
-  // En Restaurante se pueden incluir todos los productos (incluidos gaseosas y market para comandas)
+  // Filtrar productos por Categorías principales: TODAS, CLÁSICO, ARTESANAL, MARKET y Búsqueda
   // Ordenados POR DEFECTO de mayor a menor salida según el histórico (salesCount)
   const filteredAndSortedProducts = useMemo(() => {
     const list = products.filter((prod) => {
       // 1. En modo MARKET (Caja Rápida), mostrar exclusivamente productos de Market
       if (salesMode === SALES_MODES.MARKET) {
-        if (prod.type !== 'MARKET') return false;
+        if (prod.type !== 'MARKET' && prod.line !== 'MARKET' && prod.categoryId !== 'cat_market') return false;
       } else {
-        // En modo RESTAURANTE: todos los productos (Restaurante y Market) pueden pedirse en comandas
-        // Filtrar por Línea en Restaurante (si no es TODOS)
-        if (selectedLine === 'CLASICO' && prod.line !== 'CLASICO') return false;
-        if (selectedLine === 'ARTESANAL' && prod.line !== 'ARTESANAL') return false;
-        if (selectedLine === 'BEBIDAS_MARKET' && prod.line !== 'BEBIDAS_MARKET' && prod.type !== 'MARKET') return false;
-      }
-
-      // 2. Filtrar por Categoría / Subcategoría dinámica
-      if (selectedSubcategory !== 'all') {
-        const matchesCategory = prod.categoryId === selectedSubcategory;
-        const matchesSubcategory = prod.subcategory === selectedSubcategory;
-        const matchesMarket = selectedSubcategory === 'market' && (prod.subcategory === 'market' || prod.type === 'MARKET');
-        if (!matchesCategory && !matchesSubcategory && !matchesMarket) {
-          return false;
+        // En modo RESTAURANTE: filtrar por pestaña (TODAS, CLÁSICO, ARTESANAL, MARKET)
+        if (selectedLine === 'CLASICO') {
+          const isClasico = prod.line === 'CLASICO' || prod.categoryId === 'cat_clasico';
+          if (!isClasico) return false;
+        } else if (selectedLine === 'ARTESANAL') {
+          const isArtesanal = prod.line === 'ARTESANAL' || prod.categoryId === 'cat_artesanal';
+          if (!isArtesanal) return false;
+        } else if (selectedLine === 'MARKET') {
+          const isMarket = prod.type === 'MARKET' || prod.line === 'MARKET' || prod.categoryId === 'cat_market' || prod.line === 'BEBIDAS_MARKET';
+          if (!isMarket) return false;
         }
       }
 
-      // 3. Búsqueda por texto
+      // 2. Búsqueda por texto
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         return (
@@ -82,11 +76,11 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
 
     // Ordenar de mayor salida a menor salida
     return list.sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0));
-  }, [products, salesMode, selectedLine, selectedSubcategory, searchQuery]);
+  }, [products, salesMode, selectedLine, searchQuery]);
 
   // Añadir rápido (Por defecto SIN cremas marcadas, el usuario las personaliza o pide directo)
   const handleQuickAdd = (product) => {
-    if (product.type === 'MARKET' || product.type === SALES_MODES.MARKET) {
+    if (product.type === 'MARKET' || product.line === 'MARKET' || product.type === SALES_MODES.MARKET) {
       // Productos de market en comandas: SIN cremas, SIN papas, SIN modificadores
       addItem(product, {
         temperature: product.temperatureConfig?.enabled ? (product.temperatureConfig?.defaultOption || 'HELADA') : null,
@@ -266,21 +260,17 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
             salesMode={salesMode}
             setSalesMode={(mode) => {
               setSalesMode(mode);
-              setSelectedLine('ALL');
-              setSelectedSubcategory('all');
+              setSelectedLine(mode === SALES_MODES.MARKET ? 'MARKET' : 'ALL');
             }}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             tables={tables}
           />
 
-          {/* Categorías organizadas en CLÁSICO / ARTESANAL y Subcategorías */}
+          {/* Categorías simplificadas: TODAS, CLÁSICO, ARTESANAL y MARKET */}
           <CategoryTabs
-            salesMode={salesMode}
             selectedLine={selectedLine}
             onSelectLine={setSelectedLine}
-            selectedSubcategory={selectedSubcategory}
-            onSelectSubcategory={setSelectedSubcategory}
           />
 
           {/* Grid de Productos (Ordenados de mayor a menor salida) */}

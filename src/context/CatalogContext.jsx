@@ -28,17 +28,59 @@ const STORAGE_KEYS = {
   PACKAGINGS: 'porkos_catalog_packagings',
 };
 
-// Sanitizar producto: NUNCA permitir URLs efímeras tipo "blob:"
+// Normalizar producto a las 3 categorías oficiales: CLÁSICO, ARTESANAL, MARKET (sin subcategorías)
+function normalizeProductCategory(prod) {
+  let line = prod.line;
+  let categoryId = prod.categoryId;
+  let type = prod.type || 'RESTAURANTE';
+
+  if (
+    type === 'MARKET' ||
+    line === 'BEBIDAS_MARKET' ||
+    line === 'MARKET' ||
+    categoryId === 'cat_market' ||
+    categoryId === 'cat_bebidas_market' ||
+    categoryId === 'cat_postres' ||
+    categoryId === 'cat_snacks'
+  ) {
+    line = 'MARKET';
+    categoryId = 'cat_market';
+    type = 'MARKET';
+  } else if (line === 'ARTESANAL' || categoryId === 'cat_artesanal') {
+    line = 'ARTESANAL';
+    categoryId = 'cat_artesanal';
+    type = 'RESTAURANTE';
+  } else {
+    line = 'CLASICO';
+    categoryId = 'cat_clasico';
+    type = 'RESTAURANTE';
+  }
+
+  return {
+    ...prod,
+    line,
+    categoryId,
+    type,
+    subcategory: null,
+  };
+}
+
+// Sanitizar producto: Solo admitir URLs http/https válidas, nunca blob ni Base64
 function sanitizeProduct(prod) {
   if (!prod) return prod;
   let cleanImage = prod.image || '';
-  if (typeof cleanImage === 'string' && cleanImage.trim().startsWith('blob:')) {
+  if (typeof cleanImage === 'string') {
+    cleanImage = cleanImage.trim();
+    if (!cleanImage.startsWith('http://') && !cleanImage.startsWith('https://')) {
+      cleanImage = '';
+    }
+  } else {
     cleanImage = '';
   }
-  return {
+  return normalizeProductCategory({
     ...prod,
     image: cleanImage,
-  };
+  });
 }
 
 function loadLocal(key, fallback = []) {
@@ -143,13 +185,25 @@ export function CatalogProvider({ children }) {
     const unsubCategories = subscribeToCategories(
       (remoteCategories) => {
         if (!isMounted) return;
-        if (remoteCategories && remoteCategories.length > 0) {
+        const hasLegacyCategories = remoteCategories?.some(
+          (c) => c.id === 'cat_burgers' || c.id === 'cat_choripanes' || c.id === 'cat_salchipapas'
+        );
+
+        if (remoteCategories && remoteCategories.length > 0 && !hasLegacyCategories) {
           setCategories(remoteCategories);
           saveLocal(STORAGE_KEYS.CATEGORIES, remoteCategories);
         } else {
-          const localItems = loadLocal(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES);
-          if (localItems.length > 0) {
-            localItems.forEach((c) => saveCategoryToFirestore(c));
+          // Migración automática a las 3 categorías limpias requeridas: Clásico, Artesanal, Market
+          console.log('Sincronizando categorías simplificadas oficiales: Clásico, Artesanal, Market...');
+          setCategories(DEFAULT_CATEGORIES);
+          saveLocal(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES);
+          DEFAULT_CATEGORIES.forEach((c) => saveCategoryToFirestore(c));
+
+          // Limpiar de Firestore las categorías obsoletas si existían
+          if (hasLegacyCategories) {
+            remoteCategories
+              .filter((c) => c.id !== 'cat_clasico' && c.id !== 'cat_artesanal' && c.id !== 'cat_market')
+              .forEach((c) => deleteCategoryFromFirestore(c.id));
           }
         }
       },
@@ -263,23 +317,27 @@ export function CatalogProvider({ children }) {
   // Funciones de Productos (con persistencia dual LocalStorage + Firestore)
   const addProduct = async (newProduct) => {
     const id = `prod_${Date.now()}`;
-    const cleanImage = typeof newProduct.image === 'string' && newProduct.image.trim().startsWith('blob:')
-      ? ''
-      : (newProduct.image || '').trim();
+    let cleanImage = typeof newProduct.image === 'string' ? newProduct.image.trim() : '';
+    if (!cleanImage.startsWith('http://') && !cleanImage.startsWith('https://')) {
+      cleanImage = '';
+    }
+
+    const line = newProduct.line || (newProduct.type === 'MARKET' ? 'MARKET' : 'CLASICO');
+    const categoryId = newProduct.categoryId || (line === 'MARKET' ? 'cat_market' : line === 'ARTESANAL' ? 'cat_artesanal' : 'cat_clasico');
+    const type = line === 'MARKET' ? 'MARKET' : (newProduct.type || 'RESTAURANTE');
 
     const productWithDefaults = {
       id,
       name: newProduct.name || 'Nuevo Producto',
-      line: newProduct.line || 'CLASICO',
-      subcategory: newProduct.subcategory || 'hamburguesas',
+      line,
+      categoryId,
+      type,
       salesCount: 0,
       description: newProduct.description || '',
-      categoryId: newProduct.categoryId || 'cat_burgers',
-      type: newProduct.type || 'RESTAURANTE',
       price: parseFloat(newProduct.price) || 0,
       cost: parseFloat(newProduct.cost) || 0,
       image: cleanImage,
-      requiresKitchen: newProduct.requiresKitchen ?? true,
+      requiresKitchen: line === 'MARKET' ? false : (newProduct.requiresKitchen ?? true),
       active: true,
       defaultPackagingId: newProduct.defaultPackagingId || (packagings[0]?.id || ''),
       availablePackagingIds: newProduct.availablePackagingIds || [],
