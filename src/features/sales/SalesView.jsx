@@ -267,7 +267,7 @@ export default function SalesView({
     setIsMobileCartOpen(false);
     showToast(
       isAddingToOpenTable
-        ? `Productos sumados a ${selectedTable.label}`
+        ? `Comanda ${orderData.orderNumber} enviada a Cocina (${selectedTable.label})`
         : `Comanda ${orderData.orderNumber} enviada a Cocina`
     );
   };

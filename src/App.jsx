@@ -98,69 +98,44 @@ function MainApp() {
     }));
   }, [activeTableIds]);
 
-  // 3. Manejar creación o acumulación de comanda
-  const handleOrderCreated = async (newOrder, shouldCloseTable = false) => {
+  // 3. Manejar creación de comanda: cada pedido es individual y entra siempre en estado PENDIENTE
+  const handleOrderCreated = async (newOrder) => {
     // Exigir número de mesa si la modalidad es MESA
     if (newOrder.modality === 'MESA' && !newOrder.tableId) {
       console.error('Error: Comanda de tipo MESA sin mesa asignada');
       return;
     }
 
-    if (newOrder.tableId) {
-      // Verificar si la mesa ya tiene una orden abierta
-      const existingOrder = orders.find(
-        (o) => o.tableId === newOrder.tableId && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO'
-      );
-
-      if (existingOrder && !shouldCloseTable) {
-        // La mesa sigue abierta: Acumular los nuevos productos a la comanda existente
-        const combinedItems = [...existingOrder.items, ...newOrder.items];
-        const combinedPackagings = [...(existingOrder.packagings || []), ...(newOrder.packagings || [])];
-        const addedSubtotal = newOrder.items.reduce((s, i) => s + i.subtotal, 0);
-        const addedPackagingsTotal = newOrder.packagingsTotal || 0;
-        const newTotal = existingOrder.total + addedSubtotal + addedPackagingsTotal;
-
-        const updatedOrder = {
-          ...existingOrder,
-          items: combinedItems,
-          packagings: combinedPackagings,
-          subtotal: existingOrder.subtotal + addedSubtotal,
-          packagingsTotal: (existingOrder.packagingsTotal || 0) + addedPackagingsTotal,
-          total: newTotal,
-          customerName: newOrder.customerName || existingOrder.customerName,
-          status: 'PREPARANDO', // Reactivar para cocina si añadió más platos
-        };
-
-        // Actualización optimista local
-        setOrders((prev) => {
-          const updated = prev.map((o) => (o.orderNumber === existingOrder.orderNumber ? updatedOrder : o));
-          saveOrdersLocal(updated);
-          return updated;
-        });
-
-        // Guardar en Firestore
-        await saveOrderToFirestore(updatedOrder);
-        return;
-      }
-    }
+    const cleanOrder = {
+      ...newOrder,
+      status: newOrder.status || 'PENDIENTE',
+      paymentStatus: newOrder.paymentStatus || 'PENDING',
+      createdAt: newOrder.createdAt instanceof Date ? newOrder.createdAt : new Date(),
+    };
 
     // Actualización optimista local
     setOrders((prev) => {
-      const updated = [newOrder, ...prev];
+      const updated = [cleanOrder, ...prev];
       saveOrdersLocal(updated);
       return updated;
     });
 
-    // Guardar nueva orden en Firestore
-    await saveOrderToFirestore(newOrder);
+    // Guardar nueva orden individual en Firestore
+    await saveOrderToFirestore(cleanOrder);
   };
 
-  // 4. Manejar el cierre y cobro de mesa
-  const handleCloseTable = async (tableId, orderNumber, paymentDetail) => {
+  // 4. Manejar el cierre y cobro de mesa (cierra todos los pedidos activos de la mesa)
+  const handleCloseTable = async (tableId, orderNumberOrNumbers, paymentDetail) => {
+    const targetNumbers = Array.isArray(orderNumberOrNumbers)
+      ? orderNumberOrNumbers
+      : [orderNumberOrNumbers];
+
     // Optimista local
     setOrders((prev) => {
       const updated = prev.map((o) => {
-        if (o.orderNumber === orderNumber) {
+        const matchesTable = tableId && o.tableId === tableId && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO';
+        const matchesNumber = targetNumbers.includes(o.orderNumber);
+        if (matchesTable || matchesNumber) {
           return {
             ...o,
             status: 'ENTREGADO',
@@ -179,8 +154,12 @@ function MainApp() {
       return updated;
     });
 
-    // Persistir en Firestore
-    await settleOrderInFirestore(orderNumber, paymentDetail);
+    // Persistir en Firestore para cada orden cerrada
+    for (const num of targetNumbers) {
+      if (num) {
+        await settleOrderInFirestore(num, paymentDetail);
+      }
+    }
   };
 
   // 5. Manejar avance de comanda en cocina

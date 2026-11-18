@@ -12,13 +12,19 @@ export default function TablesView({
 }) {
   const [closingOrder, setClosingOrder] = useState(null);
 
-  const handleOpenCloseModal = (order) => {
-    setClosingOrder(order);
+  const handleOpenCloseModal = (table, tableOrders, total) => {
+    setClosingOrder({
+      tableId: table.id,
+      tableName: table.label,
+      orderNumbers: tableOrders.map((o) => o.orderNumber),
+      orderNumber: tableOrders.map((o) => o.orderNumber).join(', '),
+      total: total,
+    });
   };
 
   const handleConfirmClosePayment = (paymentDetail) => {
     if (onCloseTable && closingOrder) {
-      onCloseTable(closingOrder.tableId, closingOrder.orderNumber, paymentDetail);
+      onCloseTable(closingOrder.tableId, closingOrder.orderNumbers || closingOrder.orderNumber, paymentDetail);
     }
     setClosingOrder(null);
   };
@@ -59,10 +65,15 @@ export default function TablesView({
       {/* Grid de Mesas Compactas y Adaptadas a Móvil */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {tables.map((table) => {
-          const isOccupied = table.status === 'OCCUPIED';
-          const tableOrder = orders.find(
+          const tableOrders = orders.filter(
             (o) => o.tableId === table.id && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO'
           );
+          const isOccupied = table.status === 'OCCUPIED' || tableOrders.length > 0;
+          const tableTotal = tableOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+          const customerName = tableOrders.find((o) => o.customerName)?.customerName;
+          const earliestTime = tableOrders.length > 0
+            ? Math.min(...tableOrders.map((o) => new Date(o.createdAt || Date.now()).getTime()))
+            : null;
 
           return (
             <div
@@ -91,49 +102,71 @@ export default function TablesView({
                   <h3 className="text-base sm:text-lg font-black text-white">{table.label}</h3>
                 </div>
 
-                <span
-                  className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
-                    isOccupied
-                      ? 'bg-orange-500/10 text-orange-400 border-orange-500/30'
-                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                  }`}
-                >
-                  {isOccupied ? 'ABIERTA' : 'LIBRE'}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {isOccupied && tableOrders.length > 1 && (
+                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-zinc-800 text-amber-400 border border-amber-500/30">
+                      {tableOrders.length} pedidos
+                    </span>
+                  )}
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                      isOccupied
+                        ? 'bg-orange-500/10 text-orange-400 border-orange-500/30'
+                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                    }`}
+                  >
+                    {isOccupied ? 'ABIERTA' : 'LIBRE'}
+                  </span>
+                </div>
               </div>
 
               {/* Order Info or Empty State */}
-              {isOccupied && tableOrder ? (
+              {isOccupied && tableOrders.length > 0 ? (
                 <div className="space-y-2">
                   <div className="bg-black/60 p-2.5 rounded-xl border border-zinc-800/80 space-y-1">
                     <div className="flex items-center justify-between text-xs font-bold text-white">
-                      <span>Pedido {tableOrder.orderNumber}</span>
+                      <span>
+                        {tableOrders.length === 1
+                          ? `Pedido ${tableOrders[0].orderNumber}`
+                          : `Total Mesa (${tableOrders.map((o) => o.orderNumber).join(', ')})`}
+                      </span>
                       <span className="text-sm sm:text-base text-[var(--color-porkos-orange)] font-black">
-                        {formatCurrency(tableOrder.total)}
+                        {formatCurrency(tableTotal)}
                       </span>
                     </div>
 
-                    {tableOrder.customerName && (
+                    {customerName && (
                       <p className="text-[11px] text-zinc-300 font-medium truncate">
-                        Cliente: <strong className="text-white">{tableOrder.customerName}</strong>
+                        Cliente: <strong className="text-white">{customerName}</strong>
                       </p>
                     )}
 
-                    <div className="flex items-center gap-1 text-[10px] text-zinc-400 pt-0.5">
-                      <Clock className="w-3 h-3 text-zinc-400" />
-                      <span>{formatElapsedTime(tableOrder.createdAt)}</span>
-                    </div>
+                    {earliestTime && (
+                      <div className="flex items-center gap-1 text-[10px] text-zinc-400 pt-0.5">
+                        <Clock className="w-3 h-3 text-zinc-400" />
+                        <span>{formatElapsedTime(earliestTime)}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Consumo compacto */}
-                  {tableOrder.items?.length > 0 && (
-                    <div className="max-h-20 overflow-y-auto space-y-1 bg-black/40 p-2 rounded-lg border border-zinc-800/60 text-[11px]">
-                      {tableOrder.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-zinc-300">
-                          <span className="truncate pr-2">{item.quantity}× {item.name}</span>
-                          <span className="font-bold text-white shrink-0">{formatCurrency(item.subtotal)}</span>
-                        </div>
-                      ))}
+                  {tableOrders.some((o) => o.items?.length > 0) && (
+                    <div className="max-h-24 overflow-y-auto space-y-1 bg-black/40 p-2 rounded-lg border border-zinc-800/60 text-[11px]">
+                      {tableOrders.map((order) =>
+                        order.items?.map((item, idx) => (
+                          <div key={`${order.orderNumber}-${idx}`} className="flex justify-between items-center text-zinc-300">
+                            <span className="truncate pr-2">
+                              {tableOrders.length > 1 && (
+                                <span className="inline-block text-[9px] font-mono px-1 py-0.5 bg-zinc-800 text-[var(--color-porkos-orange)] rounded mr-1">
+                                  {order.orderNumber}
+                                </span>
+                              )}
+                              {item.quantity}× {item.name}
+                            </span>
+                            <span className="font-bold text-white shrink-0">{formatCurrency(item.subtotal)}</span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>
@@ -146,7 +179,7 @@ export default function TablesView({
 
               {/* Actions */}
               <div className="pt-2 border-t border-zinc-800/80">
-                {isOccupied && tableOrder ? (
+                {isOccupied && tableOrders.length > 0 ? (
                   <div className="grid grid-cols-3 gap-1.5">
                     <button
                       type="button"
@@ -160,9 +193,9 @@ export default function TablesView({
 
                     <button
                       type="button"
-                      onClick={() => onEditTableOrder && onEditTableOrder(tableOrder)}
+                      onClick={() => onEditTableOrder && onEditTableOrder(tableOrders[0])}
                       className="py-2 px-1.5 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-amber-500 hover:text-black text-amber-300 hover:border-amber-400 flex items-center justify-center gap-1 transition-all cursor-pointer border border-zinc-700"
-                      title="Modificar comanda abierta"
+                      title="Modificar última comanda abierta"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                       <span>Editar</span>
@@ -170,7 +203,7 @@ export default function TablesView({
 
                     <button
                       type="button"
-                      onClick={() => handleOpenCloseModal(tableOrder)}
+                      onClick={() => handleOpenCloseModal(table, tableOrders, tableTotal)}
                       className="py-2 px-1.5 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95"
                     >
                       <CheckCircle className="w-3.5 h-3.5 stroke-[2.5]" />

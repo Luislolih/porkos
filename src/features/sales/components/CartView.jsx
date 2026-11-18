@@ -624,16 +624,16 @@ export default function CartView({
               Cobrar {formatCurrency(total)}
             </Button>
           ) : isTableOccupied && selectedTable ? (
-            /* EN MESA ABIERTA: Al añadir productos, debe añadir y sumar a la mesa, no cerrar ni cobrar */
+            /* EN MESA ABIERTA: Cada pedido se envía individual a cocina */
             <Button
               onClick={onSendToKitchen}
               disabled={items.length === 0}
               variant="primary"
               size="lg"
-              icon={Plus}
+              icon={Flame}
               className="w-full text-xs sm:text-sm font-black py-3.5 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20 cursor-pointer active:scale-98"
             >
-              Añadir y Sumar a {selectedTable.label} (+{formatCurrency(total)})
+              Mandar a Cocina ({selectedTable.label}) • {formatCurrency(total)}
             </Button>
           ) : (
             /* EN MESA LIBRE, PARA LLEVAR O DELIVERY */
