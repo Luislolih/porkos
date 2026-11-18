@@ -2,103 +2,144 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper: Verificar si el usuario está autenticado en Firebase
+    // 1. Verificación de autenticación con correo electrónico
     function isAuthenticated() {
       return request.auth != null && request.auth.token.email != null;
     }
 
-    // Helper: Obtener el documento del usuario en la colección 'users'
-    function getUserDoc() {
-      return get(/databases/$(database)/documents/users/$(request.auth.token.email)).data;
-    }
-
-    // Helper: Obtener rol del usuario
-    function getRole() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.token.email))
-        ? getUserDoc().role
-        : 'GUEST';
-    }
-
-    function isAdmin() {
+    // 2. Lista de correos con acceso total de Administrador (Super Admins)
+    function isSuperAdminEmail() {
       return isAuthenticated() && (
-        getRole() == 'ADMIN' ||
-        getRole() == 'OWNER' ||
-        request.auth.token.email == 'admin@porkos.pe'
+        request.auth.token.email.lower() in [
+          'admin@porkos.pe'
+          // Agrega aquí tu correo personal de Google/Gmail:
+          // 'tu-correo@gmail.com'
+        ] ||
+        request.auth.token.email.matches('.*@porkos[.]pe')
       );
     }
 
+    // 3. Verificar si el correo está registrado en la colección de usuarios (/users/{email})
+    function isRegisteredEmail() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower()));
+    }
+
+    // 4. Obtener documento del usuario registrado
+    function getUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data;
+    }
+
+    // 5. Determinar el rol del usuario autenticado
+    function getRole() {
+      return isSuperAdminEmail()
+        ? 'ADMIN'
+        : (isRegisteredEmail() ? getUserDoc().role : 'GUEST');
+    }
+
+    // 6. Validar si el usuario tiene un correo debidamente autorizado
+    function isAuthorizedUser() {
+      return isSuperAdminEmail() || (isRegisteredEmail() && getRole() != 'GUEST');
+    }
+
+    // 7. Funciones de permisos por rol
+    function isAdmin() {
+      return isSuperAdminEmail() || getRole() == 'ADMIN' || getRole() == 'OWNER';
+    }
+
     function isCoordinator() {
-      return isAuthenticated() && (isAdmin() || getRole() == 'COORDINADOR');
+      return isAdmin() || getRole() == 'COORDINADOR';
     }
 
     function isKitchen() {
-      return isAuthenticated() && (isAdmin() || isCoordinator() || getRole() == 'COCINA');
+      return isCoordinator() || getRole() == 'COCINA';
     }
 
     function isCashier() {
-      return isAuthenticated() && (isAdmin() || isCoordinator() || getRole() == 'CAJERO');
+      return isCoordinator() || getRole() == 'CAJERO';
     }
 
-    // 1. Colección de Usuarios y Permisos de Sistema: SOLO ADMIN puede escribir
+    // ==========================================
+    // REGLAS ESPECÍFICAS POR COLECCIÓN
+    // ==========================================
+
+    // 1. Gestión de Usuarios y Accesos (/users/{userEmail}):
+    // - Lectura: Exclusiva para usuarios autorizados
+    // - Creación inicial: El propio usuario registrándose por primera vez con su email
+    // - Edición y eliminación: SOLO Administradores
     match /users/{userEmail} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin() || !exists(/databases/$(database)/documents/users/$(userEmail));
+      allow read: if isAuthorizedUser();
+      allow write: if isAdmin() || (
+        isAuthenticated() &&
+        request.auth.token.email.lower() == userEmail.lower() &&
+        !exists(/databases/$(database)/documents/users/$(userEmail.lower()))
+      );
     }
 
+    // 2. Configuración General del Sistema (/app_config/{configId}):
+    // - Lectura: Usuarios autorizados
+    // - Modificación: Administradores y Coordinadores
     match /app_config/{configId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCoordinator();
     }
 
-    // 2. Órdenes y Comandas:
-    // - Lectura: Cocina, Cajero, Coordinador, Admin
-    // - Creación: Cajero, Coordinador, Admin
-    // - Actualización: Cocina (para cambiar estado a PREPARANDO/LISTO), Cajero, Coordinador, Admin
+    // 3. Pedidos y Comandas (/orders/{orderId}):
+    // - Lectura: Usuarios autorizados del restaurante
+    // - Creación: Cajero, Coordinador o Admin
+    // - Modificación de estados (Cocina/Atención): Cocina, Cajero, Coordinador o Admin
+    // - Eliminación o vaciado de historial: SOLO Coordinador o Admin
     match /orders/{orderId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow create: if isCashier();
       allow update: if isKitchen() || isCashier();
-      allow delete: if isAdmin() || isCoordinator();
+      allow delete: if isCoordinator();
     }
 
-    // 3. Catálogo (Productos, Cremas, Extras, Empaques, Categorías):
-    // - Lectura: Todos los operadores autenticados
-    // - Escritura: Coordinador y Admin
+    // 4. Catálogo Gastronómico (Productos, Categorías, Cremas, Extras, Empaques):
+    // - Lectura: Usuarios autorizados
+    // - Modificación: Administradores y Coordinadores
     match /products/{productId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCoordinator();
     }
 
     match /categories/{categoryId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCoordinator();
     }
 
     match /creams/{creamId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCoordinator();
     }
 
     match /extras/{extraId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCoordinator();
     }
 
     match /packagings/{packagingId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCoordinator();
     }
 
-    // 4. Gastos y Compras Diarias:
-    // - Lectura y Escritura: Coordinador y Admin (Cocina y Cajeros NO tienen acceso)
+    // 5. Gastos Operativos y Caja (/expenses/{expenseId}):
+    // - Lectura y Escritura: SOLO Coordinadores y Administradores (Cajeros y Cocina BLOQUEADOS)
     match /expenses/{expenseId} {
       allow read, write: if isCoordinator();
     }
 
-    // 5. Mesas de Salón
+    // 6. Mesas del Salón (/tables/{tableId}):
+    // - Lectura: Usuarios autorizados
+    // - Modificación: Cajero, Coordinador o Admin
     match /tables/{tableId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCashier();
+    }
+
+    // Bloqueo total por defecto para cualquier documento fuera de las colecciones autorizadas
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

@@ -234,75 +234,94 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email != null;
     }
 
-    function getUserDoc() {
-      return get(/databases/$(database)/documents/users/$(request.auth.token.email)).data;
-    }
-
-    function getRole() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.token.email))
-        ? getUserDoc().role
-        : 'GUEST';
-    }
-
-    function isAdmin() {
+    function isSuperAdminEmail() {
       return isAuthenticated() && (
-        getRole() == 'ADMIN' ||
-        getRole() == 'OWNER' ||
-        request.auth.token.email == 'admin@porkos.pe'
+        request.auth.token.email.lower() in [
+          'admin@porkos.pe'
+          // Agrega aquí tu correo personal de Google/Gmail:
+          // 'tu-correo@gmail.com'
+        ] ||
+        request.auth.token.email.matches('.*@porkos[.]pe')
       );
     }
 
+    function isRegisteredEmail() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower()));
+    }
+
+    function getUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data;
+    }
+
+    function getRole() {
+      return isSuperAdminEmail()
+        ? 'ADMIN'
+        : (isRegisteredEmail() ? getUserDoc().role : 'GUEST');
+    }
+
+    function isAuthorizedUser() {
+      return isSuperAdminEmail() || (isRegisteredEmail() && getRole() != 'GUEST');
+    }
+
+    function isAdmin() {
+      return isSuperAdminEmail() || getRole() == 'ADMIN' || getRole() == 'OWNER';
+    }
+
     function isCoordinator() {
-      return isAuthenticated() && (isAdmin() || getRole() == 'COORDINADOR');
+      return isAdmin() || getRole() == 'COORDINADOR';
     }
 
     function isKitchen() {
-      return isAuthenticated() && (isAdmin() || isCoordinator() || getRole() == 'COCINA');
+      return isCoordinator() || getRole() == 'COCINA';
     }
 
     function isCashier() {
-      return isAuthenticated() && (isAdmin() || isCoordinator() || getRole() == 'CAJERO');
+      return isCoordinator() || getRole() == 'CAJERO';
     }
 
     match /users/{userEmail} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin() || !exists(/databases/$(database)/documents/users/$(userEmail));
+      allow read: if isAuthorizedUser();
+      allow write: if isAdmin() || (
+        isAuthenticated() &&
+        request.auth.token.email.lower() == userEmail.lower() &&
+        !exists(/databases/$(database)/documents/users/$(userEmail.lower()))
+      );
     }
 
     match /app_config/{configId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCoordinator();
     }
 
     match /orders/{orderId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow create: if isCashier();
       allow update: if isKitchen() || isCashier();
-      allow delete: if isAdmin() || isCoordinator();
+      allow delete: if isCoordinator();
     }
 
     match /products/{productId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCoordinator();
     }
 
     match /categories/{categoryId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCoordinator();
     }
 
     match /creams/{creamId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCoordinator();
     }
 
     match /extras/{extraId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCoordinator();
     }
 
     match /packagings/{packagingId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCoordinator();
     }
 
@@ -311,8 +330,12 @@ service cloud.firestore {
     }
 
     match /tables/{tableId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorizedUser();
       allow write: if isCashier();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }`;

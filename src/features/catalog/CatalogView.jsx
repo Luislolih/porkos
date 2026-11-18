@@ -2270,13 +2270,25 @@ export default function CatalogView() {
               </a>
             </li>
             <li>
-              Reemplaza las reglas actuales por:
+              Reemplaza las reglas actuales por las reglas protegidas por correo:
               <pre className="mt-1.5 p-2.5 bg-black rounded-lg text-emerald-400 font-mono text-[11px] overflow-x-auto border border-zinc-800">
 {`rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+    function isSuperAdminEmail() {
+      return isAuthenticated() && (
+        request.auth.token.email.lower() in ['admin@porkos.pe'] ||
+        request.auth.token.email.matches('.*@porkos[.]pe')
+      );
+    }
+    function isAuthorizedUser() {
+      return isSuperAdminEmail() || exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower()));
+    }
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if isAuthorizedUser();
     }
   }
 }`}
@@ -2441,7 +2453,7 @@ service cloud.firestore {
                   <strong className="text-white">¿Hiciste clic en "Publicar" (Publish)?</strong> Luego de pegar el código en Firebase Console, es <strong>obligatorio</strong> hacer clic en el botón azul <strong className="text-amber-300">Publicar</strong> arriba a la derecha. Si no lo presionas, Firebase mantiene bloqueado el acceso.
                 </li>
                 <li>
-                  <strong className="text-white">Regla universal recomendada:</strong> Usa <code className="bg-black/60 px-1.5 py-0.5 rounded text-amber-300">match /{'{allPaths=**}'}</code> con <code className="bg-black/60 px-1.5 py-0.5 rounded text-amber-300">allow read, write: if true;</code> para habilitar todas las carpetas de subida.
+                  <strong className="text-white">Reglas blindadas por correo:</strong> Solo usuarios autenticados con correos autorizados pueden subir o gestionar imágenes en Storage, evitando accesos públicos no autorizados.
                 </li>
               </ul>
             </div>
@@ -2452,7 +2464,7 @@ service cloud.firestore {
                 <button
                   type="button"
                   onClick={() => {
-                    const rulesText = `rules_version = '2';\nservice firebase.storage {\n  match /b/{bucket}/o {\n    match /{allPaths=**} {\n      allow read, write: if true;\n    }\n  }\n}`;
+                    const rulesText = `rules_version = '2';\nservice firebase.storage {\n  match /b/{bucket}/o {\n    function isAuthenticated() {\n      return request.auth != null && request.auth.token.email != null;\n    }\n    function isAuthorizedEmail() {\n      return isAuthenticated() && (\n        request.auth.token.email.lower() in ['admin@porkos.pe'] ||\n        request.auth.token.email.matches('.*@porkos[.]pe') ||\n        firestore.exists(/databases/(default)/documents/users/$(request.auth.token.email.lower()))\n      );\n    }\n    match /products/{allPaths=**} {\n      allow read: if isAuthorizedEmail();\n      allow write: if isAuthorizedEmail() && request.resource.size < 300 * 1024 && request.resource.contentType.matches('image/(webp|jpeg|png)');\n      allow delete: if isAuthorizedEmail();\n    }\n    match /{allPaths=**} {\n      allow read, write: if false;\n    }\n  }\n}`;
                     navigator.clipboard.writeText(rulesText);
                     setHasCopiedStorageRules(true);
                     setTimeout(() => setHasCopiedStorageRules(false), 3000);
@@ -2469,8 +2481,25 @@ service cloud.firestore {
 {`rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function isAuthenticated() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+    function isAuthorizedEmail() {
+      return isAuthenticated() && (
+        request.auth.token.email.lower() in ['admin@porkos.pe'] ||
+        request.auth.token.email.matches('.*@porkos[.]pe') ||
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.token.email.lower()))
+      );
+    }
+    match /products/{allPaths=**} {
+      allow read: if isAuthorizedEmail();
+      allow write: if isAuthorizedEmail()
+        && request.resource.size < 300 * 1024
+        && request.resource.contentType.matches('image/(webp|jpeg|png)');
+      allow delete: if isAuthorizedEmail();
+    }
     match /{allPaths=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }`}

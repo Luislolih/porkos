@@ -1,8 +1,40 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
+    // 1. Verificación básica: Usuario autenticado en Firebase con correo electrónico
+    function isAuthenticated() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    // 2. Lista de correos autorizados para subir y administrar archivos
+    function isAuthorizedEmail() {
+      return isAuthenticated() && (
+        request.auth.token.email.lower() in [
+          'admin@porkos.pe'
+          // Agrega aquí tu correo personal de Google/Gmail:
+          // 'tu-correo@gmail.com'
+        ] ||
+        request.auth.token.email.matches('.*@porkos[.]pe') ||
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.token.email.lower()))
+      );
+    }
+
+    // Fotografías de productos del catálogo:
+    // - Lectura: Exclusiva para usuarios autenticados con correos autorizados
+    // - Escritura / Subida: Correos autorizados, validando tipo de archivo y tamaño menor a 300 KB
+    // - Eliminación: Solo correos autorizados
+    match /products/{allPaths=**} {
+      allow read: if isAuthorizedEmail();
+      allow write: if isAuthorizedEmail()
+        && request.resource.size < 300 * 1024
+        && request.resource.contentType.matches('image/(webp|jpeg|png)');
+      allow delete: if isAuthorizedEmail();
+    }
+
+    // Bloqueo total por defecto para cualquier otra ruta dentro de Storage
     match /{allPaths=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
