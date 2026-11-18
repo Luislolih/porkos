@@ -135,9 +135,13 @@ export default function SalesHeader({
                   const table = tables.find((t) => t.id === e.target.value);
                   setSelectedTable(table || null);
                 }}
-                className="bg-black/60 border border-zinc-800 text-white text-xs rounded-lg px-2.5 py-1 font-bold focus:outline-none focus:border-zinc-600 shrink-0"
+                className={`text-xs rounded-lg px-2.5 py-1 font-bold focus:outline-none shrink-0 transition-all ${
+                  !selectedTable
+                    ? 'bg-amber-950/50 border-2 border-amber-500 text-amber-300 ring-2 ring-amber-500/30 font-black'
+                    : 'bg-black/60 border border-zinc-800 text-white focus:border-zinc-600'
+                }`}
               >
-                <option value="">Elegir</option>
+                <option value="">⚠️ Elegir Mesa *</option>
                 {tables.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.label} ({t.status === 'OCCUPIED' ? 'Abierta' : 'Libre'})

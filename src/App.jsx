@@ -55,7 +55,7 @@ function MainApp() {
       return [];
     }
   });
-  const { setSelectedTable, setModality, setCustomerName } = useCart();
+  const { setSelectedTable, setModality, setCustomerName, loadOrderForEditing } = useCart();
 
   // 1. Sincronización en tiempo real de órdenes con Firestore
   useEffect(() => {
@@ -93,6 +93,12 @@ function MainApp() {
 
   // 3. Manejar creación o acumulación de comanda
   const handleOrderCreated = async (newOrder, shouldCloseTable = false) => {
+    // Exigir número de mesa si la modalidad es MESA
+    if (newOrder.modality === 'MESA' && !newOrder.tableId) {
+      console.error('Error: Comanda de tipo MESA sin mesa asignada');
+      return;
+    }
+
     if (newOrder.tableId) {
       // Verificar si la mesa ya tiene una orden abierta
       const existingOrder = orders.find(
@@ -183,7 +189,49 @@ function MainApp() {
     await updateOrderStatusInFirestore(orderNumber, newStatus);
   };
 
-  // 6. Seleccionar mesa para abrir comanda o seguir pidiendo
+  // 6. Manejar edición de comanda antes de ser entregada
+  const handleUpdateOrder = async (updatedOrder) => {
+    // Bloquear si la comanda ya fue entregada
+    const existing = orders.find((o) => o.orderNumber === updatedOrder.orderNumber);
+    if (existing?.status === 'ENTREGADO') {
+      alert('Esta comanda ya ha sido entregada y no puede ser modificada.');
+      return false;
+    }
+
+    // Exigir número de mesa si la comanda es MESA
+    if (updatedOrder.modality === 'MESA' && !updatedOrder.tableId) {
+      alert('No se puede guardar una comanda de salón sin asignar un número de mesa.');
+      return false;
+    }
+
+    const cleanOrder = {
+      ...updatedOrder,
+      updatedAt: new Date(),
+    };
+
+    // Actualización optimista local
+    setOrders((prev) => {
+      const updated = prev.map((o) => (o.orderNumber === updatedOrder.orderNumber ? cleanOrder : o));
+      saveOrdersLocal(updated);
+      return updated;
+    });
+
+    // Persistir en Firestore
+    await saveOrderToFirestore(cleanOrder);
+    return true;
+  };
+
+  // 7. Cargar comanda en Caja/Ventas para añadir más platos del menú
+  const handleLoadOrderForEditing = (order) => {
+    if (order.status === 'ENTREGADO') {
+      alert('Esta comanda ya ha sido entregada y no puede ser modificada.');
+      return;
+    }
+    loadOrderForEditing(order, tables);
+    setCurrentModule(MODULES.SALES);
+  };
+
+  // 8. Seleccionar mesa para abrir comanda o seguir pidiendo
   const handleSelectTableForOrder = (table) => {
     setSelectedTable(table);
     setModality('MESA');
@@ -230,6 +278,7 @@ function MainApp() {
                 });
               }
             }}
+            onOrderUpdated={handleUpdateOrder}
           />
         )}
 
@@ -240,7 +289,14 @@ function MainApp() {
           />
         )}
 
-        {activeModule === MODULES.ORDERS && <OrdersView orders={orders} />}
+        {activeModule === MODULES.ORDERS && (
+          <OrdersView
+            orders={orders}
+            onUpdateOrder={handleUpdateOrder}
+            onEditOrderInSales={handleLoadOrderForEditing}
+            tables={tables}
+          />
+        )}
 
         {activeModule === 'mesas' && (
           <TablesView
@@ -248,6 +304,7 @@ function MainApp() {
             orders={orders}
             onSelectTableForOrder={handleSelectTableForOrder}
             onCloseTable={handleCloseTable}
+            onEditTableOrder={handleLoadOrderForEditing}
           />
         )}
 

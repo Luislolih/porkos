@@ -12,16 +12,406 @@ import {
   Utensils,
   X,
   Package,
+  Edit3,
+  Plus,
+  Minus,
+  Trash2,
+  Lock,
+  Check,
 } from 'lucide-react';
 import { formatCurrency, formatTime, formatElapsedTime } from '../../utils/formatters';
 import { ORDER_STATUS, PAYMENT_STATUS } from '../../types/constants';
 import Modal from '../../components/ui/Modal';
 
-export default function OrdersView({ orders = [] }) {
+function EditOrderModal({ order, isOpen, onClose, onSave, onEditInSales, tables = [] }) {
+  const [items, setItems] = useState(() => (order?.items ? order.items.map((i) => ({ ...i, customization: { ...(i.customization || {}) } })) : []));
+  const [tableId, setTableId] = useState(() => order?.tableId || '');
+  const [customerName, setCustomerName] = useState(() => order?.customerName || order?.customer?.name || '');
+  const [customerPhone, setCustomerPhone] = useState(() => order?.customer?.phone || '');
+  const [customerAddress, setCustomerAddress] = useState(() => order?.customer?.address || '');
+  const [customerReference, setCustomerReference] = useState(() => order?.customer?.reference || '');
+  const [deliveryFee, setDeliveryFee] = useState(() => order?.deliveryFee || 0);
+  const [generalNotes, setGeneralNotes] = useState(() => order?.generalNotes || '');
+  const [errorMessage, setErrorMessage] = useState(null);
+
+  if (!order) return null;
+
+  const isDelivered = order.status === 'ENTREGADO';
+  const isMesa = order.modality === 'MESA';
+  const isDelivery = order.modality === 'DELIVERY';
+
+  const updateItemQty = (idx, delta) => {
+    setItems((prev) => {
+      const next = [...prev];
+      const newQty = next[idx].quantity + delta;
+      if (newQty <= 0) {
+        return next.filter((_, i) => i !== idx);
+      }
+      next[idx] = {
+        ...next[idx],
+        quantity: newQty,
+        subtotal: next[idx].unitPrice * newQty,
+      };
+      return next;
+    });
+  };
+
+  const removeItem = (idx) => {
+    setItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateItemNotes = (idx, notes) => {
+    setItems((prev) => {
+      const next = [...prev];
+      next[idx] = {
+        ...next[idx],
+        customization: {
+          ...next[idx].customization,
+          itemNotes: notes,
+        },
+      };
+      return next;
+    });
+  };
+
+  const itemsSubtotal = items.reduce((sum, i) => sum + i.subtotal, 0);
+  const packagingsTotal = order.packagingsTotal || 0;
+  const currentDeliveryFee = isDelivery ? (parseFloat(deliveryFee) || 0) : 0;
+  const total = Math.max(0, itemsSubtotal + packagingsTotal + currentDeliveryFee - (order.discount || 0));
+
+  const handleSave = () => {
+    if (isDelivered) {
+      setErrorMessage('Esta comanda ya ha sido entregada y no puede ser modificada.');
+      return;
+    }
+
+    if (items.length === 0) {
+      setErrorMessage('⚠️ La comanda debe contener al menos 1 producto.');
+      return;
+    }
+
+    if (isMesa && !tableId) {
+      setErrorMessage('⚠️ Debes seleccionar un número de mesa obligatorio.');
+      return;
+    }
+
+    if (isDelivery) {
+      if (!customerName.trim()) {
+        setErrorMessage('⚠️ Ingresa el nombre del cliente para delivery.');
+        return;
+      }
+      if (!customerAddress.trim()) {
+        setErrorMessage('⚠️ Ingresa la dirección exacta de entrega.');
+        return;
+      }
+    }
+
+    const selectedTableObj = tables.find((t) => t.id === tableId);
+    const updated = {
+      ...order,
+      tableId: isMesa ? tableId : null,
+      tableName: isMesa ? (selectedTableObj?.label || order.tableName || 'Mesa') : null,
+      customerName: customerName.trim() || null,
+      customer: isDelivery
+        ? {
+            name: customerName.trim(),
+            phone: customerPhone.trim(),
+            address: customerAddress.trim(),
+            reference: customerReference.trim(),
+            deliveryFee: currentDeliveryFee,
+          }
+        : null,
+      items,
+      generalNotes: generalNotes.trim(),
+      subtotal: itemsSubtotal,
+      deliveryFee: currentDeliveryFee,
+      total,
+      updatedAt: new Date(),
+    };
+
+    onSave(updated);
+    onClose();
+  };
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Editar Comanda: ${order.orderNumber}`}
+      subtitle={`Modalidad: ${isMesa ? 'Mesa' : isDelivery ? 'Delivery' : order.modality}`}
+      maxWidth="max-w-xl"
+    >
+      <div className="space-y-4 text-xs">
+        {isDelivered ? (
+          <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 flex items-center gap-2">
+            <Lock className="w-4 h-4" />
+            <span>Esta comanda ya fue entregada y se encuentra bloqueada para edición.</span>
+          </div>
+        ) : (
+          <>
+            {errorMessage && (
+              <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-300 font-bold flex items-center gap-2">
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {/* Configuración de Mesa obligatoria */}
+            {isMesa && (
+              <div className="bg-black/50 p-3 rounded-xl border border-zinc-800 space-y-1.5">
+                <label className="text-zinc-300 font-bold block">
+                  Número de Mesa * <span className="text-amber-400 font-normal">(Requerido)</span>
+                </label>
+                <select
+                  value={tableId}
+                  onChange={(e) => {
+                    setTableId(e.target.value);
+                    setErrorMessage(null);
+                  }}
+                  required
+                  className="w-full bg-black/70 border border-zinc-700 rounded-lg p-2 text-white font-bold text-xs focus:outline-none focus:border-amber-500"
+                >
+                  <option value="">-- Selecciona una mesa obligatoria --</option>
+                  {tables.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label} ({t.status === 'OCCUPIED' && t.id !== order.tableId ? 'Abierta' : 'Disponible'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Datos de Delivery */}
+            {isDelivery && (
+              <div className="bg-black/50 p-3 rounded-xl border border-zinc-800 space-y-2">
+                <span className="font-extrabold text-emerald-400 text-xs block">
+                  Datos del Cliente (Delivery)
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Nombre del cliente *"
+                    className="bg-black/70 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 font-semibold"
+                  />
+                  <input
+                    type="tel"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="Celular / WhatsApp"
+                    className="bg-black/70 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <input
+                  type="text"
+                  value={customerAddress}
+                  onChange={(e) => setCustomerAddress(e.target.value)}
+                  placeholder="Dirección exacta de entrega *"
+                  className="w-full bg-black/70 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={customerReference}
+                    onChange={(e) => setCustomerReference(e.target.value)}
+                    placeholder="Referencia de entrega"
+                    className="bg-black/70 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                  />
+                  <div className="relative flex items-center">
+                    <span className="absolute left-2 text-zinc-400 text-xs font-bold">S/</span>
+                    <input
+                      type="number"
+                      step="0.50"
+                      min="0"
+                      value={deliveryFee}
+                      onChange={(e) => setDeliveryFee(e.target.value)}
+                      placeholder="Costo envío"
+                      className="w-full bg-black/70 border border-zinc-800 rounded-lg pl-7 pr-2 py-1.5 text-xs text-emerald-300 font-bold focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Cliente en salón o recojo */}
+            {!isDelivery && (
+              <div className="bg-black/40 p-2.5 rounded-xl border border-zinc-800">
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Nombre del cliente o comensal..."
+                  className="w-full bg-black/70 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            )}
+
+            {/* Lista de Productos y edición de cantidades */}
+            <div className="bg-black/50 p-3 rounded-xl border border-zinc-800 space-y-2">
+              <div className="flex items-center justify-between pb-1 border-b border-zinc-800">
+                <h5 className="font-extrabold text-white text-xs">
+                  Productos en la Comanda ({items.length})
+                </h5>
+                <span className="text-[10px] text-zinc-500">Usa + / - para cambiar cantidades</span>
+              </div>
+
+              <div className="space-y-2 max-h-56 overflow-y-auto">
+                {items.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-2 rounded-xl bg-zinc-900/80 border border-zinc-800 flex flex-col gap-1.5 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-white text-xs">
+                        {item.name}
+                        {item.customization?.packaging?.price > 0 && (
+                          <span className="text-[10px] text-blue-300 block font-normal">
+                            📦 {item.customization.packaging.name} (+{formatCurrency(item.customization.packaging.price)})
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Control de cantidad */}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => updateItemQty(idx, -1)}
+                          className="w-6 h-6 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center font-bold cursor-pointer active:scale-95"
+                          title="Restar 1"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="w-5 text-center font-black text-white text-xs">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateItemQty(idx, 1)}
+                          className="w-6 h-6 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center font-bold cursor-pointer active:scale-95"
+                          title="Sumar 1"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => removeItem(idx)}
+                          className="p-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-800/40 cursor-pointer ml-1"
+                          title="Eliminar plato"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        <span className="font-extrabold text-white text-xs ml-2 w-16 text-right">
+                          {formatCurrency(item.subtotal)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Notas de plato */}
+                    <input
+                      type="text"
+                      value={item.customization?.itemNotes || ''}
+                      onChange={(e) => updateItemNotes(idx, e.target.value)}
+                      placeholder="Nota para cocina (ej. sin cebolla, bajo en azúcar)..."
+                      className="w-full bg-black/60 border border-zinc-800 rounded-lg px-2 py-1 text-[11px] text-amber-200 placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Notas generales de la comanda */}
+            <div className="bg-black/40 p-2.5 rounded-xl border border-zinc-800 space-y-1">
+              <label className="text-[11px] font-bold text-zinc-400 block">
+                Notas Generales de la Comanda:
+              </label>
+              <input
+                type="text"
+                value={generalNotes}
+                onChange={(e) => setGeneralNotes(e.target.value)}
+                placeholder="Observaciones de la orden..."
+                className="w-full bg-black/60 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            {/* Totales */}
+            <div className="p-3 rounded-xl bg-black/60 border border-zinc-800 space-y-1 text-xs font-semibold">
+              <div className="flex justify-between text-zinc-400">
+                <span>Subtotal ({items.reduce((s, i) => s + i.quantity, 0)} ítems):</span>
+                <span>{formatCurrency(itemsSubtotal)}</span>
+              </div>
+              {packagingsTotal > 0 && (
+                <div className="flex justify-between text-zinc-400">
+                  <span>Empaques:</span>
+                  <span>{formatCurrency(packagingsTotal)}</span>
+                </div>
+              )}
+              {currentDeliveryFee > 0 && (
+                <div className="flex justify-between text-zinc-400">
+                  <span>Costo Delivery:</span>
+                  <span>{formatCurrency(currentDeliveryFee)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-white font-extrabold text-sm pt-1 border-t border-zinc-800">
+                <span>Total Actualizado:</span>
+                <span className="text-[var(--color-porkos-orange)]">{formatCurrency(total)}</span>
+              </div>
+            </div>
+
+            {/* Botones de Guardar y Abrir en Ventas */}
+            <div className="space-y-2 pt-2">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="py-2.5 px-3 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer active:scale-95 transition-all"
+                >
+                  <Check className="w-4 h-4 stroke-[3]" />
+                  <span>Guardar Cambios</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="py-2.5 px-3 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 cursor-pointer transition-all"
+                >
+                  Cancelar
+                </button>
+              </div>
+
+              {onEditInSales && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onEditInSales(order);
+                    onClose();
+                  }}
+                  className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-zinc-900 hover:bg-zinc-850 text-amber-300 border border-amber-500/30 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span>Abrir en Ventas para Añadir Platos de la Carta</span>
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+export default function OrdersView({
+  orders = [],
+  onUpdateOrder,
+  onEditOrderInSales,
+  tables = [],
+}) {
   const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'HISTORY'
   const [filterModality, setFilterModality] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [editingModalOrder, setEditingModalOrder] = useState(null);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
@@ -302,6 +692,29 @@ export default function OrdersView({ orders = [] }) {
                     </div>
                   </div>
 
+                  {/* Botón de Edición (solo antes de ser entregada) */}
+                  {order.status !== 'ENTREGADO' && order.status !== 'CANCELADO' ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingModalOrder(order);
+                      }}
+                      className="p-1.5 rounded-lg bg-zinc-800/80 hover:bg-amber-500 text-zinc-400 hover:text-black transition-colors shrink-0 cursor-pointer"
+                      title="Editar comanda"
+                      aria-label="Editar comanda"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <span
+                      className="p-1.5 text-zinc-600 shrink-0"
+                      title="Comanda entregada (No editable)"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                    </span>
+                  )}
+
                   <button
                     type="button"
                     className="p-1.5 rounded-lg bg-zinc-800/80 group-hover:bg-[var(--color-porkos-orange)] text-zinc-400 group-hover:text-black transition-colors shrink-0"
@@ -490,9 +903,66 @@ export default function OrdersView({ orders = [] }) {
                 </span>
               </div>
             </div>
+
+            {/* Acciones de la Comanda: Edición permitida solo antes de entrega */}
+            <div className="flex items-center justify-between pt-3 border-t border-zinc-800 flex-wrap gap-2">
+              {selectedOrder.status !== 'ENTREGADO' && selectedOrder.status !== 'CANCELADO' ? (
+                <>
+                  {onEditOrderInSales && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const orderToEdit = selectedOrder;
+                        setSelectedOrder(null);
+                        onEditOrderInSales(orderToEdit);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition-all cursor-pointer"
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Añadir Platos del Menú</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const orderToEdit = selectedOrder;
+                      setSelectedOrder(null);
+                      setEditingModalOrder(orderToEdit);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-400 text-black shadow-md shadow-amber-500/20 transition-all cursor-pointer ml-auto"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Editar Comanda</span>
+                  </button>
+                </>
+              ) : (
+                <div className="flex items-center gap-1.5 text-zinc-500 text-xs font-bold ml-auto py-1">
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Comanda Entregada (Bloqueada para edición)</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </Modal>
+
+      {/* Modal de Edición de Comanda */}
+      {editingModalOrder && (
+        <EditOrderModal
+          key={editingModalOrder.orderNumber}
+          order={editingModalOrder}
+          isOpen={Boolean(editingModalOrder)}
+          onClose={() => setEditingModalOrder(null)}
+          onSave={(updated) => {
+            if (onUpdateOrder) {
+              onUpdateOrder(updated);
+            }
+          }}
+          onEditInSales={onEditOrderInSales}
+          tables={tables}
+        />
+      )}
     </div>
   );
 }

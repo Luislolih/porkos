@@ -12,6 +12,9 @@ import {
   Phone,
   MapPin,
   Navigation,
+  Utensils,
+  Edit3,
+  Check,
 } from 'lucide-react';
 import { useCart } from '../../../context/useCart';
 import { useCatalog } from '../../../context/useCatalog';
@@ -38,6 +41,8 @@ export default function CartView({
   onCheckout,
   onEditItem,
   isMarketMode = false,
+  tables = [],
+  onSaveEditedOrder,
 }) {
   const {
     items,
@@ -51,6 +56,7 @@ export default function CartView({
     itemCount,
     modality,
     selectedTable,
+    setSelectedTable,
     customerName,
     setCustomerName,
     customer,
@@ -60,6 +66,8 @@ export default function CartView({
     removePackaging,
     generalNotes,
     setGeneralNotes,
+    editingOrder,
+    cancelEditingOrder,
   } = useCart();
   const { packagings: catalogPackagings } = useCatalog();
 
@@ -104,6 +112,51 @@ export default function CartView({
       {/* Target status bar: Mesa / Para Llevar / Delivery / Cliente (SOLO en Restaurante) */}
       {!isMarketMode && (
         <div className="px-3.5 py-2.5 bg-black/40 border-b border-[var(--color-porkos-border)] space-y-2.5">
+          {/* Banner de Edición de Comanda Activa */}
+          {editingOrder && (
+            <div className="bg-amber-500/15 border border-amber-500/40 p-2.5 rounded-xl flex items-center justify-between text-xs animate-in fade-in">
+              <div className="flex items-center gap-2 text-amber-300 font-bold">
+                <Edit3 className="w-4 h-4 text-amber-400 shrink-0" />
+                <div>
+                  <span>Editando Comanda: <strong>{editingOrder.orderNumber}</strong></span>
+                  <span className="block text-[10px] text-zinc-400 font-normal">Modifica los ítems y guarda los cambios</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={cancelEditingOrder}
+                className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-bold border border-zinc-700 cursor-pointer active:scale-95"
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
+
+          {/* Exigir número de mesa obligatorio si modalidad es MESA */}
+          {modality === 'MESA' && !selectedTable && (
+            <div className="bg-amber-950/40 border border-amber-500/50 p-2.5 rounded-xl space-y-1.5 text-xs animate-pulse">
+              <div className="flex items-center gap-1.5 text-amber-300 font-extrabold text-[11px]">
+                <Utensils className="w-3.5 h-3.5 text-amber-400" />
+                <span>⚠️ Mesa Requerida: Selecciona la mesa para continuar *</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {tables.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setSelectedTable(t)}
+                    className="py-1.5 px-2 rounded-lg text-xs font-bold bg-zinc-900 hover:bg-amber-500 hover:text-black text-white border border-zinc-700 hover:border-amber-400 transition-all cursor-pointer text-center"
+                  >
+                    <span>{t.label}</span>
+                    <span className="block text-[9px] font-normal text-zinc-400">
+                      {t.status === 'OCCUPIED' ? '(Abierta)' : '(Libre)'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5">
               <span className="text-zinc-400 font-medium">Modalidad:</span>
@@ -534,9 +587,31 @@ export default function CartView({
           </div>
         </div>
 
-        {/* Actions diferenciadas para Market vs Restaurante */}
+        {/* Actions diferenciadas para Market vs Restaurante vs Modo Edición */}
         <div className="space-y-2">
-          {isMarketMode ? (
+          {editingOrder ? (
+            /* EN MODO EDICIÓN DE COMANDA EXISTENTE */
+            <div className="space-y-2">
+              <Button
+                onClick={onSaveEditedOrder}
+                disabled={items.length === 0 || (modality === 'MESA' && !selectedTable)}
+                variant="primary"
+                size="lg"
+                icon={Check}
+                className="w-full text-xs sm:text-sm font-black py-3.5 bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 cursor-pointer"
+              >
+                Guardar Cambios Comanda {editingOrder.orderNumber} ({formatCurrency(total)})
+              </Button>
+              <Button
+                onClick={cancelEditingOrder}
+                variant="secondary"
+                size="sm"
+                className="w-full text-xs font-bold py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 cursor-pointer"
+              >
+                Cancelar Edición
+              </Button>
+            </div>
+          ) : isMarketMode ? (
             /* EN MODO MARKET: Acción directa y limpia de COBRAR */
             <Button
               onClick={onCheckout}
@@ -568,9 +643,15 @@ export default function CartView({
                 variant="primary"
                 size="md"
                 icon={Flame}
-                className="text-xs sm:text-sm font-black py-3 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20"
+                className={`text-xs sm:text-sm font-black py-3 ${
+                  modality === 'MESA' && !selectedTable
+                    ? 'bg-amber-600 hover:bg-amber-500 text-black border border-amber-400 animate-pulse'
+                    : 'bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20'
+                }`}
               >
-                {selectedTable
+                {modality === 'MESA' && !selectedTable
+                  ? '⚠️ Elegir Mesa para Enviar'
+                  : selectedTable
                   ? `Abrir comanda (${selectedTable.label})`
                   : hasKitchenItems
                   ? 'Mandar a Cocina'
@@ -583,7 +664,7 @@ export default function CartView({
                 variant="secondary"
                 size="md"
                 icon={CreditCard}
-                className="text-xs font-bold py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700"
+                className="text-xs font-bold py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 cursor-pointer"
               >
                 Cobrar en Caja ({formatCurrency(total)})
               </Button>

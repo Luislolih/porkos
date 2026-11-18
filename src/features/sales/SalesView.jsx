@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { SALES_MODES } from '../../types/constants';
+import { SALES_MODES, ORDER_MODALITIES } from '../../types/constants';
 import { useCart } from '../../context/useCart';
 import { useCatalog } from '../../context/useCatalog';
 import SalesHeader from './components/SalesHeader';
@@ -12,7 +12,13 @@ import { formatCurrency } from '../../utils/formatters';
 import { getNextOrderNumber } from '../../utils/orderNumber';
 import { CheckCircle2, UtensilsCrossed } from 'lucide-react';
 
-export default function SalesView({ onOrderCreated, tables = [], orders = [], onSettleTableOrder }) {
+export default function SalesView({
+  onOrderCreated,
+  tables = [],
+  orders = [],
+  onSettleTableOrder,
+  onOrderUpdated,
+}) {
   const [salesMode, setSalesMode] = useState(SALES_MODES.RESTAURANT);
   const [selectedLine, setSelectedLine] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,7 +45,10 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
     itemsSubtotal,
     packagingsTotal,
     deliveryFee,
+    discount,
     clearCart,
+    editingOrder,
+    cancelEditingOrder,
   } = useCart();
 
   // Prevenir scroll en el fondo (ventas) al abrir el cajón de comanda en móvil
@@ -217,6 +226,14 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
 
   // Crear la orden y enviar a cocina (alimenta el histórico de ventas)
   const handleSendToKitchen = () => {
+    // Exigir número de mesa si la modalidad es MESA
+    if (salesMode !== SALES_MODES.MARKET && (modality === 'MESA' || modality === ORDER_MODALITIES.MESA.id)) {
+      if (!selectedTable?.id) {
+        showToast('⚠️ Debes seleccionar un número de mesa para continuar');
+        return;
+      }
+    }
+
     if (modality === 'DELIVERY') {
       const clientName = customerName?.trim() || customer.name?.trim();
       if (!clientName) {
@@ -244,7 +261,7 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
       subtotal: itemsSubtotal,
       packagingsTotal,
       deliveryFee,
-      discount: 0,
+      discount: discount || 0,
       total,
       createdAt: new Date(),
     };
@@ -268,6 +285,14 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
   };
 
   const handleOpenCheckout = () => {
+    // Exigir número de mesa si la modalidad es MESA
+    if (salesMode !== SALES_MODES.MARKET && (modality === 'MESA' || modality === ORDER_MODALITIES.MESA.id)) {
+      if (!selectedTable?.id) {
+        showToast('⚠️ Debes seleccionar un número de mesa para continuar');
+        return;
+      }
+    }
+
     if (salesMode !== SALES_MODES.MARKET && modality === 'DELIVERY') {
       const clientName = customerName?.trim() || customer.name?.trim();
       if (!clientName) {
@@ -280,6 +305,69 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
       }
     }
     setIsPaymentOpen(true);
+  };
+
+  // Guardar edición de comanda activa existente
+  const handleSaveEditedOrder = () => {
+    if (!editingOrder) return;
+
+    // Verificar si la orden ya fue entregada
+    if (editingOrder.status === 'ENTREGADO') {
+      showToast('⚠️ Esta comanda ya fue entregada y no puede ser modificada');
+      cancelEditingOrder();
+      return;
+    }
+
+    // Exigir número de mesa si la modalidad es MESA
+    if (salesMode !== SALES_MODES.MARKET && (modality === 'MESA' || modality === ORDER_MODALITIES.MESA.id)) {
+      if (!selectedTable?.id) {
+        showToast('⚠️ Debes seleccionar un número de mesa para la comanda');
+        return;
+      }
+    }
+
+    if (modality === 'DELIVERY') {
+      const clientName = customerName?.trim() || customer.name?.trim();
+      if (!clientName) {
+        showToast('⚠️ Ingresa el nombre del cliente para delivery');
+        return;
+      }
+      if (!customer.address?.trim()) {
+        showToast('⚠️ Ingresa la dirección de entrega');
+        return;
+      }
+    }
+
+    if (items.length === 0) {
+      showToast('⚠️ La comanda debe tener al menos 1 producto');
+      return;
+    }
+
+    const updatedOrder = {
+      ...editingOrder,
+      modality,
+      tableId: modality === 'MESA' ? (selectedTable?.id || null) : null,
+      tableName: modality === 'MESA' ? (selectedTable?.label || null) : null,
+      customerName: (customerName?.trim() || customer.name?.trim()) || null,
+      customer: modality === 'DELIVERY' ? { ...customer, name: customerName?.trim() || customer.name?.trim() || '' } : null,
+      items: [...items],
+      packagings: [...packagings],
+      generalNotes,
+      subtotal: itemsSubtotal,
+      packagingsTotal,
+      deliveryFee,
+      discount: discount || 0,
+      total,
+      updatedAt: new Date(),
+    };
+
+    if (onOrderUpdated) {
+      onOrderUpdated(updatedOrder);
+    }
+
+    cancelEditingOrder();
+    setIsMobileCartOpen(false);
+    showToast(`Comanda ${updatedOrder.orderNumber} actualizada con éxito`);
   };
 
   // Cobro directo (alimenta el histórico de ventas)
@@ -399,6 +487,8 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
             onCheckout={handleOpenCheckout}
             onSettleTable={onSettleTableOrder}
             onEditItem={handleEditCartItem}
+            tables={tables}
+            onSaveEditedOrder={handleSaveEditedOrder}
           />
         </div>
       </div>
@@ -449,6 +539,8 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
                 onSettleTable={onSettleTableOrder}
                 onEditItem={handleEditCartItem}
                 onCloseMobileCart={() => setIsMobileCartOpen(false)}
+                tables={tables}
+                onSaveEditedOrder={handleSaveEditedOrder}
               />
             </div>
           </div>

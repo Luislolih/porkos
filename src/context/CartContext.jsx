@@ -37,6 +37,51 @@ export function CartProvider({ children }) {
   const [generalNotes, setGeneralNotes] = useState('');
   const [discount, setDiscount] = useState(0);
 
+  // Estado para edición de comanda activa existente
+  const [editingOrder, setEditingOrder] = useState(null);
+
+  const loadOrderForEditing = (order, availableTables = []) => {
+    if (!order) return false;
+    if (order.status === 'ENTREGADO') {
+      return false;
+    }
+
+    setEditingOrder(order);
+    setItems(order.items ? order.items.map((i) => ({ ...i })) : []);
+    setModalityState(order.modality || ORDER_MODALITIES.MESA.id);
+
+    if (order.tableId) {
+      const match = availableTables.find((t) => t.id === order.tableId);
+      setSelectedTable(match || { id: order.tableId, label: order.tableName || 'Mesa' });
+    } else {
+      setSelectedTable(null);
+    }
+
+    const clientName = order.customerName || order.customer?.name || '';
+    setCustomerName(clientName);
+    setCustomer(
+      order.customer
+        ? { ...order.customer, name: clientName }
+        : {
+            name: clientName,
+            phone: '',
+            address: '',
+            reference: '',
+            deliveryFee: order.deliveryFee || defaultDeliveryFee,
+          }
+    );
+    setPackagings(order.packagings ? order.packagings.map((p) => ({ ...p })) : []);
+    setGeneralNotes(order.generalNotes || '');
+    setDiscount(order.discount || 0);
+
+    return true;
+  };
+
+  const cancelEditingOrder = () => {
+    setEditingOrder(null);
+    clearCart();
+  };
+
   // Sincronizar en tiempo real tarifa de delivery con Firestore
   useEffect(() => {
     const unsubscribe = subscribeToDeliveryConfig((data) => {
@@ -274,6 +319,7 @@ export function CartProvider({ children }) {
       deliveryFee: defaultDeliveryFee,
     });
     setDiscount(0);
+    setEditingOrder(null);
   };
 
   const addPackaging = (pkg) => {
@@ -357,6 +403,9 @@ export function CartProvider({ children }) {
     updateDefaultDeliveryFee,
     total,
     itemCount,
+    editingOrder,
+    loadOrderForEditing,
+    cancelEditingOrder,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

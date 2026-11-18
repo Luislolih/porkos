@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Grid2X2, Clock, Plus, CheckCircle, ShoppingBag, Utensils } from 'lucide-react';
+import { Grid2X2, Clock, Plus, CheckCircle, ShoppingBag, Utensils, Edit3 } from 'lucide-react';
 import { formatCurrency, formatElapsedTime } from '../../utils/formatters';
 import QuickPaymentModal from '../sales/components/QuickPaymentModal';
 
@@ -8,6 +8,7 @@ export default function TablesView({
   orders = [],
   onSelectTableForOrder,
   onCloseTable,
+  onEditTableOrder,
 }) {
   const [closingOrder, setClosingOrder] = useState(null);
 
@@ -146,11 +147,12 @@ export default function TablesView({
               {/* Actions */}
               <div className="pt-2 border-t border-zinc-800/80">
                 {isOccupied && tableOrder ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-1.5">
                     <button
                       type="button"
                       onClick={() => onSelectTableForOrder(table)}
-                      className="py-2 px-2.5 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white flex items-center justify-center gap-1 transition-all cursor-pointer border border-zinc-700"
+                      className="py-2 px-1.5 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white flex items-center justify-center gap-1 transition-all cursor-pointer border border-zinc-700"
+                      title="Añadir más productos a la comanda"
                     >
                       <Plus className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
                       <span>+ Pedir</span>
@@ -158,8 +160,18 @@ export default function TablesView({
 
                     <button
                       type="button"
+                      onClick={() => onEditTableOrder && onEditTableOrder(tableOrder)}
+                      className="py-2 px-1.5 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-amber-500 hover:text-black text-amber-300 hover:border-amber-400 flex items-center justify-center gap-1 transition-all cursor-pointer border border-zinc-700"
+                      title="Modificar comanda abierta"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Editar</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => handleOpenCloseModal(tableOrder)}
-                      className="py-2 px-2.5 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95"
+                      className="py-2 px-1.5 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95"
                     >
                       <CheckCircle className="w-3.5 h-3.5 stroke-[2.5]" />
                       <span>Cobrar</span>
