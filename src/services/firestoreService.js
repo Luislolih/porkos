@@ -548,3 +548,43 @@ export async function saveRolePermissionsToFirestore(permissions) {
     return { success: false, error: err };
   }
 }
+
+export function subscribeToDeliveryConfig(onUpdate, onError) {
+  try {
+    const docRef = doc(db, 'app_config', 'delivery');
+    return onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          onUpdate(docSnap.data() || null);
+        } else {
+          onUpdate(null);
+        }
+      },
+      (err) => {
+        console.warn('Advertencia en Firestore delivery config:', err.message);
+        if (onError) onError(err);
+      }
+    );
+  } catch (err) {
+    console.warn('Error en suscripción de delivery config:', err);
+    if (onError) onError(err);
+    return () => {};
+  }
+}
+
+export async function saveDeliveryConfigToFirestore(config) {
+  try {
+    const docRef = doc(db, 'app_config', 'delivery');
+    await setDoc(
+      docRef,
+      { ...sanitizePayload(config), updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+    return { success: true };
+  } catch (err) {
+    console.error('Error al guardar delivery config en Firestore:', err);
+    return { success: false, error: err };
+  }
+}
+

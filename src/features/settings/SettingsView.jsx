@@ -10,14 +10,134 @@ import {
   Copy,
   Check,
   Lock,
+  Bike,
 } from 'lucide-react';
 import CatalogView from '../catalog/CatalogView';
 import { useAuth } from '../../context/useAuth';
+import { useCart } from '../../context/useCart';
 import { APP_ROLES, ALL_MODULE_DEFINITIONS } from '../../types/roles';
 import Button from '../../components/ui/Button';
 
+function DeliverySettingsTab({ initialFee, onSave }) {
+  const [deliveryFeeInput, setDeliveryFeeInput] = useState(initialFee);
+  const [isSavingDelivery, setIsSavingDelivery] = useState(false);
+
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+    setIsSavingDelivery(true);
+    await onSave(deliveryFeeInput);
+    setIsSavingDelivery(false);
+  };
+
+  return (
+    <div className="space-y-4 max-w-3xl">
+      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-6 space-y-5">
+        <div className="flex items-center gap-3 pb-3 border-b border-zinc-800">
+          <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            <Bike className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-extrabold text-white">
+              Tarifa Base de Delivery
+            </h3>
+            <p className="text-xs text-zinc-400">
+              Configura el monto por defecto que se cargará automáticamente al seleccionar Delivery en una comanda.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-zinc-300 mb-2">
+              Monto por Defecto para Delivery (S/)
+            </label>
+            <div className="relative max-w-xs">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-emerald-400">
+                S/
+              </span>
+              <input
+                type="number"
+                step="0.50"
+                min="0"
+                required
+                value={deliveryFeeInput}
+                onChange={(e) => setDeliveryFeeInput(e.target.value)}
+                placeholder="5.00"
+                className="w-full bg-black/60 border border-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-base text-white font-extrabold placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Accesos rápidos a tarifas comunes */}
+          <div>
+            <span className="block text-[11px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">
+              Valores Rápidos:
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {['3.00', '4.00', '5.00', '6.00', '7.00', '8.00', '10.00'].map((val) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setDeliveryFeeInput(val)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                    Number(deliveryFeeInput) === Number(val)
+                      ? 'bg-emerald-500 text-black border-emerald-400 font-black shadow-md shadow-emerald-500/20 scale-105'
+                      : 'bg-black/40 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+                  }`}
+                >
+                  S/ {val}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <Button
+              type="submit"
+              disabled={isSavingDelivery}
+              icon={Check}
+              className="text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 py-2.5 px-5"
+            >
+              {isSavingDelivery ? 'Guardando...' : 'Guardar Tarifa Delivery'}
+            </Button>
+          </div>
+        </form>
+      </div>
+
+      {/* Tarjeta explicativa de funcionamiento */}
+      <div className="bg-black/40 border border-zinc-800/80 rounded-2xl p-4 sm:p-5 space-y-3">
+        <h4 className="text-xs font-black uppercase tracking-wider text-zinc-400">
+          ¿Cómo opera el flujo de Delivery y Empaques?
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div className="bg-zinc-900/60 p-3 rounded-xl border border-zinc-800/60 space-y-1">
+            <span className="font-bold text-white block">1. Carga Automática</span>
+            <p className="text-zinc-400 text-[11px] leading-relaxed">
+              Al cambiar una comanda a modalidad Delivery, este costo se pre-carga en automático para agilizar el despacho.
+            </p>
+          </div>
+
+          <div className="bg-zinc-900/60 p-3 rounded-xl border border-zinc-800/60 space-y-1">
+            <span className="font-bold text-white block">2. 100% Editable</span>
+            <p className="text-zinc-400 text-[11px] leading-relaxed">
+              El cajero puede modificar el costo de envío en cada comanda según la dirección, distancia o zona del cliente.
+            </p>
+          </div>
+
+          <div className="bg-zinc-900/60 p-3 rounded-xl border border-zinc-800/60 space-y-1">
+            <span className="font-bold text-white block">3. Empaque Inteligente</span>
+            <p className="text-zinc-400 text-[11px] leading-relaxed">
+              Al pasar de Mesa a Llevar o Delivery, se agregan los empaques por defecto; si vuelve a Mesa, se retiran automáticamente.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsView() {
-  const [activeTab, setActiveTab] = useState('catalog'); // 'catalog' | 'users' | 'system'
+  const [activeTab, setActiveTab] = useState('catalog'); // 'catalog' | 'delivery' | 'users' | 'system'
 
   const {
     user: currentUser,
@@ -27,6 +147,14 @@ export default function SettingsView() {
     customRolePermissions,
     updateRolePermissions,
   } = useAuth();
+
+  const { defaultDeliveryFee = 5, updateDefaultDeliveryFee } = useCart();
+
+  const handleSaveDeliveryFee = async (feeVal) => {
+    const parsedFee = Math.max(0, parseFloat(feeVal) || 0);
+    await updateDefaultDeliveryFee(parsedFee);
+    showToast(`Tarifa base de delivery actualizada a S/ ${parsedFee.toFixed(2)}`);
+  };
 
   // Formulario nuevo usuario
   const [newEmail, setNewEmail] = useState('');
@@ -141,7 +269,7 @@ service cloud.firestore {
 
     match /app_config/{configId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if isCoordinator();
     }
 
     match /orders/{orderId} {
@@ -232,6 +360,19 @@ service cloud.firestore {
 
           <button
             type="button"
+            onClick={() => setActiveTab('delivery')}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'delivery'
+                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Bike className="w-3.5 h-3.5" />
+            <span>Tarifas & Delivery</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('users')}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'users'
@@ -261,7 +402,16 @@ service cloud.firestore {
       {/* 1. Vista de Catálogo */}
       {activeTab === 'catalog' && <CatalogView />}
 
-      {/* 2. Vista de Usuarios & Roles Blindados */}
+      {/* 2. Vista de Tarifas & Configuración de Delivery */}
+      {activeTab === 'delivery' && (
+        <DeliverySettingsTab
+          key={defaultDeliveryFee}
+          initialFee={defaultDeliveryFee}
+          onSave={handleSaveDeliveryFee}
+        />
+      )}
+
+      {/* 3. Vista de Usuarios & Roles Blindados */}
       {activeTab === 'users' && (
         <div className="space-y-4">
           {/* Card: Registrar Nuevo Usuario por Email */}
@@ -506,6 +656,10 @@ service cloud.firestore {
               <div className="flex justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800/80">
                 <span className="text-zinc-400">Proyecto Firebase:</span>
                 <span className="text-white font-mono">porkos-ac37d</span>
+              </div>
+              <div className="flex justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800/80">
+                <span className="text-zinc-400">Tarifa Delivery Base:</span>
+                <span className="text-emerald-400 font-bold">S/ {Number(defaultDeliveryFee).toFixed(2)}</span>
               </div>
             </div>
           </div>

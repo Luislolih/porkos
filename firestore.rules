@@ -47,7 +47,7 @@ service cloud.firestore {
 
     match /app_config/{configId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if isCoordinator();
     }
 
     // 2. Órdenes y Comandas:

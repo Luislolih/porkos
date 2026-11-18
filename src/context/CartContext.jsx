@@ -1,36 +1,163 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ORDER_MODALITIES } from '../types/constants';
 import { CartContext } from './cart-context';
+import { useCatalog } from './useCatalog';
+import {
+  subscribeToDeliveryConfig,
+  saveDeliveryConfigToFirestore,
+} from '../services/firestoreService';
 
 export function CartProvider({ children }) {
+  const { products = [], packagings: catalogPackagings = [] } = useCatalog();
+
   const [items, setItems] = useState([]);
-  const [modality, setModality] = useState(ORDER_MODALITIES.MESA.id);
+  const [modality, setModalityState] = useState(ORDER_MODALITIES.MESA.id);
   const [selectedTable, setSelectedTable] = useState(null);
   const [customerName, setCustomerName] = useState('');
+
+  // Tarifa por defecto de delivery (almacenada en localStorage y Firestore)
+  const [defaultDeliveryFee, setDefaultDeliveryFee] = useState(() => {
+    try {
+      const saved = localStorage.getItem('porkos_default_delivery_fee');
+      return saved ? parseFloat(saved) : 5;
+    } catch {
+      return 5;
+    }
+  });
+
   const [customer, setCustomer] = useState({
     name: '',
     phone: '',
     address: '',
     reference: '',
-    deliveryFee: 0,
+    deliveryFee: defaultDeliveryFee,
   });
+
   const [packagings, setPackagings] = useState([]);
   const [generalNotes, setGeneralNotes] = useState('');
   const [discount, setDiscount] = useState(0);
 
+  // Sincronizar en tiempo real tarifa de delivery con Firestore
+  useEffect(() => {
+    const unsubscribe = subscribeToDeliveryConfig((data) => {
+      if (data?.defaultFee !== undefined) {
+        const fee = parseFloat(data.defaultFee) || 0;
+        setDefaultDeliveryFee(fee);
+        localStorage.setItem('porkos_default_delivery_fee', fee.toString());
+      }
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
+
+  // Función para guardar tarifa por defecto desde Configuración
+  const updateDefaultDeliveryFee = async (newFee) => {
+    const parsed = Math.max(0, parseFloat(newFee) || 0);
+    setDefaultDeliveryFee(parsed);
+    localStorage.setItem('porkos_default_delivery_fee', parsed.toString());
+    await saveDeliveryConfigToFirestore({ defaultFee: parsed });
+  };
+
+  // Cambio de modalidad dinámico:
+  // - Si cambia a LLEVAR o DELIVERY -> agrega por defecto el packaging asociado a los productos en la comanda
+  // - Si cambia viceversa (MESA o IR COMIENDO) -> elimina el packaging de los productos en la comanda
+  // - Si cambia a DELIVERY -> carga en automático la tarifa por defecto si no se ha ingresado una
+  const setModality = (newModality) => {
+    setModalityState(newModality);
+
+    const isNowTakeoutOrDelivery =
+      newModality === ORDER_MODALITIES.PARA_LLEVAR.id ||
+      newModality === ORDER_MODALITIES.DELIVERY.id ||
+      newModality === 'PARA_LLEVAR' ||
+      newModality === 'DELIVERY' ||
+      newModality === 'LLEVAR';
+
+    // Carga de tarifa por defecto al seleccionar DELIVERY
+    if (newModality === ORDER_MODALITIES.DELIVERY.id || newModality === 'DELIVERY') {
+      setCustomer((prev) => {
+        const currentFee = parseFloat(prev.deliveryFee);
+        const feeToUse = !isNaN(currentFee) && currentFee > 0 ? currentFee : defaultDeliveryFee;
+        return {
+          ...prev,
+          deliveryFee: feeToUse,
+        };
+      });
+    }
+
+    // Actualizar dinámicamente el packaging de los ítems existentes en la comanda
+    setItems((prevItems) => {
+      return prevItems.map((item) => {
+        const prod = products.find((p) => p.id === item.productId);
+
+        // Si es producto de market (gaseosa, galleta, snack, etc.) no usa packaging de hamburguesa
+        if (prod?.type === 'MARKET' || prod?.line === 'MARKET' || item.productId?.startsWith('mkt_')) {
+          return item;
+        }
+
+        const updatedPackaging = isNowTakeoutOrDelivery
+          ? (catalogPackagings || []).find(
+              (pkg) =>
+                pkg.active &&
+                pkg.id !== 'pkg_ninguno' &&
+                (prod?.availablePackagingIds?.includes(pkg.id) ||
+                  pkg.applicableProductIds?.includes(item.productId) ||
+                  item.availablePackagingIds?.includes(pkg.id))
+            ) || null
+          : null;
+
+        const extrasTotal = (item.customization?.selectedExtras || []).reduce(
+          (sum, ext) => sum + ext.unitPrice * (ext.quantity || 1),
+          0
+        );
+        const pkgPrice = updatedPackaging?.price || 0;
+        const newUnitPrice = item.basePrice + extrasTotal + pkgPrice;
+
+        return {
+          ...item,
+          unitPrice: newUnitPrice,
+          subtotal: newUnitPrice * item.quantity,
+          customization: {
+            ...item.customization,
+            packaging: updatedPackaging,
+          },
+        };
+      });
+    });
+  };
+
   const addItem = (product, customization = null) => {
+    const isNowTakeoutOrDelivery =
+      modality === ORDER_MODALITIES.PARA_LLEVAR.id ||
+      modality === ORDER_MODALITIES.DELIVERY.id ||
+      modality === 'PARA_LLEVAR' ||
+      modality === 'DELIVERY' ||
+      modality === 'LLEVAR';
+
+    let defaultPackaging = null;
+    if (isNowTakeoutOrDelivery && product.type !== 'MARKET' && product.line !== 'MARKET') {
+      defaultPackaging =
+        (catalogPackagings || []).find(
+          (pkg) =>
+            pkg.active &&
+            pkg.id !== 'pkg_ninguno' &&
+            (product.availablePackagingIds?.includes(pkg.id) ||
+              pkg.applicableProductIds?.includes(product.id))
+        ) || null;
+    }
+
     const custom = customization || {
       temperature: product.temperatureConfig?.enabled ? (product.temperatureConfig?.defaultOption || 'HELADA') : null,
-      creamsSummary: 'SIN CREMAS',
+      creamsSummary: '',
       creamsDetail: { selected: [], removed: [], lowQuantity: [] },
       selectedModifiers: [],
       selectedExtras: [],
-      packaging: null,
+      packaging: defaultPackaging,
       removedIngredients: [],
       itemNotes: '',
     };
 
-    // Dos ítems son idénticos si comparten el mismo producto Y las mismas opciones (temperatura, notas, extras, packaging, papas, cremas)
+    // Dos ítems son idénticos si comparten el mismo producto Y las mismas opciones
     const isIdentical = (item) => {
       if (item.productId !== product.id) return false;
       const iCust = item.customization || {};
@@ -76,6 +203,7 @@ export function CartProvider({ children }) {
         productId: product.id,
         name: product.name,
         basePrice: product.price,
+        availablePackagingIds: product.availablePackagingIds || [],
         unitPrice,
         quantity: 1,
         requiresKitchen: product.type === 'MARKET' ? false : (product.requiresKitchen ?? true),
@@ -138,6 +266,13 @@ export function CartProvider({ children }) {
     setPackagings([]);
     setGeneralNotes('');
     setCustomerName('');
+    setCustomer({
+      name: '',
+      phone: '',
+      address: '',
+      reference: '',
+      deliveryFee: defaultDeliveryFee,
+    });
     setDiscount(0);
   };
 
@@ -177,7 +312,9 @@ export function CartProvider({ children }) {
   }, [packagings]);
 
   const deliveryFee = useMemo(() => {
-    return modality === 'DELIVERY' ? Number(customer.deliveryFee) || 0 : 0;
+    if (modality !== 'DELIVERY' && modality !== ORDER_MODALITIES.DELIVERY.id) return 0;
+    const feeNum = parseFloat(customer.deliveryFee);
+    return isNaN(feeNum) ? 0 : Math.max(0, feeNum);
   }, [modality, customer.deliveryFee]);
 
   const total = useMemo(() => {
@@ -215,6 +352,9 @@ export function CartProvider({ children }) {
     itemsSubtotal,
     packagingsTotal,
     deliveryFee,
+    defaultDeliveryFee,
+    setDefaultDeliveryFee,
+    updateDefaultDeliveryFee,
     total,
     itemCount,
   };

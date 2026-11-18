@@ -217,6 +217,18 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
 
   // Crear la orden y enviar a cocina (alimenta el histórico de ventas)
   const handleSendToKitchen = () => {
+    if (modality === 'DELIVERY') {
+      const clientName = customerName?.trim() || customer.name?.trim();
+      if (!clientName) {
+        showToast('⚠️ Ingresa el nombre del cliente para delivery');
+        return;
+      }
+      if (!customer.address?.trim()) {
+        showToast('⚠️ Ingresa la dirección de entrega');
+        return;
+      }
+    }
+
     const orderData = {
       orderNumber: getNextOrderNumber(orders, 'P'),
       modality,
@@ -224,8 +236,8 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
       paymentStatus: 'PENDING',
       tableId: selectedTable?.id || null,
       tableName: selectedTable?.label || null,
-      customerName: customerName.trim() || null,
-      customer: modality === 'DELIVERY' ? customer : null,
+      customerName: (customerName?.trim() || customer.name?.trim()) || null,
+      customer: modality === 'DELIVERY' ? { ...customer, name: customerName?.trim() || customer.name?.trim() || '' } : null,
       items: [...items],
       packagings: [...packagings],
       generalNotes,
@@ -255,6 +267,21 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
     );
   };
 
+  const handleOpenCheckout = () => {
+    if (salesMode !== SALES_MODES.MARKET && modality === 'DELIVERY') {
+      const clientName = customerName?.trim() || customer.name?.trim();
+      if (!clientName) {
+        showToast('⚠️ Ingresa el nombre del cliente para delivery');
+        return;
+      }
+      if (!customer.address?.trim()) {
+        showToast('⚠️ Ingresa la dirección de entrega');
+        return;
+      }
+    }
+    setIsPaymentOpen(true);
+  };
+
   // Cobro directo (alimenta el histórico de ventas)
   const handleConfirmPayment = (paymentDetail) => {
     const isMarketSale = salesMode === SALES_MODES.MARKET;
@@ -265,8 +292,8 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
       paymentStatus: 'PAID',
       tableId: isMarketSale ? null : (selectedTable?.id || null),
       tableName: isMarketSale ? null : (selectedTable?.label || null),
-      customerName: isMarketSale ? 'Venta Mostrador' : (customerName.trim() || null),
-      customer: !isMarketSale && modality === 'DELIVERY' ? customer : null,
+      customerName: isMarketSale ? 'Venta Mostrador' : ((customerName?.trim() || customer.name?.trim()) || null),
+      customer: !isMarketSale && modality === 'DELIVERY' ? { ...customer, name: customerName?.trim() || customer.name?.trim() || '' } : null,
       items: [...items],
       packagings: isMarketSale ? [] : [...packagings],
       generalNotes: isMarketSale ? 'Venta directa en caja' : generalNotes,
@@ -369,7 +396,7 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
           <CartView
             isMarketMode={salesMode === SALES_MODES.MARKET}
             onSendToKitchen={handleSendToKitchen}
-            onCheckout={() => setIsPaymentOpen(true)}
+            onCheckout={handleOpenCheckout}
             onSettleTable={onSettleTableOrder}
             onEditItem={handleEditCartItem}
           />
@@ -418,7 +445,7 @@ export default function SalesView({ onOrderCreated, tables = [], orders = [], on
               <CartView
                 isMarketMode={salesMode === SALES_MODES.MARKET}
                 onSendToKitchen={handleSendToKitchen}
-                onCheckout={() => setIsPaymentOpen(true)}
+                onCheckout={handleOpenCheckout}
                 onSettleTable={onSettleTableOrder}
                 onEditItem={handleEditCartItem}
                 onCloseMobileCart={() => setIsMobileCartOpen(false)}
