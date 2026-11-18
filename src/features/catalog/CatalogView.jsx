@@ -76,7 +76,8 @@ export default function CatalogView() {
   const [prodCategory, setProdCategory] = useState('cat_clasico');
   const [prodLine, setProdLine] = useState('CLASICO');
   const [prodType, setProdType] = useState('RESTAURANTE');
-  const [prodMarketSubtype, setProdMarketSubtype] = useState('BEBIDA'); // 'BEBIDA' | 'COMIDA'
+  const [prodMarketSubtype, setProdMarketSubtype] = useState('BEBIDA'); // 'BEBIDA' | 'JUGO' | 'COMIDA'
+  const [prodIsJuice, setProdIsJuice] = useState(false);
   const [prodPrice, setProdPrice] = useState('');
   const [prodCost, setProdCost] = useState('');
   const [prodImage, setProdImage] = useState('');
@@ -169,8 +170,8 @@ export default function CatalogView() {
   const handleOpenNewProduct = () => {
     setEditingProduct(null);
     setProdName('');
-    setProdCategory('cat_clasico');
-    setProdLine('CLASICO');
+    setProdCategory('cat_comida');
+    setProdLine('COMIDA');
     setProdType('RESTAURANTE');
     setProdPrice('');
     setProdCost('');
@@ -180,6 +181,7 @@ export default function CatalogView() {
     setProdDescription('');
     setProdKitchen(true);
     setProdMarketSubtype('BEBIDA');
+    setProdIsJuice(false);
     setProdHasPapas(true);
     setProdHasSalad(true);
     setProdHasTemperature(false);
@@ -193,8 +195,8 @@ export default function CatalogView() {
   const handleOpenEditProduct = (prod) => {
     setEditingProduct(prod);
     setProdName(prod.name);
-    const cat = prod.categoryId || (prod.line === 'MARKET' ? 'cat_market' : prod.line === 'ARTESANAL' ? 'cat_artesanal' : 'cat_clasico');
-    const line = prod.line || (cat === 'cat_market' ? 'MARKET' : cat === 'cat_artesanal' ? 'ARTESANAL' : 'CLASICO');
+    const cat = prod.categoryId || (prod.line === 'MARKET' ? 'cat_market' : prod.line === 'BEBIDAS' ? 'cat_bebidas' : 'cat_comida');
+    const line = prod.line || (cat === 'cat_market' ? 'MARKET' : cat === 'cat_bebidas' ? 'BEBIDAS' : 'COMIDA');
     const type = line === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
 
     setProdCategory(cat);
@@ -203,7 +205,10 @@ export default function CatalogView() {
 
     const isBeverage =
       prod.marketSubtype === 'BEBIDA' ||
+      prod.marketSubtype === 'JUGO' ||
+      prod.isJuice ||
       prod.line === 'BEBIDAS_MARKET' ||
+      prod.line === 'BEBIDAS' ||
       prod.categoryId === 'cat_bebidas' ||
       Boolean(prod.temperatureConfig?.enabled) ||
       prod.name?.toLowerCase().includes('jugo') ||
@@ -215,7 +220,17 @@ export default function CatalogView() {
       prod.name?.toLowerCase().includes('cola') ||
       prod.name?.toLowerCase().includes('inka');
 
-    setProdMarketSubtype(prod.marketSubtype || (isBeverage ? 'BEBIDA' : 'COMIDA'));
+    const isJuiceProduct = Boolean(
+      prod.isJuice ||
+      prod.marketSubtype === 'JUGO' ||
+      prod.juiceConfig?.enabled ||
+      prod.name?.toLowerCase().includes('jugo') ||
+      prod.name?.toLowerCase().includes('batido') ||
+      prod.name?.toLowerCase().includes('licuado')
+    );
+
+    setProdIsJuice(isJuiceProduct);
+    setProdMarketSubtype(isJuiceProduct ? 'JUGO' : (prod.marketSubtype || (isBeverage ? 'BEBIDA' : 'COMIDA')));
     setProdPrice(prod.price.toString());
     setProdCost((prod.cost || '').toString());
     const existingImg = prod.image || '';
@@ -229,8 +244,8 @@ export default function CatalogView() {
     setProdDescription(prod.description || '');
     setProdKitchen(line === 'MARKET' ? false : (prod.requiresKitchen ?? true));
     setProdHasPapas(Boolean(prod.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas')));
-    setProdHasSalad(Boolean(prod.saladConfig?.enabled || cat === 'cat_clasico'));
-    setProdHasTemperature(Boolean(prod.temperatureConfig?.enabled));
+    setProdHasSalad(Boolean(prod.saladConfig?.enabled || cat === 'cat_clasico' || cat === 'cat_comida'));
+    setProdHasTemperature(Boolean(prod.temperatureConfig?.enabled || isBeverage));
     setProdSelectedCreams(prod.creamsConfig?.availableCreamIds || creams.map((c) => c.id));
     setProdAvailablePackagingIds(prod.availablePackagingIds || []);
     setImageUploadError(null);
@@ -266,14 +281,18 @@ export default function CatalogView() {
       }
 
       const isMarket = prodType === 'MARKET' || prodLine === 'MARKET' || prodCategory === 'cat_market';
-      const isDrink = isMarket ? prodMarketSubtype === 'BEBIDA' : prodHasTemperature;
+      const isDrink = isMarket
+        ? (prodMarketSubtype === 'BEBIDA' || prodMarketSubtype === 'JUGO')
+        : (prodHasTemperature || prodCategory === 'cat_bebidas' || prodIsJuice);
 
       const productPayload = {
         name: prodName.trim(),
         categoryId: prodCategory,
         line: prodLine,
         type: prodType,
-        marketSubtype: isMarket ? prodMarketSubtype : null,
+        isJuice: prodIsJuice,
+        juiceConfig: prodIsJuice ? { enabled: true } : null,
+        marketSubtype: prodIsJuice ? 'JUGO' : (isMarket ? prodMarketSubtype : null),
         price: parseFloat(prodPrice) || 0,
         cost: parseFloat(prodCost) || 0,
         image: cleanImage,
@@ -1387,52 +1406,96 @@ export default function CatalogView() {
             </div>
           </div>
 
-          {/* Si es MARKET: selector de tipo Bebida vs Comida/Snack */}
-          {(prodType === 'MARKET' || prodLine === 'MARKET' || prodCategory === 'cat_market') && (
+          {/* Si es MARKET o Bebida: selector de tipo Bebida vs Jugo vs Comida/Snack */}
+          {(prodType === 'MARKET' || prodLine === 'MARKET' || prodCategory === 'cat_market' || prodCategory === 'cat_bebidas') && (
             <div className="bg-blue-950/20 p-3 rounded-xl border border-blue-500/30 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-zinc-200 font-bold flex items-center gap-1.5 text-xs">
-                  <span>Tipo de Producto Market *</span>
+                  <span>Tipo de Producto *</span>
                 </label>
                 <span className="text-[10px] text-zinc-400">
-                  Controla si se ofrece helado o sin helar
+                  Define temperatura y notas
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setProdMarketSubtype('BEBIDA');
+                    setProdIsJuice(false);
                     setProdHasTemperature(true);
                   }}
-                  className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    prodMarketSubtype === 'BEBIDA'
+                  className={`py-2 px-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                    prodMarketSubtype === 'BEBIDA' && !prodIsJuice
                       ? 'bg-blue-600 text-white border-transparent font-black shadow-md'
                       : 'bg-black/50 text-zinc-400 hover:text-white border-zinc-800'
                   }`}
                 >
-                  <span>🥤 Bebida / Refresco</span>
+                  <span className="text-sm">🥤</span>
+                  <span className="truncate">Bebida / Soda</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProdMarketSubtype('JUGO');
+                    setProdIsJuice(true);
+                    setProdHasTemperature(true);
+                  }}
+                  className={`py-2 px-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                    prodIsJuice || prodMarketSubtype === 'JUGO'
+                      ? 'bg-[var(--color-porkos-orange)] text-black border-transparent font-black shadow-md'
+                      : 'bg-black/50 text-zinc-400 hover:text-white border-zinc-800'
+                  }`}
+                >
+                  <span className="text-sm">🍹</span>
+                  <span className="truncate">Tipo Jugo</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => {
                     setProdMarketSubtype('COMIDA');
+                    setProdIsJuice(false);
                     setProdHasTemperature(false);
                   }}
-                  className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    prodMarketSubtype === 'COMIDA'
+                  className={`py-2 px-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                    prodMarketSubtype === 'COMIDA' && !prodIsJuice
                       ? 'bg-blue-600 text-white border-transparent font-black shadow-md'
                       : 'bg-black/50 text-zinc-400 hover:text-white border-zinc-800'
                   }`}
                 >
-                  <span>🍪 Comida / Postre / Snack</span>
+                  <span className="text-sm">🍪</span>
+                  <span className="truncate">Snack / Postre</span>
                 </button>
               </div>
-
             </div>
           )}
+
+          {/* Opción Tipo Jugo / Batido (permite notas de azúcar en comanda) */}
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800">
+            <div>
+              <label className="text-zinc-200 font-bold text-xs cursor-pointer">
+                🍹 ¿Es Tipo Jugo / Bebida Natural?
+              </label>
+              <span className="text-[10px] text-zinc-500 block">
+                Permite elegir en caja: sin azúcar, bajo azúcar, poco azúcar, etc.
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={prodIsJuice}
+              onChange={(e) => {
+                setProdIsJuice(e.target.checked);
+                if (e.target.checked) {
+                  setProdHasTemperature(true);
+                  setProdMarketSubtype('JUGO');
+                }
+              }}
+              className="w-5 h-5 accent-[var(--color-porkos-orange)] cursor-pointer"
+            />
+          </div>
 
           {/* Si es restaurante: opción de cocina */}
           {prodType === 'RESTAURANTE' && (

@@ -1,4 +1,4 @@
-import { Utensils, Store, Search, Users, Bike, ShoppingBag, User } from 'lucide-react';
+import { Utensils, Store, Search, Users, Bike, ShoppingBag } from 'lucide-react';
 import { SALES_MODES, ORDER_MODALITIES } from '../../../types/constants';
 import { useCart } from '../../../context/useCart';
 
@@ -26,11 +26,11 @@ export default function SalesHeader({
   ];
 
   return (
-    <div className="space-y-3">
-      {/* Upper bar: Mode Selector (RESTAURANTE vs MARKET) + Search */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+    <div className="space-y-2">
+      {/* Upper bar: Mode Selector (RESTAURANTE vs MARKET) + Lupa al costado en la misma fila */}
+      <div className="flex items-center gap-2">
         {/* Toggle Mode */}
-        <div className="flex bg-zinc-900/80 p-1 rounded-xl border border-zinc-800 shrink-0">
+        <div className="flex bg-zinc-900/90 p-1 rounded-xl border border-zinc-800 shrink-0">
           <button
             type="button"
             onClick={() => {
@@ -38,7 +38,7 @@ export default function SalesHeader({
               setModality(ORDER_MODALITIES.MESA.id);
             }}
             className={`
-              flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer
+              flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer
               ${
                 salesMode === SALES_MODES.RESTAURANT
                   ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
@@ -57,7 +57,7 @@ export default function SalesHeader({
               setSelectedTable(null);
             }}
             className={`
-              flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer
+              flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer
               ${
                 salesMode === SALES_MODES.MARKET
                   ? 'bg-blue-600 text-white font-black shadow-sm'
@@ -66,25 +66,25 @@ export default function SalesHeader({
             `}
           >
             <Store className="w-3.5 h-3.5" />
-            <span>MARKET (Rápido)</span>
+            <span>MARKET</span>
           </button>
         </div>
 
-        {/* Search input */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+        {/* Solo la Lupa al costado para no quitar espacio vertical */}
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por nombre (ej. Doble, Inca Kola, Chori)..."
-            className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl pl-9 pr-4 py-2 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600 transition-colors"
+            placeholder="Buscar..."
+            className="w-full bg-black/60 border border-zinc-800 rounded-xl pl-9 pr-7 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs font-bold cursor-pointer"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs font-bold cursor-pointer"
             >
               ✕
             </button>
@@ -92,11 +92,11 @@ export default function SalesHeader({
         </div>
       </div>
 
-      {/* Lower bar: Modality, Table & Customer Name (Restaurant mode) */}
+      {/* Lower bar: Modalidades + Mesa ('Elegir') + 'Nombre cliente' a la derecha */}
       {salesMode === SALES_MODES.RESTAURANT && (
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-zinc-900/50 p-2.5 rounded-xl border border-zinc-800/80">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-black/40 p-1.5 rounded-xl border border-zinc-850">
           {/* Modalidades */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none">
             {modalitiesList.map((m) => {
               const Icon = m.icon;
               const isSelected = modality === m.id;
@@ -111,7 +111,7 @@ export default function SalesHeader({
                     }
                   }}
                   className={`
-                    flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border
+                    flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border
                     ${
                       isSelected
                         ? 'bg-zinc-800 text-white border-zinc-600 shadow-sm font-bold'
@@ -126,38 +126,33 @@ export default function SalesHeader({
             })}
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            {/* Selector de Mesa si es MESA */}
+          {/* Mesa ('Elegir') y 'Nombre cliente' a la derecha */}
+          <div className="flex items-center gap-2 flex-1 sm:flex-none justify-end">
             {modality === ORDER_MODALITIES.MESA.id && (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-xs text-zinc-400 font-medium">Mesa:</span>
-                <select
-                  value={selectedTable?.id || ''}
-                  onChange={(e) => {
-                    const table = tables.find((t) => t.id === e.target.value);
-                    setSelectedTable(table || null);
-                  }}
-                  className="bg-black/60 border border-zinc-800 text-white text-xs rounded-lg px-2.5 py-1.5 font-bold focus:outline-none focus:border-zinc-600"
-                >
-                  <option value="">Elegir Mesa...</option>
-                  {tables.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label} ({t.status === 'OCCUPIED' ? 'Abierta' : 'Libre'})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={selectedTable?.id || ''}
+                onChange={(e) => {
+                  const table = tables.find((t) => t.id === e.target.value);
+                  setSelectedTable(table || null);
+                }}
+                className="bg-black/60 border border-zinc-800 text-white text-xs rounded-lg px-2.5 py-1 font-bold focus:outline-none focus:border-zinc-600 shrink-0"
+              >
+                <option value="">Elegir</option>
+                {tables.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label} ({t.status === 'OCCUPIED' ? 'Abierta' : 'Libre'})
+                  </option>
+                ))}
+              </select>
             )}
 
-            {/* Input Nombre de Cliente con Placeholder Contextual */}
-            <div className="relative flex-1 min-w-[150px]">
-              <User className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <div className="relative flex-1 sm:w-44">
               <input
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Cliente (opcional)..."
-                className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+                placeholder="Nombre cliente"
+                className="w-full bg-black/60 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
               />
             </div>
           </div>

@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: Verificar si el usuario está autenticado en Firebase
+    function isAuthenticated() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    // Helper: Obtener el documento del usuario en la colección 'users'
+    function getUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email)).data;
+    }
+
+    // Helper: Obtener rol del usuario
+    function getRole() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.token.email))
+        ? getUserDoc().role
+        : 'GUEST';
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        getRole() == 'ADMIN' ||
+        getRole() == 'OWNER' ||
+        request.auth.token.email == 'admin@porkos.pe'
+      );
+    }
+
+    function isCoordinator() {
+      return isAuthenticated() && (isAdmin() || getRole() == 'COORDINADOR');
+    }
+
+    function isKitchen() {
+      return isAuthenticated() && (isAdmin() || isCoordinator() || getRole() == 'COCINA');
+    }
+
+    function isCashier() {
+      return isAuthenticated() && (isAdmin() || isCoordinator() || getRole() == 'CAJERO');
+    }
+
+    // 1. Colección de Usuarios y Permisos de Sistema: SOLO ADMIN puede escribir
+    match /users/{userEmail} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || !exists(/databases/$(database)/documents/users/$(userEmail));
+    }
+
+    match /app_config/{configId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 2. Órdenes y Comandas:
+    // - Lectura: Cocina, Cajero, Coordinador, Admin
+    // - Creación: Cajero, Coordinador, Admin
+    // - Actualización: Cocina (para cambiar estado a PREPARANDO/LISTO), Cajero, Coordinador, Admin
+    match /orders/{orderId} {
+      allow read: if isAuthenticated();
+      allow create: if isCashier();
+      allow update: if isKitchen() || isCashier();
+      allow delete: if isAdmin() || isCoordinator();
+    }
+
+    // 3. Catálogo (Productos, Cremas, Extras, Empaques, Categorías):
+    // - Lectura: Todos los operadores autenticados
+    // - Escritura: Coordinador y Admin
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow write: if isCoordinator();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if isCoordinator();
+    }
+
+    match /creams/{creamId} {
+      allow read: if isAuthenticated();
+      allow write: if isCoordinator();
+    }
+
+    match /extras/{extraId} {
+      allow read: if isAuthenticated();
+      allow write: if isCoordinator();
+    }
+
+    match /packagings/{packagingId} {
+      allow read: if isAuthenticated();
+      allow write: if isCoordinator();
+    }
+
+    // 4. Gastos y Compras Diarias:
+    // - Lectura y Escritura: Coordinador y Admin (Cocina y Cajeros NO tienen acceso)
+    match /expenses/{expenseId} {
+      allow read, write: if isCoordinator();
+    }
+
+    // 5. Mesas de Salón
+    match /tables/{tableId} {
+      allow read: if isAuthenticated();
+      allow write: if isCashier();
+    }
+  }
+}

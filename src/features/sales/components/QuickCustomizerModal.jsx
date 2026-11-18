@@ -133,14 +133,24 @@ function CustomizerForm({
     return nonePackaging;
   });
 
-  // 6. Temperatura: Para bebidas o productos con configuración explícita
+  // 6. Temperatura y Clasificación de Jugos / Bebidas
+  const isJuice = Boolean(
+    product.isJuice ||
+    product.marketSubtype === 'JUGO' ||
+    product.juiceConfig?.enabled ||
+    product.name?.toLowerCase().includes('jugo') ||
+    product.name?.toLowerCase().includes('batido') ||
+    product.name?.toLowerCase().includes('licuado')
+  );
+
   const isBeverage = Boolean(
+    isJuice ||
     product.marketSubtype === 'BEBIDA' ||
     product.line === 'BEBIDAS_MARKET' ||
+    product.line === 'BEBIDAS' ||
     product.categoryId === 'cat_bebidas' ||
     Boolean(product.temperatureConfig?.enabled) ||
     initialCustomization?.temperature ||
-    product.name?.toLowerCase().includes('jugo') ||
     product.name?.toLowerCase().includes('gaseosa') ||
     product.name?.toLowerCase().includes('refresco') ||
     product.name?.toLowerCase().includes('chicha') ||
@@ -502,8 +512,10 @@ function CustomizerForm({
 
         {/* Chips de atajo rápido contextuales */}
         <div className="flex flex-wrap gap-1.5">
-          {(isBeverage
-            ? ['Fresco', 'Sin azúcar', 'Poca azúcar', 'Con hielo', 'Sin hielo', 'Para llevar']
+          {(isJuice
+            ? ['Sin azúcar', 'Bajo en azúcar', 'Poco azúcar', 'Normal de azúcar', 'Bien helado', 'Sin helar', 'Con hielo', 'Sin hielo']
+            : isBeverage
+            ? ['Bien helada', 'Sin helar', 'Con vaso', 'Sin vaso', 'Para llevar']
             : ['Bien cocida', 'Término medio', 'Sin sal', 'Poco picante', 'Cebolla pochada', 'Para llevar']
           ).map((chip) => {
             const isChipSelected = notes.toLowerCase().includes(chip.toLowerCase());

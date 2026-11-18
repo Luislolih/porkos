@@ -33,7 +33,13 @@ function saveOrdersLocal(ordersList) {
 }
 
 function MainApp() {
+  const { canAccessModule, allowedModules } = useAuth();
   const [currentModule, setCurrentModule] = useState(MODULES.SALES);
+
+  // Derivar módulo activo protegido por rol (evita setState síncrono en effect)
+  const activeModule = allowedModules?.length > 0 && !canAccessModule(currentModule)
+    ? allowedModules[0]
+    : currentModule;
   const [orders, setOrders] = useState(() => {
     try {
       const saved = localStorage.getItem('porkos_orders');
@@ -202,16 +208,17 @@ function MainApp() {
   return (
     <div className="min-h-screen bg-[var(--color-porkos-bg)] text-white flex flex-col font-sans selection:bg-orange-500 selection:text-black">
       <Navbar
-        currentModule={currentModule}
+        currentModule={activeModule}
         onSelectModule={setCurrentModule}
         activeOrdersCount={activeKitchenCount}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5">
-        {currentModule === MODULES.SALES && (
+        {activeModule === MODULES.SALES && (
           <SalesView
             onOrderCreated={handleOrderCreated}
             tables={tables}
+            orders={orders}
             onSettleTableOrder={(table) => {
               const activeOrder = orders.find(
                 (o) => o.tableId === table.id && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO'
@@ -226,16 +233,16 @@ function MainApp() {
           />
         )}
 
-        {currentModule === MODULES.KITCHEN && (
+        {activeModule === MODULES.KITCHEN && (
           <KitchenView
             orders={orders}
             onUpdateOrderStatus={handleUpdateOrderStatus}
           />
         )}
 
-        {currentModule === MODULES.ORDERS && <OrdersView orders={orders} />}
+        {activeModule === MODULES.ORDERS && <OrdersView orders={orders} />}
 
-        {currentModule === 'mesas' && (
+        {activeModule === 'mesas' && (
           <TablesView
             tables={tables}
             orders={orders}
@@ -244,13 +251,13 @@ function MainApp() {
           />
         )}
 
-        {currentModule === MODULES.CATALOG && <CatalogView />}
+        {activeModule === MODULES.CATALOG && <CatalogView />}
 
-        {currentModule === MODULES.EXPENSES && <ExpensesView />}
+        {activeModule === MODULES.EXPENSES && <ExpensesView />}
 
-        {currentModule === MODULES.DASHBOARD && <DashboardView orders={orders} />}
+        {activeModule === MODULES.DASHBOARD && <DashboardView orders={orders} />}
 
-        {currentModule === MODULES.SETTINGS && <SettingsView />}
+        {activeModule === MODULES.SETTINGS && <SettingsView />}
       </main>
     </div>
   );

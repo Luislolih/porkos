@@ -19,10 +19,6 @@ export default function LoginView() {
     }
   };
 
-  const handleDemoLogin = () => {
-    loginDemo('OWNER');
-  };
-
   return (
     <div className="min-h-screen bg-[#080808] flex items-center justify-center p-4 selection:bg-[var(--color-porkos-orange)] selection:text-black">
       {/* Background Glow */}
@@ -99,16 +95,44 @@ export default function LoginView() {
             </span>
           </div>
 
-          {/* Botón Demo / Offline */}
-          <button
-            type="button"
-            onClick={handleDemoLogin}
-            className="w-full bg-zinc-900 hover:bg-zinc-800/90 text-zinc-300 hover:text-white font-bold text-xs py-3 px-4 rounded-2xl flex items-center justify-center gap-2 border border-zinc-800 transition-all cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
-            <span>Ingresar como Administrador (Demo Local)</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          {/* Botones Demo / Offline por Rol */}
+          <div className="space-y-1.5">
+            <button
+              type="button"
+              onClick={() => loginDemo('ADMIN')}
+              className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-between border border-zinc-800 transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-rose-400" />
+                <span>Ingresar como Administrador (Total)</span>
+              </div>
+              <ArrowRight className="w-3 h-3 text-zinc-500" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => loginDemo('COORDINADOR')}
+              className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-between border border-zinc-800 transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Ingresar como Coordinador(a) (Sin Ajustes)</span>
+              </div>
+              <ArrowRight className="w-3 h-3 text-zinc-500" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => loginDemo('COCINA')}
+              className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-between border border-zinc-800 transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Flame className="w-3.5 h-3.5 text-orange-400" />
+                <span>Ingresar como Cocina (Solo KDS)</span>
+              </div>
+              <ArrowRight className="w-3 h-3 text-zinc-500" />
+            </button>
+          </div>
         </div>
 
         {/* Footer info */}

@@ -1,17 +1,17 @@
 export const PRODUCT_LINES = {
   ALL: { id: 'ALL', label: 'TODAS' },
-  CLASICO: { id: 'CLASICO', label: 'CLÁSICO' },
-  ARTESANAL: { id: 'ARTESANAL', label: 'ARTESANAL' },
+  COMIDA: { id: 'COMIDA', label: 'COMIDA' },
+  BEBIDAS: { id: 'BEBIDAS', label: 'BEBIDAS' },
   MARKET: { id: 'MARKET', label: 'MARKET' },
 };
 
-// Sin subcategorías complejas: el sistema ahora usa únicamente TODAS, CLÁSICO, ARTESANAL y MARKET
+// Categorías oficiales de la carta: COMIDA, BEBIDAS y MARKET
 export const SUBCATEGORIES = [];
 
 export const DEFAULT_CATEGORIES = [
-  { id: 'cat_clasico', name: 'Clásico', line: 'CLASICO', type: 'RESTAURANTE', icon: 'Beef', order: 1, active: true },
-  { id: 'cat_artesanal', name: 'Artesanal', line: 'ARTESANAL', type: 'RESTAURANTE', icon: 'Flame', order: 2, active: true },
-  { id: 'cat_market', name: 'Market (Bebidas, Postres, Snacks)', line: 'MARKET', type: 'MARKET', icon: 'CupSoda', order: 3, active: true },
+  { id: 'cat_comida', name: 'Comida', line: 'COMIDA', type: 'RESTAURANTE', icon: 'Utensils', order: 1, active: true },
+  { id: 'cat_bebidas', name: 'Bebidas', line: 'BEBIDAS', type: 'RESTAURANTE', icon: 'CupSoda', order: 2, active: true },
+  { id: 'cat_market', name: 'Market', line: 'MARKET', type: 'MARKET', icon: 'Store', order: 3, active: true },
 ];
 
 // Catálogos vacíos por defecto: todo se gestiona directamente en Cloud Firestore

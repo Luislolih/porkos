@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   signInWithPopup,
   GoogleAuthProvider,
@@ -7,34 +7,81 @@ import {
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { AuthContext } from './auth-context';
+import {
+  subscribeToUsers,
+  saveUserToFirestore,
+  deleteUserFromFirestore,
+  subscribeToRolePermissions,
+  saveRolePermissionsToFirestore,
+} from '../services/firestoreService';
+import { APP_ROLES, getAllowedModulesForRole } from '../types/roles';
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [firebaseUser, setFirebaseUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
+  // Lista de usuarios registrados en el sistema (con rol asignado)
+  const [authorizedUsers, setAuthorizedUsers] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('porkos_authorized_users') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  // Configuración personalizada de vistas por rol
+  const [customRolePermissions, setCustomRolePermissions] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('porkos_role_permissions') || 'null');
+    } catch {
+      return null;
+    }
+  });
+
+  // 1. Suscripción a usuarios y permisos desde Firestore
   useEffect(() => {
-    // Escuchar el estado de autenticación en Firebase
+    const unsubUsers = subscribeToUsers((remoteUsers) => {
+      if (remoteUsers && remoteUsers.length > 0) {
+        setAuthorizedUsers(remoteUsers);
+        localStorage.setItem('porkos_authorized_users', JSON.stringify(remoteUsers));
+      }
+    });
+
+    const unsubPerms = subscribeToRolePermissions((remotePerms) => {
+      if (remotePerms) {
+        setCustomRolePermissions(remotePerms);
+        localStorage.setItem('porkos_role_permissions', JSON.stringify(remotePerms));
+      }
+    });
+
+    return () => {
+      unsubUsers();
+      unsubPerms();
+    };
+  }, []);
+
+  // 2. Escuchar el estado de autenticación en Firebase
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
-        setUser({
+        setFirebaseUser({
           uid: currentUser.uid,
           displayName: currentUser.displayName || 'Operador PORKOS',
-          email: currentUser.email,
+          email: currentUser.email?.toLowerCase(),
           photoURL: currentUser.photoURL,
-          role: 'OWNER',
         });
       } else {
         // Verificar si hay sesión demo guardada
         const savedDemoUser = localStorage.getItem('porkos_demo_user');
         if (savedDemoUser) {
           try {
-            setUser(JSON.parse(savedDemoUser));
+            setFirebaseUser(JSON.parse(savedDemoUser));
           } catch {
-            setUser(null);
+            setFirebaseUser(null);
           }
         } else {
-          setUser(null);
+          setFirebaseUser(null);
         }
       }
       setLoading(false);
@@ -42,6 +89,50 @@ export function AuthProvider({ children }) {
 
     return () => unsubscribe();
   }, []);
+
+  // 3. Resolver usuario con su rol blindado y permisos
+  const user = useMemo(() => {
+    if (!firebaseUser) return null;
+
+    const email = firebaseUser.email?.toLowerCase();
+    const matching = authorizedUsers.find((u) => u.email?.toLowerCase() === email);
+
+    // Si está registrado en Firestore, usar su rol
+    let role = matching?.role;
+
+    // Si no está registrado pero es usuario demo, usar el rol de la demo
+    if (!role && firebaseUser.role) {
+      role = firebaseUser.role;
+    }
+
+    // Si no hay usuarios en el sistema, el primer usuario es ADMIN
+    if (!role) {
+      role = authorizedUsers.length === 0 ? 'ADMIN' : 'CAJERO';
+    }
+
+    const roleInfo = APP_ROLES[role] || APP_ROLES.CAJERO;
+
+    return {
+      ...firebaseUser,
+      role,
+      roleName: roleInfo.name,
+      roleBadgeClass: roleInfo.badgeClass,
+    };
+  }, [firebaseUser, authorizedUsers]);
+
+  // Vistas permitidas para el usuario actual
+  const allowedModules = useMemo(() => {
+    if (!user) return [];
+    return getAllowedModulesForRole(user.role, customRolePermissions);
+  }, [user, customRolePermissions]);
+
+  const canAccessModule = useCallback(
+    (moduleId) => {
+      if (!user) return false;
+      return allowedModules.includes(moduleId);
+    },
+    [user, allowedModules]
+  );
 
   // Iniciar sesión con Google
   const loginWithGoogle = async () => {
@@ -51,14 +142,14 @@ export function AuthProvider({ children }) {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, provider);
+      const email = result.user.email?.toLowerCase();
       const loggedUser = {
         uid: result.user.uid,
         displayName: result.user.displayName || 'Operador PORKOS',
-        email: result.user.email,
+        email,
         photoURL: result.user.photoURL,
-        role: 'OWNER',
       };
-      setUser(loggedUser);
+      setFirebaseUser(loggedUser);
       localStorage.removeItem('porkos_demo_user');
       setLoading(false);
       return loggedUser;
@@ -68,11 +159,11 @@ export function AuthProvider({ children }) {
 
       if (err.code === 'auth/unauthorized-domain') {
         const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'este dominio';
-        userFriendlyMessage = `Dominio no autorizado (${currentDomain}): Para solucionarlo, ve a Firebase Console > Authentication > Configuración > Dominios autorizados y agrega "${currentDomain}".`;
+        userFriendlyMessage = `Dominio no autorizado (${currentDomain}): Agrégalo en Firebase Console > Authentication > Dominios autorizados.`;
       } else if (err.code === 'auth/popup-blocked') {
-        userFriendlyMessage = 'El navegador bloqueó la ventana emergente de inicio de sesión. Por favor permite los pop-ups en este sitio.';
+        userFriendlyMessage = 'Permite las ventanas emergentes (pop-ups) para iniciar sesión.';
       } else if (err.code === 'auth/popup-closed-by-user') {
-        userFriendlyMessage = 'Se cerró la ventana de inicio de sesión antes de completar el acceso.';
+        userFriendlyMessage = 'Se cerró la ventana de acceso.';
       }
 
       setAuthError(userFriendlyMessage);
@@ -82,15 +173,15 @@ export function AuthProvider({ children }) {
   };
 
   // Iniciar sesión en modo Demo (offline o testing rápido)
-  const loginDemo = (role = 'OWNER') => {
+  const loginDemo = (role = 'ADMIN') => {
     const demoUser = {
       uid: 'demo_user_123',
-      displayName: 'Administrador PORKOS',
-      email: 'admin@porkos.pe',
+      displayName: role === 'COCINA' ? 'Monitor de Cocina' : role === 'COORDINADOR' ? 'Coordinador(a) Operativo' : 'Administrador PORKOS',
+      email: role === 'COCINA' ? 'cocina@porkos.pe' : role === 'COORDINADOR' ? 'coordinador@porkos.pe' : 'admin@porkos.pe',
       photoURL: null,
       role,
     };
-    setUser(demoUser);
+    setFirebaseUser(demoUser);
     localStorage.setItem('porkos_demo_user', JSON.stringify(demoUser));
   };
 
@@ -99,11 +190,50 @@ export function AuthProvider({ children }) {
     try {
       localStorage.removeItem('porkos_demo_user');
       await signOut(auth);
-      setUser(null);
+      setFirebaseUser(null);
     } catch (err) {
       console.error('Error al cerrar sesión:', err);
-      setUser(null);
+      setFirebaseUser(null);
     }
+  };
+
+  // Registrar o actualizar usuario autorizado por email
+  const addAuthorizedUser = async (userRecord) => {
+    const email = userRecord.email?.toLowerCase().trim();
+    if (!email) return false;
+
+    const updated = [
+      ...authorizedUsers.filter((u) => u.email?.toLowerCase() !== email),
+      { ...userRecord, email },
+    ];
+    setAuthorizedUsers(updated);
+    localStorage.setItem('porkos_authorized_users', JSON.stringify(updated));
+
+    await saveUserToFirestore({
+      email,
+      displayName: userRecord.displayName || email.split('@')[0],
+      role: userRecord.role || 'CAJERO',
+    });
+    return true;
+  };
+
+  // Eliminar usuario autorizado
+  const removeAuthorizedUser = async (email) => {
+    const cleanEmail = email?.toLowerCase().trim();
+    const updated = authorizedUsers.filter((u) => u.email?.toLowerCase() !== cleanEmail);
+    setAuthorizedUsers(updated);
+    localStorage.setItem('porkos_authorized_users', JSON.stringify(updated));
+
+    await deleteUserFromFirestore(cleanEmail);
+    return true;
+  };
+
+  // Actualizar configuración de vistas por rol
+  const updateRolePermissions = async (newPermissions) => {
+    setCustomRolePermissions(newPermissions);
+    localStorage.setItem('porkos_role_permissions', JSON.stringify(newPermissions));
+    await saveRolePermissionsToFirestore(newPermissions);
+    return true;
   };
 
   const value = {
@@ -114,6 +244,13 @@ export function AuthProvider({ children }) {
     loginDemo,
     logout,
     isAuthenticated: Boolean(user),
+    allowedModules,
+    canAccessModule,
+    authorizedUsers,
+    customRolePermissions,
+    addAuthorizedUser,
+    removeAuthorizedUser,
+    updateRolePermissions,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

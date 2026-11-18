@@ -448,3 +448,103 @@ export async function clearAllDemoCatalogFromFirestore() {
     return false;
   }
 }
+
+// =========================================================================
+// 8. USUARIOS Y CONTROL DE ACCESO (PROTECCIÓN BACKEND Y DB)
+// =========================================================================
+export function subscribeToUsers(onUpdate, onError) {
+  try {
+    const colRef = collection(db, 'users');
+    return onSnapshot(
+      colRef,
+      (snapshot) => {
+        const users = snapshot.docs.map((d) => ({
+          ...d.data(),
+          id: d.id,
+          email: d.data().email || d.id,
+        }));
+        onUpdate(users);
+      },
+      (err) => {
+        console.warn('Advertencia en Firestore users:', err.message);
+        if (onError) onError(err);
+      }
+    );
+  } catch (err) {
+    console.warn('Error en suscripción de users:', err);
+    if (onError) onError(err);
+    return () => {};
+  }
+}
+
+export async function saveUserToFirestore(userData) {
+  try {
+    const userEmail = userData.email?.toLowerCase().trim();
+    if (!userEmail) return { success: false, error: 'Email requerido' };
+    const docRef = doc(db, 'users', userEmail);
+    await setDoc(
+      docRef,
+      sanitizePayload({
+        ...userData,
+        email: userEmail,
+        updatedAt: serverTimestamp(),
+      }),
+      { merge: true }
+    );
+    return { success: true };
+  } catch (err) {
+    console.error('Error al guardar usuario en Firestore:', err);
+    return { success: false, error: err };
+  }
+}
+
+export async function deleteUserFromFirestore(userEmail) {
+  try {
+    const email = userEmail?.toLowerCase().trim();
+    if (!email) return { success: false };
+    await deleteDoc(doc(db, 'users', email));
+    return { success: true };
+  } catch (err) {
+    console.error('Error al eliminar usuario en Firestore:', err);
+    return { success: false, error: err };
+  }
+}
+
+export function subscribeToRolePermissions(onUpdate, onError) {
+  try {
+    const docRef = doc(db, 'app_config', 'roles_permissions');
+    return onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          onUpdate(docSnap.data().permissions || null);
+        } else {
+          onUpdate(null);
+        }
+      },
+      (err) => {
+        console.warn('Advertencia en Firestore roles_permissions:', err.message);
+        if (onError) onError(err);
+      }
+    );
+  } catch (err) {
+    console.warn('Error en suscripción de roles_permissions:', err);
+    if (onError) onError(err);
+    return () => {};
+  }
+}
+
+export async function saveRolePermissionsToFirestore(permissions) {
+  try {
+    const docRef = doc(db, 'app_config', 'roles_permissions');
+    await setDoc(
+      docRef,
+      { permissions: sanitizePayload(permissions), updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+    return { success: true };
+  } catch (err) {
+    console.error('Error al guardar roles_permissions en Firestore:', err);
+    return { success: false, error: err };
+  }
+}

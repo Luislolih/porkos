@@ -14,9 +14,9 @@ import { MODULES } from '../../types/constants';
 import { useAuth } from '../../context/useAuth';
 
 export default function Navbar({ currentModule, onSelectModule, activeOrdersCount = 0 }) {
-  const { user, logout } = useAuth();
+  const { user, logout, canAccessModule } = useAuth();
 
-  const navItems = [
+  const allNavItems = [
     { id: MODULES.SALES, label: 'Ventas', icon: ShoppingBag },
     { id: MODULES.KITCHEN, label: 'Cocina KDS', icon: Flame, badge: activeOrdersCount },
     { id: MODULES.ORDERS, label: 'Pedidos', icon: ClipboardList },
@@ -27,13 +27,17 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
     { id: MODULES.SETTINGS, label: 'Configuración', icon: Settings },
   ];
 
-  const mobileNavItems = [
+  const allMobileNavItems = [
     { id: MODULES.SALES, label: 'Ventas', icon: ShoppingBag },
     { id: MODULES.KITCHEN, label: 'Cocina', icon: Flame, badge: activeOrdersCount },
     { id: MODULES.ORDERS, label: 'Pedidos', icon: ClipboardList },
     { id: 'mesas', label: 'Mesas', icon: Grid2X2 },
     { id: MODULES.SETTINGS, label: 'Ajustes', icon: Settings },
   ];
+
+  // Filtrar vistas estrictamente según los permisos del rol del usuario
+  const navItems = allNavItems.filter((item) => canAccessModule(item.id));
+  const mobileNavItems = allMobileNavItems.filter((item) => canAccessModule(item.id));
 
   return (
     <>
@@ -109,9 +113,14 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
                   </div>
                 )}
                 <div className="text-left hidden sm:block">
-                  <span className="text-xs font-bold text-white block leading-tight truncate max-w-[120px]">
-                    {user.displayName}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-white block leading-tight truncate max-w-[120px]">
+                      {user.displayName}
+                    </span>
+                    <span className={`text-[9px] font-black px-1.5 py-0.2 rounded border uppercase ${user.roleBadgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}>
+                      {user.role}
+                    </span>
+                  </div>
                   <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     Online

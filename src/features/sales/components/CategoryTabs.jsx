@@ -1,10 +1,10 @@
-import { Utensils, Beef, Flame, CupSoda } from 'lucide-react';
+import { Utensils, UtensilsCrossed, CupSoda, Store } from 'lucide-react';
 
 const CATEGORY_TABS = [
   { id: 'ALL', label: 'TODAS', icon: Utensils },
-  { id: 'CLASICO', label: 'CLÁSICO', icon: Beef },
-  { id: 'ARTESANAL', label: 'ARTESANAL', icon: Flame },
-  { id: 'MARKET', label: 'MARKET', icon: CupSoda },
+  { id: 'COMIDA', label: 'COMIDA', icon: UtensilsCrossed },
+  { id: 'BEBIDAS', label: 'BEBIDAS', icon: CupSoda },
+  { id: 'MARKET', label: 'MARKET', icon: Store },
 ];
 
 export default function CategoryTabs({

@@ -9,9 +9,10 @@ import QuickCustomizerModal from './components/QuickCustomizerModal';
 import CartView from './components/CartView';
 import QuickPaymentModal from './components/QuickPaymentModal';
 import { formatCurrency } from '../../utils/formatters';
+import { getNextOrderNumber } from '../../utils/orderNumber';
 import { CheckCircle2, UtensilsCrossed } from 'lucide-react';
 
-export default function SalesView({ onOrderCreated, tables = [], onSettleTableOrder }) {
+export default function SalesView({ onOrderCreated, tables = [], orders = [], onSettleTableOrder }) {
   const [salesMode, setSalesMode] = useState(SALES_MODES.RESTAURANT);
   const [selectedLine, setSelectedLine] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,15 +65,34 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
       if (salesMode === SALES_MODES.MARKET) {
         if (prod.type !== 'MARKET' && prod.line !== 'MARKET' && prod.categoryId !== 'cat_market') return false;
       } else {
-        // En modo RESTAURANTE: filtrar por pestaña (TODAS, CLÁSICO, ARTESANAL, MARKET)
-        if (selectedLine === 'CLASICO') {
-          const isClasico = prod.line === 'CLASICO' || prod.categoryId === 'cat_clasico';
-          if (!isClasico) return false;
-        } else if (selectedLine === 'ARTESANAL') {
-          const isArtesanal = prod.line === 'ARTESANAL' || prod.categoryId === 'cat_artesanal';
-          if (!isArtesanal) return false;
+        // En modo RESTAURANTE: filtrar por categoría (TODAS, COMIDA, BEBIDAS, MARKET)
+        if (selectedLine === 'COMIDA') {
+          const isComida =
+            prod.line === 'COMIDA' ||
+            prod.categoryId === 'cat_comida' ||
+            prod.categoryId === 'cat_clasico' ||
+            prod.categoryId === 'cat_artesanal' ||
+            (prod.type === 'RESTAURANTE' && prod.categoryId !== 'cat_bebidas' && !prod.isJuice && prod.marketSubtype !== 'BEBIDA');
+          if (!isComida) return false;
+        } else if (selectedLine === 'BEBIDAS') {
+          const isBebida =
+            prod.line === 'BEBIDAS' ||
+            prod.categoryId === 'cat_bebidas' ||
+            prod.marketSubtype === 'BEBIDA' ||
+            prod.marketSubtype === 'JUGO' ||
+            prod.isJuice ||
+            prod.line === 'BEBIDAS_MARKET' ||
+            prod.name?.toLowerCase().includes('jugo') ||
+            prod.name?.toLowerCase().includes('gaseosa') ||
+            prod.name?.toLowerCase().includes('refresco') ||
+            prod.name?.toLowerCase().includes('agua') ||
+            prod.name?.toLowerCase().includes('chicha');
+          if (!isBebida) return false;
         } else if (selectedLine === 'MARKET') {
-          const isMarket = prod.type === 'MARKET' || prod.line === 'MARKET' || prod.categoryId === 'cat_market' || prod.line === 'BEBIDAS_MARKET';
+          const isMarket =
+            prod.type === 'MARKET' ||
+            prod.line === 'MARKET' ||
+            prod.categoryId === 'cat_market';
           if (!isMarket) return false;
         }
       }
@@ -198,7 +218,7 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
   // Crear la orden y enviar a cocina (alimenta el histórico de ventas)
   const handleSendToKitchen = () => {
     const orderData = {
-      orderNumber: `P-${Math.floor(100 + Math.random() * 900)}`,
+      orderNumber: getNextOrderNumber(orders, 'P'),
       modality,
       status: 'PENDIENTE',
       paymentStatus: 'PENDING',
@@ -239,9 +259,7 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
   const handleConfirmPayment = (paymentDetail) => {
     const isMarketSale = salesMode === SALES_MODES.MARKET;
     const orderData = {
-      orderNumber: isMarketSale
-        ? `M-${Math.floor(100 + Math.random() * 900)}`
-        : `P-${Math.floor(100 + Math.random() * 900)}`,
+      orderNumber: getNextOrderNumber(orders, isMarketSale ? 'M' : 'P'),
       modality: isMarketSale ? 'MARKET' : modality,
       status: isMarketSale ? 'ENTREGADO' : (items.some((i) => i.requiresKitchen) ? 'PENDIENTE' : 'ENTREGADO'),
       paymentStatus: 'PAID',
