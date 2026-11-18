@@ -1,5 +1,6 @@
 import { Flame, Plus } from 'lucide-react';
 import { formatCurrency } from '../../../utils/formatters';
+import { isProductBeverage } from '../../../utils/productCategories';
 import ProductThumbnail from '../../../components/ui/ProductThumbnail';
 
 export default function ProductCard({
@@ -8,6 +9,7 @@ export default function ProductCard({
   isMarketMode = false,
 }) {
   const isMarketItem = isMarketMode || product.type === 'MARKET' || product.line === 'MARKET';
+  const isBeverage = isProductBeverage(product);
 
   const handleClick = () => {
     onQuickAdd(product);
@@ -34,6 +36,7 @@ export default function ProductCard({
         <ProductThumbnail
           src={product.image}
           name={product.name}
+          isBeverage={isBeverage}
           className="w-full h-full object-cover rounded-none transition-transform duration-300 group-hover:scale-105"
           iconSize="w-9 h-9"
         />
@@ -48,7 +51,7 @@ export default function ProductCard({
               <Flame className="w-3 h-3 text-[var(--color-porkos-orange)]" /> Cocina
             </span>
           )}
-          {(product.marketSubtype === 'BEBIDA' || product.temperatureConfig?.enabled) && (
+          {isBeverage && (
             <span className="bg-black/80 text-cyan-300 text-[10px] font-bold px-1.5 py-0.5 rounded border border-cyan-500/40 flex items-center gap-1 shadow-sm">
               ❄️ Bebida
             </span>

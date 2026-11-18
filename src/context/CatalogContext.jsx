@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CatalogContext } from './catalog-context';
 import { DEFAULT_CATEGORIES } from '../types/defaultCatalog';
+import { isProductBeverage, isProductMarket } from '../utils/productCategories';
 import {
   subscribeToProducts,
   saveProductToFirestore,
@@ -28,31 +29,23 @@ const STORAGE_KEYS = {
   PACKAGINGS: 'porkos_catalog_packagings',
 };
 
-// Normalizar producto a las 3 categorías oficiales: CLÁSICO, ARTESANAL, MARKET (sin subcategorías)
+// Normalizar producto a las 3 categorías oficiales: COMIDA, BEBIDAS, MARKET (sin subcategorías)
 function normalizeProductCategory(prod) {
-  let line = prod.line;
-  let categoryId = prod.categoryId;
-  let type = prod.type || 'RESTAURANTE';
+  let line;
+  let categoryId;
+  let type;
 
-  if (
-    type === 'MARKET' ||
-    line === 'BEBIDAS_MARKET' ||
-    line === 'MARKET' ||
-    categoryId === 'cat_market' ||
-    categoryId === 'cat_bebidas_market' ||
-    categoryId === 'cat_postres' ||
-    categoryId === 'cat_snacks'
-  ) {
+  if (isProductMarket(prod)) {
     line = 'MARKET';
     categoryId = 'cat_market';
     type = 'MARKET';
-  } else if (line === 'ARTESANAL' || categoryId === 'cat_artesanal') {
-    line = 'ARTESANAL';
-    categoryId = 'cat_artesanal';
+  } else if (isProductBeverage(prod)) {
+    line = 'BEBIDAS';
+    categoryId = 'cat_bebidas';
     type = 'RESTAURANTE';
   } else {
-    line = 'CLASICO';
-    categoryId = 'cat_clasico';
+    line = 'COMIDA';
+    categoryId = 'cat_comida';
     type = 'RESTAURANTE';
   }
 
@@ -83,18 +76,21 @@ function sanitizeProduct(prod) {
   });
 }
 
-// Normalizar categorías de Extras (eliminar legacy IDs como cat_burgers)
+// Normalizar categorías de Extras (eliminar legacy IDs como cat_burgers, cat_clasico, cat_artesanal)
 function normalizeExtraCategories(cats = []) {
-  if (!cats || !Array.isArray(cats) || cats.length === 0) return ['cat_clasico', 'cat_artesanal'];
+  if (!cats || !Array.isArray(cats) || cats.length === 0) return ['cat_comida'];
   const mapped = cats.map((catId) => {
-    if (catId === 'cat_burgers' || catId === 'cat_salchipapas' || catId === 'cat_choripanes') {
-      return 'cat_clasico';
+    if (
+      catId === 'cat_burgers' ||
+      catId === 'cat_salchipapas' ||
+      catId === 'cat_choripanes' ||
+      catId === 'cat_clasico' ||
+      catId === 'cat_artesanal'
+    ) {
+      return 'cat_comida';
     }
     return catId;
   });
-  if (mapped.includes('cat_clasico') && !mapped.includes('cat_artesanal')) {
-    mapped.push('cat_artesanal');
-  }
   return Array.from(new Set(mapped));
 }
 
@@ -207,15 +203,20 @@ export function CatalogProvider({ children }) {
       (remoteCategories) => {
         if (!isMounted) return;
         const hasLegacyCategories = remoteCategories?.some(
-          (c) => c.id === 'cat_burgers' || c.id === 'cat_choripanes' || c.id === 'cat_salchipapas'
+          (c) =>
+            c.id === 'cat_burgers' ||
+            c.id === 'cat_choripanes' ||
+            c.id === 'cat_salchipapas' ||
+            c.id === 'cat_clasico' ||
+            c.id === 'cat_artesanal'
         );
 
         if (remoteCategories && remoteCategories.length > 0 && !hasLegacyCategories) {
           setCategories(remoteCategories);
           saveLocal(STORAGE_KEYS.CATEGORIES, remoteCategories);
         } else {
-          // Migración automática a las 3 categorías limpias requeridas: Clásico, Artesanal, Market
-          console.log('Sincronizando categorías simplificadas oficiales: Clásico, Artesanal, Market...');
+          // Migración automática a las 3 categorías limpias oficiales: Comida, Bebidas, Market
+          console.log('Sincronizando categorías simplificadas oficiales: Comida, Bebidas, Market...');
           setCategories(DEFAULT_CATEGORIES);
           saveLocal(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES);
           DEFAULT_CATEGORIES.forEach((c) => saveCategoryToFirestore(c));
@@ -223,7 +224,7 @@ export function CatalogProvider({ children }) {
           // Limpiar de Firestore las categorías obsoletas si existían
           if (hasLegacyCategories) {
             remoteCategories
-              .filter((c) => c.id !== 'cat_clasico' && c.id !== 'cat_artesanal' && c.id !== 'cat_market')
+              .filter((c) => c.id !== 'cat_comida' && c.id !== 'cat_bebidas' && c.id !== 'cat_market')
               .forEach((c) => deleteCategoryFromFirestore(c.id));
           }
         }
@@ -356,8 +357,8 @@ export function CatalogProvider({ children }) {
       cleanImage = '';
     }
 
-    const line = newProduct.line || (newProduct.type === 'MARKET' ? 'MARKET' : 'CLASICO');
-    const categoryId = newProduct.categoryId || (line === 'MARKET' ? 'cat_market' : line === 'ARTESANAL' ? 'cat_artesanal' : 'cat_clasico');
+    const line = newProduct.line || (isProductMarket(newProduct) ? 'MARKET' : isProductBeverage(newProduct) ? 'BEBIDAS' : 'COMIDA');
+    const categoryId = newProduct.categoryId || (line === 'MARKET' ? 'cat_market' : line === 'BEBIDAS' ? 'cat_bebidas' : 'cat_comida');
     const type = line === 'MARKET' ? 'MARKET' : (newProduct.type || 'RESTAURANTE');
 
     const productWithDefaults = {

@@ -18,6 +18,7 @@ import { uploadProductImage } from '../../services/storageService';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
+import { isProductBeverage } from '../../utils/productCategories';
 
 export default function CatalogView() {
   const {
@@ -73,8 +74,8 @@ export default function CatalogView() {
 
   // Form state de Producto
   const [prodName, setProdName] = useState('');
-  const [prodCategory, setProdCategory] = useState('cat_clasico');
-  const [prodLine, setProdLine] = useState('CLASICO');
+  const [prodCategory, setProdCategory] = useState('cat_comida');
+  const [prodLine, setProdLine] = useState('COMIDA');
   const [prodType, setProdType] = useState('RESTAURANTE');
   const [prodMarketSubtype, setProdMarketSubtype] = useState('BEBIDA'); // 'BEBIDA' | 'JUGO' | 'COMIDA'
   const [prodIsJuice, setProdIsJuice] = useState(false);
@@ -108,7 +109,7 @@ export default function CatalogView() {
   const [editingExtra, setEditingExtra] = useState(null);
   const [extraName, setExtraName] = useState('');
   const [extraPrice, setExtraPrice] = useState('');
-  const [extraCategories, setExtraCategories] = useState(['cat_clasico', 'cat_artesanal']);
+  const [extraCategories, setExtraCategories] = useState(['cat_comida']);
 
   // Modales de Packaging / Empaque
   const [isPackagingModalOpen, setIsPackagingModalOpen] = useState(false);
@@ -436,7 +437,7 @@ export default function CatalogView() {
     setEditingExtra(null);
     setExtraName('');
     setExtraPrice('');
-    setExtraCategories(['cat_clasico', 'cat_artesanal']);
+    setExtraCategories(['cat_comida']);
     setIsExtraModalOpen(true);
   };
 
@@ -446,12 +447,11 @@ export default function CatalogView() {
     setExtraPrice((extra.price || 0).toString());
     const rawCats = extra.compatibleCategories || [];
     const normalizedCats = rawCats.map((c) =>
-      c === 'cat_burgers' || c === 'cat_salchipapas' || c === 'cat_choripanes' ? 'cat_clasico' : c
+      c === 'cat_burgers' || c === 'cat_salchipapas' || c === 'cat_choripanes' || c === 'cat_clasico' || c === 'cat_artesanal'
+        ? 'cat_comida'
+        : c
     );
-    if (normalizedCats.includes('cat_clasico') && !normalizedCats.includes('cat_artesanal')) {
-      normalizedCats.push('cat_artesanal');
-    }
-    setExtraCategories(normalizedCats.length > 0 ? Array.from(new Set(normalizedCats)) : ['cat_clasico', 'cat_artesanal']);
+    setExtraCategories(normalizedCats.length > 0 ? Array.from(new Set(normalizedCats)) : ['cat_comida']);
     setIsExtraModalOpen(true);
   };
 
@@ -795,6 +795,7 @@ export default function CatalogView() {
                   <ProductThumbnail
                     src={p.image}
                     name={p.name}
+                    isBeverage={isProductBeverage(p)}
                     className="w-16 h-16"
                     iconSize="w-7 h-7"
                   />
@@ -1123,16 +1124,16 @@ export default function CatalogView() {
                 <div className="flex flex-wrap gap-1 mt-2 text-[10px]">
                   {(ext.compatibleCategories || []).map((catId) => {
                     const normalizedId =
-                      catId === 'cat_burgers' || catId === 'cat_salchipapas' || catId === 'cat_choripanes'
-                        ? 'cat_clasico'
+                      catId === 'cat_burgers' || catId === 'cat_salchipapas' || catId === 'cat_choripanes' || catId === 'cat_clasico' || catId === 'cat_artesanal'
+                        ? 'cat_comida'
                         : catId;
                     const cat = categories.find((c) => c.id === normalizedId);
                     const label =
                       cat?.name ||
-                      (normalizedId === 'cat_clasico'
-                        ? 'Clásico'
-                        : normalizedId === 'cat_artesanal'
-                        ? 'Artesanal'
+                      (normalizedId === 'cat_comida'
+                        ? 'Comida'
+                        : normalizedId === 'cat_bebidas'
+                        ? 'Bebidas'
                         : 'Market');
                     return (
                       <span key={catId} className="bg-zinc-800/80 text-zinc-300 px-2 py-0.5 rounded border border-zinc-700/60 font-semibold">
@@ -1369,9 +1370,9 @@ export default function CatalogView() {
 
             <div className="grid grid-cols-3 gap-2">
               {[
-                { id: 'cat_clasico', line: 'CLASICO', type: 'RESTAURANTE', label: 'CLÁSICO', desc: 'Hamburguesas / Papas' },
-                { id: 'cat_artesanal', line: 'ARTESANAL', type: 'RESTAURANTE', label: 'ARTESANAL', desc: 'Línea de la Casa' },
-                { id: 'cat_market', line: 'MARKET', type: 'MARKET', label: 'MARKET', desc: 'Bebidas & Postres' },
+                { id: 'cat_comida', line: 'COMIDA', type: 'RESTAURANTE', label: 'COMIDA', desc: 'Hamburguesas, Papas...' },
+                { id: 'cat_bebidas', line: 'BEBIDAS', type: 'RESTAURANTE', label: 'BEBIDAS', desc: 'Jugos, Refrescos...' },
+                { id: 'cat_market', line: 'MARKET', type: 'MARKET', label: 'MARKET', desc: 'Snacks, Golosinas...' },
               ].map((opt) => {
                 const isSelected = prodCategory === opt.id || prodLine === opt.line;
                 return (
@@ -1382,12 +1383,17 @@ export default function CatalogView() {
                       setProdCategory(opt.id);
                       setProdLine(opt.line);
                       setProdType(opt.type);
-                      if (opt.type === 'MARKET') {
+                      if (opt.id === 'cat_bebidas') {
+                        setProdHasTemperature(true);
+                        setProdMarketSubtype('BEBIDA');
+                        setProdKitchen(true);
+                      } else if (opt.type === 'MARKET') {
                         setProdKitchen(false);
                         setProdAvailablePackagingIds([]);
                         setProdHasTemperature(prodMarketSubtype === 'BEBIDA');
                       } else {
                         setProdKitchen(true);
+                        setProdHasTemperature(false);
                       }
                     }}
                     className={`py-2.5 px-2 rounded-xl text-xs font-black border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 text-center ${
@@ -1769,8 +1775,8 @@ export default function CatalogView() {
             </div>
           )}
 
-          {/* Botones de guardar */}
-          <div className="pt-2 flex justify-end gap-2">
+          {/* Botones de guardar flotantes */}
+          <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 flex items-center justify-end gap-2.5 z-20 shadow-2xl">
             <Button
               type="button"
               variant="outline"
@@ -1841,7 +1847,7 @@ export default function CatalogView() {
             </div>
           </div>
 
-          <div className="pt-2 flex justify-end gap-2">
+          <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 flex items-center justify-end gap-2.5 z-20 shadow-2xl">
             <Button
               type="button"
               variant="outline"
@@ -1921,7 +1927,7 @@ export default function CatalogView() {
             </div>
           </div>
 
-          <div className="pt-2 flex justify-end gap-2">
+          <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 flex items-center justify-end gap-2.5 z-20 shadow-2xl">
             <Button
               type="button"
               variant="outline"
@@ -2041,7 +2047,7 @@ export default function CatalogView() {
             </div>
           </div>
 
-          <div className="pt-2 flex justify-end gap-2">
+          <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 flex items-center justify-end gap-2.5 z-20 shadow-2xl">
             <Button
               type="button"
               variant="outline"

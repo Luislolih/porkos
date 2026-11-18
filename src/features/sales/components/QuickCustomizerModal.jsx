@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Modal from '../../../components/ui/Modal';
 import { formatCurrency } from '../../../utils/formatters';
 import { useCatalog } from '../../../context/useCatalog';
+import { isProductBeverage, isProductMarket } from '../../../utils/productCategories';
 
 function CustomizerForm({
   product,
@@ -16,23 +17,47 @@ function CustomizerForm({
     extras: catalogExtras,
   } = useCatalog();
 
-  // 1. Ensalada
+  // Clasificación precisa de tipo de producto
+  const isMarketProduct = isProductMarket(product);
+  const isJuice = Boolean(
+    product.isJuice ||
+    product.marketSubtype === 'JUGO' ||
+    product.juiceConfig?.enabled ||
+    product.name?.toLowerCase().includes('jugo') ||
+    product.name?.toLowerCase().includes('batido') ||
+    product.name?.toLowerCase().includes('licuado')
+  );
+  const isBeverage = Boolean(
+    isJuice ||
+    isProductBeverage(product) ||
+    Boolean(initialCustomization?.temperature)
+  );
+
+  // 1. Ensalada (Solo si no es bebida ni producto exclusivo de market)
   const hasSalad = Boolean(
-    product.saladConfig?.enabled ||
-    product.categoryId === 'cat_clasico' ||
-    product.line === 'CLASICO'
+    !isBeverage &&
+    !isMarketProduct &&
+    (product.saladConfig?.enabled ||
+      product.categoryId === 'cat_comida' ||
+      product.categoryId === 'cat_clasico' ||
+      product.line === 'COMIDA' ||
+      product.line === 'CLASICO')
   );
   const [saladMode, setSaladMode] = useState(() => {
     return initialCustomization?.saladDetail?.mode || 'CON_ENSALADA';
   });
 
-  // 2. Papas: Fritas, Al Hilo, Sin Papas
+  // 2. Papas: Fritas, Al Hilo, Sin Papas (Solo para comida)
   const hasPapasModifier = Boolean(
-    product.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas' || m.name?.toLowerCase().includes('papa')) ||
-    product.categoryId === 'cat_clasico' ||
-    product.categoryId === 'cat_artesanal' ||
-    product.line === 'CLASICO' ||
-    product.line === 'ARTESANAL'
+    !isBeverage &&
+    !isMarketProduct &&
+    (product.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas' || m.name?.toLowerCase().includes('papa')) ||
+      product.categoryId === 'cat_comida' ||
+      product.categoryId === 'cat_clasico' ||
+      product.categoryId === 'cat_artesanal' ||
+      product.line === 'COMIDA' ||
+      product.line === 'CLASICO' ||
+      product.line === 'ARTESANAL')
   );
 
   const [selectedModifiers, setSelectedModifiers] = useState(() => {
@@ -51,18 +76,8 @@ function CustomizerForm({
     return initialMods;
   });
 
-  // Identificar si es producto de Market (bebidas, snacks, postres, etc.)
-  const isMarketProduct = Boolean(
-    product.type === 'MARKET' ||
-    product.line === 'MARKET' ||
-    product.categoryId === 'cat_market' ||
-    product.categoryId === 'cat_bebidas' ||
-    product.line === 'BEBIDAS_MARKET' ||
-    product.marketSubtype
-  );
-
-  // 3. Cremas: lista dinámica de cremas activas (NUNCA para productos de Market)
-  const availableCreams = isMarketProduct
+  // 3. Cremas: lista dinámica de cremas activas (NUNCA para bebidas ni market)
+  const availableCreams = (isMarketProduct || isBeverage)
     ? []
     : (catalogCreams || []).filter(
         (c) =>
@@ -73,7 +88,7 @@ function CustomizerForm({
       );
 
   const [selectedCreams, setSelectedCreams] = useState(() => {
-    if (isMarketProduct) return [];
+    if (isMarketProduct || isBeverage) return [];
     if (initialCustomization?.creamsDetail?.selected) {
       return initialCustomization.creamsDetail.selected;
     }
@@ -89,12 +104,17 @@ function CustomizerForm({
       return product.availableExtraIds.includes(e.id);
     }
     const cats = (e.compatibleCategories || []).map((c) =>
-      c === 'cat_burgers' || c === 'cat_salchipapas' || c === 'cat_choripanes' ? 'cat_clasico' : c
+      c === 'cat_burgers' || c === 'cat_salchipapas' || c === 'cat_choripanes' || c === 'cat_clasico' || c === 'cat_artesanal' ? 'cat_comida' : c
     );
-    if (product.categoryId && (cats.includes(product.categoryId) || (cats.includes('cat_clasico') && product.categoryId === 'cat_artesanal'))) {
+    const prodCat =
+      product.categoryId === 'cat_clasico' || product.categoryId === 'cat_artesanal'
+        ? 'cat_comida'
+        : product.categoryId || (isBeverage ? 'cat_bebidas' : 'cat_comida');
+
+    if (prodCat && cats.includes(prodCat)) {
       return true;
     }
-    return product.type === 'RESTAURANTE';
+    return !isBeverage && product.type === 'RESTAURANTE';
   });
 
   const [selectedExtras, setSelectedExtras] = useState(() => {
@@ -133,33 +153,7 @@ function CustomizerForm({
     return nonePackaging;
   });
 
-  // 6. Temperatura y Clasificación de Jugos / Bebidas
-  const isJuice = Boolean(
-    product.isJuice ||
-    product.marketSubtype === 'JUGO' ||
-    product.juiceConfig?.enabled ||
-    product.name?.toLowerCase().includes('jugo') ||
-    product.name?.toLowerCase().includes('batido') ||
-    product.name?.toLowerCase().includes('licuado')
-  );
-
-  const isBeverage = Boolean(
-    isJuice ||
-    product.marketSubtype === 'BEBIDA' ||
-    product.line === 'BEBIDAS_MARKET' ||
-    product.line === 'BEBIDAS' ||
-    product.categoryId === 'cat_bebidas' ||
-    Boolean(product.temperatureConfig?.enabled) ||
-    initialCustomization?.temperature ||
-    product.name?.toLowerCase().includes('gaseosa') ||
-    product.name?.toLowerCase().includes('refresco') ||
-    product.name?.toLowerCase().includes('chicha') ||
-    product.name?.toLowerCase().includes('agua') ||
-    product.name?.toLowerCase().includes('cerveza') ||
-    product.name?.toLowerCase().includes('cola') ||
-    product.name?.toLowerCase().includes('inka')
-  );
-
+  // 6. Temperatura para Bebidas
   const hasTemperature = Boolean(product.temperatureConfig?.enabled ?? isBeverage);
   const [temperature, setTemperature] = useState(() => {
     if (initialCustomization?.temperature) return initialCustomization.temperature;
@@ -554,12 +548,12 @@ function CustomizerForm({
         />
       </div>
 
-      {/* BOTÓN CONFIRMAR */}
-      <div className="pt-2 sticky bottom-0 bg-transparent">
+      {/* BOTÓN CONFIRMAR FLOTANTE */}
+      <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 z-20 shadow-2xl">
         <button
           type="button"
           onClick={handleConfirm}
-          className="w-full bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black font-black text-sm sm:text-base py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-orange-500/20 active:scale-[0.98] transition-all cursor-pointer"
+          className="w-full bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black font-black text-sm sm:text-base py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-xl shadow-orange-500/20 active:scale-[0.98] transition-all cursor-pointer"
         >
           <span>{initialCustomization ? 'Guardar Cambios' : 'Añadir a la Comanda'}</span>
           <span>•</span>

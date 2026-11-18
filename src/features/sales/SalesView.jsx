@@ -10,6 +10,7 @@ import CartView from './components/CartView';
 import QuickPaymentModal from './components/QuickPaymentModal';
 import { formatCurrency } from '../../utils/formatters';
 import { getNextOrderNumber } from '../../utils/orderNumber';
+import { isProductBeverage, isProductMarket, isProductFood } from '../../utils/productCategories';
 import { CheckCircle2, UtensilsCrossed } from 'lucide-react';
 
 export default function SalesView({
@@ -72,37 +73,18 @@ export default function SalesView({
     const list = products.filter((prod) => {
       // 1. En modo MARKET (Caja Rápida), mostrar exclusivamente productos de Market
       if (salesMode === SALES_MODES.MARKET) {
-        if (prod.type !== 'MARKET' && prod.line !== 'MARKET' && prod.categoryId !== 'cat_market') return false;
+        if (!isProductMarket(prod)) return false;
       } else {
         // En modo RESTAURANTE: filtrar por categoría (TODAS, COMIDA, BEBIDAS, MARKET)
         if (selectedLine === 'COMIDA') {
-          const isComida =
-            prod.line === 'COMIDA' ||
-            prod.categoryId === 'cat_comida' ||
-            prod.categoryId === 'cat_clasico' ||
-            prod.categoryId === 'cat_artesanal' ||
-            (prod.type === 'RESTAURANTE' && prod.categoryId !== 'cat_bebidas' && !prod.isJuice && prod.marketSubtype !== 'BEBIDA');
-          if (!isComida) return false;
+          // Comida: Todo producto gastronómico que NO sea bebida y no sea exclusivo de Market
+          if (!isProductFood(prod) || isProductMarket(prod)) return false;
         } else if (selectedLine === 'BEBIDAS') {
-          const isBebida =
-            prod.line === 'BEBIDAS' ||
-            prod.categoryId === 'cat_bebidas' ||
-            prod.marketSubtype === 'BEBIDA' ||
-            prod.marketSubtype === 'JUGO' ||
-            prod.isJuice ||
-            prod.line === 'BEBIDAS_MARKET' ||
-            prod.name?.toLowerCase().includes('jugo') ||
-            prod.name?.toLowerCase().includes('gaseosa') ||
-            prod.name?.toLowerCase().includes('refresco') ||
-            prod.name?.toLowerCase().includes('agua') ||
-            prod.name?.toLowerCase().includes('chicha');
-          if (!isBebida) return false;
+          // Bebidas: TODAS las bebidas, sean de Market (gaseosas, cervezas, aguas) o de Restaurante (jugos, refrescos)
+          if (!isProductBeverage(prod)) return false;
         } else if (selectedLine === 'MARKET') {
-          const isMarket =
-            prod.type === 'MARKET' ||
-            prod.line === 'MARKET' ||
-            prod.categoryId === 'cat_market';
-          if (!isMarket) return false;
+          // Market: Todo producto registrado en Market (bebidas, snacks, golosinas, postres)
+          if (!isProductMarket(prod)) return false;
         }
       }
 

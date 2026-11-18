@@ -210,114 +210,27 @@ export default function CartView({
             </div>
           )}
 
-          {/* Formulario mejorado para DELIVERY */}
-          {isDelivery ? (
-            <div className="bg-gradient-to-b from-emerald-950/30 to-black/60 border border-emerald-500/40 p-3 rounded-2xl space-y-2 text-xs shadow-lg shadow-emerald-950/20">
-              <div className="flex items-center justify-between pb-1.5 border-b border-emerald-500/20">
-                <div className="flex items-center gap-1.5 text-emerald-400 font-extrabold text-xs">
-                  <div className="p-1 rounded-lg bg-emerald-500/20 text-emerald-300">
-                    <Bike className="w-3.5 h-3.5" />
-                  </div>
-                  <span>Datos de Envío a Domicilio</span>
-                </div>
-                <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-lg text-[11px] font-black text-emerald-300">
-                  <span className="text-zinc-400 font-normal">Envío:</span>
-                  <span>{formatCurrency(deliveryFee)}</span>
-                </div>
-              </div>
-
-              {/* Nombre del Cliente & Teléfono / Celular */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                <div className="relative">
-                  <User className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-                  <input
-                    type="text"
-                    value={customerName || customer.name || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCustomerName(val);
-                      setCustomer((prev) => ({ ...prev, name: val }));
-                    }}
-                    placeholder="Nombre del cliente *"
-                    className="w-full bg-black/70 border border-zinc-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 font-semibold"
-                  />
-                </div>
-
-                <div className="relative">
-                  <Phone className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-                  <input
-                    type="tel"
-                    value={customer.phone || ''}
-                    onChange={(e) => setCustomer((prev) => ({ ...prev, phone: e.target.value }))}
-                    placeholder="Celular / WhatsApp *"
-                    className="w-full bg-black/70 border border-zinc-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 font-semibold"
-                  />
-                </div>
-              </div>
-
-              {/* Dirección exacta de entrega */}
-              <div className="relative">
-                <MapPin className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-                <input
-                  type="text"
-                  value={customer.address || ''}
-                  onChange={(e) => setCustomer((prev) => ({ ...prev, address: e.target.value }))}
-                  placeholder="Dirección exacta de entrega (calle, número, dpto) *"
-                  className="w-full bg-black/70 border border-zinc-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 font-medium"
-                />
-              </div>
-
-              {/* Referencia de entrega & Monto editable de delivery */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                <div className="relative">
-                  <Navigation className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-                  <input
-                    type="text"
-                    value={customer.reference || ''}
-                    onChange={(e) => setCustomer((prev) => ({ ...prev, reference: e.target.value }))}
-                    placeholder="Referencia (frente al parque, etc.)"
-                    className="w-full bg-black/70 border border-zinc-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div className="relative flex items-center">
-                  <span className="absolute left-2.5 text-zinc-400 text-xs font-bold">S/</span>
-                  <input
-                    type="number"
-                    step="0.50"
-                    min="0"
-                    value={customer.deliveryFee ?? ''}
-                    onChange={(e) => setCustomer((prev) => ({ ...prev, deliveryFee: e.target.value }))}
-                    placeholder="Costo envío"
-                    className="w-full bg-black/70 border border-zinc-800 rounded-xl pl-8 pr-14 py-1.5 text-xs text-emerald-300 font-black placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
-                  />
-                  <span className="absolute right-2.5 text-[10px] text-zinc-500 font-medium pointer-events-none">
-                    Editable
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* Input del Nombre del Cliente para Mesa / Llevar / Ir Comiendo */
-            <div className="relative">
-              <User className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setCustomerName(val);
-                  setCustomer((prev) => ({ ...prev, name: val }));
-                }}
-                placeholder={
-                  isTakeout
-                    ? 'Nombre del cliente para el recojo *'
-                    : 'Nombre del comensal / mesa...'
-                }
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)] font-semibold"
-              />
-            </div>
-          )}
+          {/* Input del Nombre del Cliente para Mesa / Llevar / Ir Comiendo / Delivery */}
+          <div className="relative">
+            <User className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="text"
+              value={customerName || customer.name || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCustomerName(val);
+                setCustomer((prev) => ({ ...prev, name: val }));
+              }}
+              placeholder={
+                isDelivery
+                  ? 'Nombre del cliente (Delivery) *'
+                  : isTakeout
+                  ? 'Nombre del cliente para el recojo *'
+                  : 'Nombre del comensal / mesa...'
+              }
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)] font-semibold"
+            />
+          </div>
 
           {/* Empaques agregados a nivel comanda */}
           {orderPackagings && orderPackagings.length > 0 && (
@@ -543,6 +456,78 @@ export default function CartView({
               </div>
             );
           })
+        )}
+
+        {/* Formulario optimizado para DELIVERY al final de los pedidos */}
+        {isDelivery && (
+          <div className="bg-gradient-to-b from-emerald-950/20 to-black/60 border border-emerald-500/30 p-2.5 rounded-xl space-y-2 text-xs shadow-md mt-2">
+            <div className="flex items-center justify-between pb-1.5 border-b border-emerald-500/20">
+              <div className="flex items-center gap-1.5 text-emerald-400 font-extrabold text-xs">
+                <div className="p-1 rounded-lg bg-emerald-500/20 text-emerald-300">
+                  <Bike className="w-3.5 h-3.5" />
+                </div>
+                <span>Datos de Envío a Domicilio</span>
+              </div>
+              <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-lg text-[10px] font-black text-emerald-300">
+                <span className="text-zinc-400 font-normal">Envío:</span>
+                <span>{formatCurrency(deliveryFee)}</span>
+              </div>
+            </div>
+
+            {/* Teléfono / Celular */}
+            <div className="relative">
+              <Phone className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="tel"
+                value={customer.phone || ''}
+                onChange={(e) => setCustomer((prev) => ({ ...prev, phone: e.target.value }))}
+                placeholder="Celular / WhatsApp *"
+                className="w-full bg-black/70 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 font-semibold"
+              />
+            </div>
+
+            {/* Dirección exacta de entrega */}
+            <div className="relative">
+              <MapPin className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="text"
+                value={customer.address || ''}
+                onChange={(e) => setCustomer((prev) => ({ ...prev, address: e.target.value }))}
+                placeholder="Dirección exacta de entrega (calle, número, dpto) *"
+                className="w-full bg-black/70 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 font-medium"
+              />
+            </div>
+
+            {/* Referencia de entrega & Monto editable de delivery */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              <div className="relative">
+                <Navigation className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <input
+                  type="text"
+                  value={customer.reference || ''}
+                  onChange={(e) => setCustomer((prev) => ({ ...prev, reference: e.target.value }))}
+                  placeholder="Referencia (frente al parque...)"
+                  className="w-full bg-black/70 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="relative flex items-center">
+                <span className="absolute left-2.5 text-zinc-400 text-xs font-bold">S/</span>
+                <input
+                  type="number"
+                  step="0.50"
+                  min="0"
+                  value={customer.deliveryFee ?? ''}
+                  onChange={(e) => setCustomer((prev) => ({ ...prev, deliveryFee: e.target.value }))}
+                  placeholder="Costo envío"
+                  className="w-full bg-black/70 border border-zinc-800 rounded-lg pl-8 pr-14 py-1.5 text-xs text-emerald-300 font-black placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                />
+                <span className="absolute right-2.5 text-[10px] text-zinc-500 font-medium pointer-events-none">
+                  Editable
+                </span>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* General Notes for Order (SOLO en Restaurante) */}

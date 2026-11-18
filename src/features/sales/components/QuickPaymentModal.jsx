@@ -146,8 +146,8 @@ export default function QuickPaymentModal({
           </div>
         )}
 
-        {/* Confirm Payment button */}
-        <div className="pt-2">
+        {/* Confirm Payment button (flotante abajo) */}
+        <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 z-20 shadow-2xl">
           <Button
             onClick={handleConfirm}
             fullWidth

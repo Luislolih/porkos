@@ -14,27 +14,13 @@ import {
 import { formatTime, formatElapsedTime, isOrderDelayed } from '../../utils/formatters';
 import { getItemTicketDetails } from '../../utils/ticketFormatter';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
+import { isProductBeverage } from '../../utils/productCategories';
 
 export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
   const [activeTab, setActiveTab] = useState('PENDIENTE');
 
   // Identificador de bebidas / refrescos para entrega en cocina y despacho
-  const isBeverageItem = (item) => {
-    return Boolean(
-      item.marketSubtype === 'BEBIDA' ||
-      item.line === 'BEBIDAS_MARKET' ||
-      item.categoryId === 'cat_bebidas' ||
-      item.customization?.temperature ||
-      item.name?.toLowerCase().includes('jugo') ||
-      item.name?.toLowerCase().includes('gaseosa') ||
-      item.name?.toLowerCase().includes('refresco') ||
-      item.name?.toLowerCase().includes('chicha') ||
-      item.name?.toLowerCase().includes('agua') ||
-      item.name?.toLowerCase().includes('cerveza') ||
-      item.name?.toLowerCase().includes('cola') ||
-      item.name?.toLowerCase().includes('inka')
-    );
-  };
+  const isBeverageItem = (item) => isProductBeverage(item);
 
   // Filtrar pedidos que tengan productos que requieran cocina o bebidas y no estén cancelados ni entregados
   const activeKitchenOrders = orders.filter((o) => {
@@ -178,6 +164,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                 <ProductThumbnail
                   src={item.image}
                   name={item.name}
+                  isBeverage={isProductBeverage(item)}
                   className="w-13 h-13 sm:w-14 sm:h-14"
                   iconSize="w-6 h-6"
                 />

@@ -111,15 +111,15 @@ export default function SalesHeader({
                     }
                   }}
                   className={`
-                    flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border
+                    flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border
                     ${
                       isSelected
-                        ? 'bg-zinc-800 text-white border-zinc-600 shadow-sm font-bold'
-                        : 'bg-transparent text-zinc-400 hover:text-zinc-200 border-transparent hover:bg-zinc-800/60'
+                        ? 'bg-zinc-800 text-white border-zinc-700/60 shadow-xs font-bold'
+                        : 'bg-transparent text-zinc-400 hover:text-zinc-200 border-transparent hover:bg-zinc-800/40'
                     }
                   `}
                 >
-                  <Icon className="w-3.5 h-3.5 text-zinc-400" />
+                  <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-[var(--color-porkos-orange)]' : 'text-zinc-500'}`} />
                   <span>{m.label}</span>
                 </button>
               );
@@ -135,16 +135,16 @@ export default function SalesHeader({
                   const table = tables.find((t) => t.id === e.target.value);
                   setSelectedTable(table || null);
                 }}
-                className={`text-xs rounded-lg px-2.5 py-1 font-bold focus:outline-none shrink-0 transition-all ${
+                className={`text-xs rounded-xl px-3 py-1.5 font-semibold focus:outline-none shrink-0 transition-all cursor-pointer border ${
                   !selectedTable
-                    ? 'bg-amber-950/50 border-2 border-amber-500 text-amber-300 ring-2 ring-amber-500/30 font-black'
-                    : 'bg-black/60 border border-zinc-800 text-white focus:border-zinc-600'
+                    ? 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:border-zinc-600 focus:border-[var(--color-porkos-orange)]'
+                    : 'bg-zinc-900 border-zinc-700/80 text-white font-bold focus:border-[var(--color-porkos-orange)]'
                 }`}
               >
-                <option value="">⚠️ Elegir Mesa *</option>
+                <option value="">Seleccionar mesa</option>
                 {tables.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.label} ({t.status === 'OCCUPIED' ? 'Abierta' : 'Libre'})
+                    {t.label} ({t.status === 'OCCUPIED' ? 'Ocupada' : 'Libre'})
                   </option>
                 ))}
               </select>
@@ -156,7 +156,7 @@ export default function SalesHeader({
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="Nombre cliente"
-                className="w-full bg-black/60 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-medium"
               />
             </div>
           </div>

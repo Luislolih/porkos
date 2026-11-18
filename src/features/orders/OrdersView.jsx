@@ -359,8 +359,8 @@ function EditOrderModal({ order, isOpen, onClose, onSave, onEditInSales, tables 
               </div>
             </div>
 
-            {/* Botones de Guardar y Abrir en Ventas */}
-            <div className="space-y-2 pt-2">
+            {/* Botones de Guardar y Abrir en Ventas (flotantes abajo) */}
+            <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 z-20 space-y-2 shadow-2xl">
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -904,8 +904,8 @@ export default function OrdersView({
               </div>
             </div>
 
-            {/* Acciones de la Comanda: Edición permitida solo antes de entrega */}
-            <div className="flex items-center justify-between pt-3 border-t border-zinc-800 flex-wrap gap-2">
+            {/* Acciones de la Comanda: Edición permitida solo antes de entrega (flotante abajo) */}
+            <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 z-20 flex items-center justify-between flex-wrap gap-2 shadow-2xl">
               {selectedOrder.status !== 'ENTREGADO' && selectedOrder.status !== 'CANCELADO' ? (
                 <>
                   {onEditOrderInSales && (
