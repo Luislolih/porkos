@@ -111,10 +111,10 @@ export default function CartView({
 
       {/* Target status bar: Mesa / Para Llevar / Delivery / Cliente (SOLO en Restaurante) */}
       {!isMarketMode && (
-        <div className="px-3.5 py-2.5 bg-black/40 border-b border-[var(--color-porkos-border)] space-y-2.5">
+        <div className="px-3.5 py-2.5 bg-black/40 border-b border-[var(--color-porkos-border)] space-y-2">
           {/* Banner de Edición de Comanda Activa */}
           {editingOrder && (
-            <div className="bg-amber-500/15 border border-amber-500/40 p-2.5 rounded-xl flex items-center justify-between text-xs animate-in fade-in">
+            <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded-xl flex items-center justify-between text-xs animate-in fade-in">
               <div className="flex items-center gap-2 text-amber-300 font-bold">
                 <Edit3 className="w-4 h-4 text-amber-400 shrink-0" />
                 <div>
@@ -132,67 +132,56 @@ export default function CartView({
             </div>
           )}
 
-          {/* Exigir número de mesa obligatorio si modalidad es MESA */}
+          {/* Exigir número de mesa obligatorio si modalidad es MESA de forma compacta y limpia */}
           {modality === 'MESA' && !selectedTable && (
-            <div className="bg-amber-950/40 border border-amber-500/50 p-2.5 rounded-xl space-y-1.5 text-xs">
-              <div className="flex items-center gap-1.5 text-amber-300 font-extrabold text-[11px]">
-                <Utensils className="w-3.5 h-3.5 text-amber-400" />
-                <span>⚠️ Mesa Requerida: Selecciona la mesa para continuar *</span>
+            <div className="flex items-center justify-between gap-2 bg-zinc-900/90 border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs">
+              <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
+                <Utensils className="w-3.5 h-3.5 shrink-0" />
+                <span>Mesa Requerida:</span>
               </div>
-              <div className="grid grid-cols-3 gap-1.5">
+              <select
+                value=""
+                onChange={(e) => {
+                  const t = tables.find((item) => item.id === e.target.value);
+                  if (t) setSelectedTable(t);
+                }}
+                className="bg-black border border-amber-500/40 text-amber-300 text-xs font-bold rounded-lg px-2.5 py-1 focus:outline-none cursor-pointer"
+              >
+                <option value="">Seleccionar mesa...</option>
                 {tables.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setSelectedTable(t)}
-                    className="py-1.5 px-2 rounded-lg text-xs font-bold bg-zinc-900 hover:bg-amber-500 hover:text-black text-white border border-zinc-700 hover:border-amber-400 transition-all cursor-pointer text-center"
-                  >
-                    <span>{t.label}</span>
-                    <span className="block text-[9px] font-normal text-zinc-400">
-                      {t.status === 'OCCUPIED' ? '(Abierta)' : '(Libre)'}
-                    </span>
-                  </button>
+                  <option key={t.id} value={t.id}>
+                    {t.label} ({t.status === 'OCCUPIED' ? 'Ocupada' : 'Libre'})
+                  </option>
                 ))}
-              </div>
+              </select>
             </div>
           )}
 
+          {/* Barra de Modalidad y Mesa con alto contraste sin colores fosforescentes */}
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5">
-              <span className="text-zinc-400 font-medium">Modalidad:</span>
-              <span
-                className={`font-black px-2 py-0.5 rounded-md text-[10px] uppercase border ${
-                  isTakeout
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                    : isDelivery
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : isIrComiendo
-                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                    : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-                }`}
-              >
+              <span className="text-zinc-500 font-medium text-[11px] uppercase tracking-wider">Modalidad:</span>
+              <span className="font-bold px-2 py-0.5 rounded-md text-[11px] bg-zinc-800 text-zinc-200 border border-zinc-700/70">
                 {isTakeout ? '📦 Para Llevar' : isDelivery ? '🛵 Delivery' : isIrComiendo ? '🍽️ Ir Comiendo' : '🍽️ Mesa'}
               </span>
             </div>
 
             {selectedTable && (
-              <span
-                className={`font-black px-2 py-0.5 rounded-md text-[11px] border ${
-                  isTableOccupied
-                    ? 'bg-orange-500/20 text-orange-400 border-orange-500/40'
-                    : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                }`}
-              >
-                {selectedTable.label} ({isTableOccupied ? 'Mesa Abierta' : 'Libre'})
+              <span className={`font-bold px-2 py-0.5 rounded-md text-[11px] border ${
+                isTableOccupied
+                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                  : 'bg-zinc-800 text-zinc-200 border-zinc-700/70'
+              }`}>
+                {selectedTable.label} {isTableOccupied ? '(Abierta)' : '(Libre)'}
               </span>
             )}
           </div>
 
-          {/* Banner y atajos para PARA LLEVAR (Empaques dinámicos de BD) */}
+          {/* Atajos para PARA LLEVAR (Empaques dinámicos) */}
           {isTakeout && availablePackagings.length > 0 && (
-            <div className="bg-amber-950/20 border border-amber-500/30 p-2 rounded-xl flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 text-[11px] text-amber-300 font-bold">
-                <ShoppingBag className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <div className="bg-zinc-900/80 border border-zinc-800 p-2 rounded-xl flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 text-[11px] text-zinc-300 font-semibold">
+                <ShoppingBag className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                 <span>Empaque para recojo:</span>
               </div>
               <div className="flex items-center gap-1 flex-wrap">
@@ -210,42 +199,62 @@ export default function CartView({
             </div>
           )}
 
-          {/* Input del Nombre del Cliente para Mesa / Llevar / Ir Comiendo / Delivery */}
-          <div className="relative">
-            <User className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input
-              type="text"
-              value={customerName || customer.name || ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                setCustomerName(val);
-                setCustomer((prev) => ({ ...prev, name: val }));
-              }}
-              placeholder={
-                isDelivery
-                  ? 'Nombre del cliente (Delivery) *'
-                  : isTakeout
-                  ? 'Nombre del cliente para el recojo *'
-                  : 'Nombre del comensal / mesa...'
-              }
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)] font-semibold"
-            />
-          </div>
+          {/* Nombre de cliente: indicador compacto si ya está definido en la barra superior o input estilizado */}
+          {(customerName || customer.name) ? (
+            <div className="flex items-center justify-between text-xs bg-zinc-900/60 px-2.5 py-1 rounded-lg border border-zinc-800/80">
+              <div className="flex items-center gap-1.5 text-zinc-400 min-w-0">
+                <User className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                <span className="text-[11px]">Cliente:</span>
+                <span className="text-white font-bold truncate">{customerName || customer.name}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomerName('');
+                  setCustomer((prev) => ({ ...prev, name: '' }));
+                }}
+                className="text-zinc-500 hover:text-zinc-300 text-[10px] font-bold shrink-0 ml-2"
+              >
+                Cambiar
+              </button>
+            </div>
+          ) : (
+            <div className="relative">
+              <User className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <input
+                type="text"
+                value={customerName || customer.name || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomerName(val);
+                  setCustomer((prev) => ({ ...prev, name: val }));
+                }}
+                placeholder={
+                  isDelivery
+                    ? 'Nombre del cliente (Delivery) *'
+                    : isTakeout
+                    ? 'Nombre del cliente (Recojo) *'
+                    : 'Nombre del comensal (opcional)...'
+                }
+                className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 font-medium"
+              />
+            </div>
+          )}
 
           {/* Empaques agregados a nivel comanda */}
           {orderPackagings && orderPackagings.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-1">
+            <div className="flex flex-wrap gap-1 pt-0.5">
               {orderPackagings.map((pkg) => (
                 <span
                   key={pkg.packagingId}
-                  className="bg-blue-950/40 border border-blue-500/40 text-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1.5"
+                  className="bg-zinc-800 text-zinc-200 border border-zinc-700 text-[10px] font-semibold px-2 py-0.5 rounded-lg flex items-center gap-1.5"
                 >
-                  <Package className="w-3 h-3 text-blue-400" />
+                  <Package className="w-3 h-3 text-zinc-400" />
                   <span>{pkg.quantity}x {pkg.name} (+{formatCurrency(pkg.total)})</span>
                   <button
                     type="button"
                     onClick={() => removePackaging(pkg.packagingId)}
-                    className="hover:text-rose-400 text-zinc-400 font-extrabold cursor-pointer"
+                    className="hover:text-rose-400 text-zinc-400 font-extrabold cursor-pointer ml-0.5"
                   >
                     ✕
                   </button>
@@ -293,7 +302,7 @@ export default function CartView({
             return (
               <div
                 key={item.itemId}
-                className="bg-black/40 border border-zinc-800/80 rounded-xl p-2.5 space-y-2 transition-all hover:border-zinc-700"
+                className="bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700/80 rounded-xl p-3 space-y-2 transition-colors"
               >
                 {/* Main row: Title, quantity, price */}
                 <div
@@ -305,9 +314,9 @@ export default function CartView({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       {item.requiresKitchen && (
-                        <Flame className="w-3.5 h-3.5 text-[var(--color-porkos-orange)] shrink-0" />
+                        <Flame className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                       )}
-                      <h5 className={`font-bold text-xs sm:text-sm text-white leading-tight truncate ${isCustomizable ? 'group-hover:text-[var(--color-porkos-orange)]' : ''}`}>
+                      <h5 className={`font-bold text-sm text-zinc-100 leading-snug truncate ${isCustomizable ? 'group-hover:text-white' : ''}`}>
                         {item.name}
                       </h5>
                     </div>
@@ -318,48 +327,48 @@ export default function CartView({
                     </div>
                   </div>
 
-                  <span className="font-extrabold text-xs sm:text-sm text-white shrink-0">
+                  <span className="font-extrabold text-sm text-white shrink-0">
                     {formatCurrency(item.subtotal)}
                   </span>
                 </div>
 
-                {/* Customization Details - Formato Gastronómico Interactivo */}
+                {/* Customization Details - Formato Gastronómico Limpio y de Alto Contraste */}
                 {hasDetails && (
                   <div
                     onClick={() => isCustomizable && onEditItem && onEditItem(item)}
-                    className="text-[11px] space-y-1 bg-black/60 p-2.5 rounded-xl border border-zinc-800 hover:border-[var(--color-porkos-orange)]/60 transition-all cursor-pointer group"
+                    className="text-xs space-y-1 bg-black/50 p-2 rounded-lg border border-zinc-800/70 hover:border-zinc-700 transition-colors cursor-pointer group"
                   >
-                    {/* 1. ENSALADA (PRIMERO EN COMANDA Y VENTA) */}
+                    {/* 1. ENSALADA */}
                     {item.customization?.saladSummary && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-extrabold text-emerald-400 text-[10px] tracking-wider">
-                          ENSALADA:
+                      <div className="flex items-baseline gap-1.5 leading-tight">
+                        <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
+                          Ensalada:
                         </span>
-                        <span className="font-bold text-zinc-200">
+                        <span className="font-semibold text-zinc-200">
                           {item.customization.saladSummary}
                         </span>
                       </div>
                     )}
 
-                    {/* 2. PAPAS (LUEGO DE ENSALADA) */}
+                    {/* 2. PAPAS */}
                     {getPapasText(item.customization) && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-extrabold text-orange-400 text-[10px] tracking-wider">
-                          PAPAS:
+                      <div className="flex items-baseline gap-1.5 leading-tight">
+                        <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
+                          Papas:
                         </span>
-                        <span className="font-bold text-zinc-200">
+                        <span className="font-semibold text-zinc-200">
                           {getPapasText(item.customization)}
                         </span>
                       </div>
                     )}
 
-                    {/* 3. CREMAS (SOLO EN RESTAURANTE, NUNCA EN MARKET) */}
+                    {/* 3. CREMAS */}
                     {showCreams && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-extrabold text-orange-400 text-[10px] tracking-wider">
-                          CREMAS:
+                      <div className="flex items-baseline gap-1.5 leading-tight">
+                        <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
+                          Cremas:
                         </span>
-                        <span className="font-bold text-zinc-200">
+                        <span className="font-semibold text-zinc-200">
                           {item.customization.creamsSummary}
                         </span>
                       </div>
@@ -367,11 +376,11 @@ export default function CartView({
 
                     {/* 4. EXTRAS */}
                     {item.customization?.selectedExtras?.length > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-extrabold text-amber-400 text-[10px] tracking-wider">
-                          EXTRAS:
+                      <div className="flex items-baseline gap-1.5 leading-tight">
+                        <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
+                          Extras:
                         </span>
-                        <span className="font-bold text-amber-200">
+                        <span className="font-semibold text-zinc-200">
                           {item.customization.selectedExtras
                             .map((e) => {
                               const clean = e.name.replace(/^Extra\s+/i, '');
@@ -384,11 +393,11 @@ export default function CartView({
 
                     {/* 5. EMPAQUE INDIVIDUAL */}
                     {item.customization?.packaging && item.customization.packaging.price > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-extrabold text-blue-400 text-[10px] tracking-wider">
-                          EMPAQUE:
+                      <div className="flex items-baseline gap-1.5 leading-tight">
+                        <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
+                          Empaque:
                         </span>
-                        <span className="font-bold text-blue-300">
+                        <span className="font-semibold text-zinc-200">
                           {item.customization.packaging.name} (+{formatCurrency(item.customization.packaging.price)})
                         </span>
                       </div>
@@ -396,23 +405,20 @@ export default function CartView({
 
                     {/* 6. TEMPERATURA */}
                     {item.customization?.temperature && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-extrabold text-cyan-400 text-[10px] tracking-wider">
-                          TEMP:
+                      <div className="flex items-baseline gap-1.5 leading-tight">
+                        <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
+                          Temp:
                         </span>
-                        <span className="font-bold text-cyan-300">
+                        <span className="font-semibold text-zinc-200">
                           {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
                         </span>
                       </div>
                     )}
 
-                    {/* 7. NOTA */}
+                    {/* 7. NOTA ESPECIAL */}
                     {item.customization?.itemNotes && (
-                      <div className="flex items-start gap-1.5 pt-0.5 border-t border-zinc-800/80">
-                        <span className="font-extrabold text-zinc-400 text-[10px] tracking-wider">
-                          NOTA:
-                        </span>
-                        <span className="font-semibold text-amber-300 italic">
+                      <div className="pt-1 mt-1 border-t border-zinc-800/80">
+                        <span className="inline-block bg-amber-500/10 text-amber-300/90 border border-amber-500/20 px-2 py-0.5 rounded text-[11px] font-medium italic">
                           &ldquo;{item.customization.itemNotes}&rdquo;
                         </span>
                       </div>
@@ -421,33 +427,31 @@ export default function CartView({
                 )}
 
                 {/* Controls: Delete & Quantity */}
-                <div className="flex items-center justify-between pt-1 border-t border-zinc-900">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => removeItem(item.itemId)}
-                      className="p-1 text-zinc-500 hover:text-rose-400 transition-colors cursor-pointer"
-                      title="Eliminar de la comanda"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={() => removeItem(item.itemId)}
+                    className="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                    title="Eliminar de la comanda"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
 
-                  <div className="flex items-center gap-2 bg-zinc-900 px-2 py-0.5 rounded-lg border border-zinc-800">
+                  <div className="flex items-center gap-2 bg-zinc-800/80 px-2 py-1 rounded-lg border border-zinc-700/60">
                     <button
                       type="button"
                       onClick={() => updateItemQuantity(item.itemId, -1)}
-                      className="text-zinc-400 hover:text-white p-1 cursor-pointer font-bold"
+                      className="text-zinc-400 hover:text-white p-0.5 cursor-pointer font-bold active:scale-95"
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </button>
-                    <span className="font-bold text-xs text-white min-w-[16px] text-center">
+                    <span className="font-extrabold text-xs text-white min-w-[18px] text-center">
                       {item.quantity}
                     </span>
                     <button
                       type="button"
                       onClick={() => updateItemQuantity(item.itemId, 1)}
-                      className="text-zinc-400 hover:text-white p-1 cursor-pointer font-bold"
+                      className="text-zinc-400 hover:text-white p-0.5 cursor-pointer font-bold active:scale-95"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -460,15 +464,15 @@ export default function CartView({
 
         {/* Formulario optimizado para DELIVERY al final de los pedidos */}
         {isDelivery && (
-          <div className="bg-gradient-to-b from-emerald-950/20 to-black/60 border border-emerald-500/30 p-2.5 rounded-xl space-y-2 text-xs shadow-md mt-2">
-            <div className="flex items-center justify-between pb-1.5 border-b border-emerald-500/20">
-              <div className="flex items-center gap-1.5 text-emerald-400 font-extrabold text-xs">
-                <div className="p-1 rounded-lg bg-emerald-500/20 text-emerald-300">
+          <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl space-y-2 text-xs shadow-md mt-2">
+            <div className="flex items-center justify-between pb-1.5 border-b border-zinc-800">
+              <div className="flex items-center gap-1.5 text-zinc-200 font-bold text-xs">
+                <div className="p-1 rounded-lg bg-zinc-800 text-zinc-300">
                   <Bike className="w-3.5 h-3.5" />
                 </div>
                 <span>Datos de Envío a Domicilio</span>
               </div>
-              <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-lg text-[10px] font-black text-emerald-300">
+              <div className="flex items-center gap-1 bg-zinc-800/80 border border-zinc-700/60 px-2 py-0.5 rounded-lg text-[11px] font-bold text-zinc-300">
                 <span className="text-zinc-400 font-normal">Envío:</span>
                 <span>{formatCurrency(deliveryFee)}</span>
               </div>
@@ -476,38 +480,38 @@ export default function CartView({
 
             {/* Teléfono / Celular */}
             <div className="relative">
-              <Phone className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <Phone className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
               <input
                 type="tel"
                 value={customer.phone || ''}
                 onChange={(e) => setCustomer((prev) => ({ ...prev, phone: e.target.value }))}
                 placeholder="Celular / WhatsApp *"
-                className="w-full bg-black/70 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 font-semibold"
+                className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-medium"
               />
             </div>
 
             {/* Dirección exacta de entrega */}
             <div className="relative">
-              <MapPin className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <MapPin className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
               <input
                 type="text"
                 value={customer.address || ''}
                 onChange={(e) => setCustomer((prev) => ({ ...prev, address: e.target.value }))}
                 placeholder="Dirección exacta de entrega (calle, número, dpto) *"
-                className="w-full bg-black/70 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 font-medium"
+                className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-medium"
               />
             </div>
 
             {/* Referencia de entrega & Monto editable de delivery */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               <div className="relative">
-                <Navigation className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <Navigation className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
                 <input
                   type="text"
                   value={customer.reference || ''}
                   onChange={(e) => setCustomer((prev) => ({ ...prev, reference: e.target.value }))}
                   placeholder="Referencia (frente al parque...)"
-                  className="w-full bg-black/70 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
                 />
               </div>
 
@@ -520,7 +524,7 @@ export default function CartView({
                   value={customer.deliveryFee ?? ''}
                   onChange={(e) => setCustomer((prev) => ({ ...prev, deliveryFee: e.target.value }))}
                   placeholder="Costo envío"
-                  className="w-full bg-black/70 border border-zinc-800 rounded-lg pl-8 pr-14 py-1.5 text-xs text-emerald-300 font-black placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-14 py-1.5 text-xs text-zinc-200 font-bold placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
                 />
                 <span className="absolute right-2.5 text-[10px] text-zinc-500 font-medium pointer-events-none">
                   Editable

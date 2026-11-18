@@ -181,29 +181,21 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                   </div>
 
                   {ticketLines.length > 0 && (
-                    <div className="space-y-0.5 pt-0.5 text-[11px] leading-tight">
+                    <div className="space-y-1 pt-1 text-xs leading-snug">
                       {ticketLines.map((line, lIdx) => (
-                        <div key={lIdx} className="flex items-baseline gap-1 text-zinc-300">
-                          <span className="text-[10px] font-black text-zinc-500 shrink-0">
+                        <div key={lIdx} className="flex items-baseline gap-1.5 text-zinc-300">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider shrink-0">
                             {line.label}:
                           </span>
-                          <span
-                            className={`font-bold ${
-                              line.type === 'creams'
-                                ? 'text-[var(--color-porkos-orange)]'
-                                : line.type === 'extras'
-                                ? 'text-emerald-400'
-                                : line.type === 'salad'
-                                ? 'text-emerald-300'
-                                : line.type === 'papas'
-                                ? 'text-amber-300'
-                                : line.type === 'note'
-                                ? 'text-amber-300 italic'
-                                : 'text-zinc-200'
-                            }`}
-                          >
-                            {line.value}
-                          </span>
+                          {line.type === 'note' ? (
+                            <span className="inline-block bg-amber-500/10 text-amber-300/90 border border-amber-500/20 px-1.5 py-0.2 rounded text-[11px] font-medium italic">
+                              &ldquo;{line.value}&rdquo;
+                            </span>
+                          ) : (
+                            <span className="font-bold text-zinc-100 text-xs">
+                              {line.value}
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -215,12 +207,12 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
 
           {/* 2. Bebidas a Entregar (Coordinación de despacho para cocina / salón) */}
           {beverageItems.length > 0 && (
-            <div className="space-y-1.5 bg-cyan-950/20 p-2.5 rounded-xl border border-cyan-800/40">
+            <div className="space-y-1.5 bg-zinc-900/90 p-2.5 rounded-xl border border-zinc-800">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
                   <span>🥤</span> Bebidas a Entregar ({beverageItems.reduce((sum, b) => sum + (b.quantity || 1), 0)})
                 </span>
-                <span className="text-[10px] font-bold text-cyan-400/90 bg-cyan-900/50 px-1.5 py-0.2 rounded border border-cyan-700/50">
+                <span className="text-[10px] font-semibold text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700/60">
                   Despacho
                 </span>
               </div>
@@ -237,10 +229,10 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                   return (
                     <div
                       key={bIdx}
-                      className="bg-black/50 p-2 rounded-lg border border-cyan-900/60 flex items-center justify-between gap-2 text-xs"
+                      className="bg-black/60 p-2 rounded-lg border border-zinc-800 flex items-center justify-between gap-2 text-xs"
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="bg-cyan-900/80 text-cyan-100 border border-cyan-700/80 px-1.5 py-0.2 rounded font-black text-xs shrink-0">
+                        <span className="bg-zinc-800 text-white border border-zinc-700 px-1.5 py-0.2 rounded font-black text-xs shrink-0">
                           {bev.quantity}×
                         </span>
                         <div className="min-w-0">
@@ -257,12 +249,12 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
 
                       <div className="flex items-center gap-1.5 shrink-0">
                         {tempBadge && (
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded bg-cyan-900/80 text-cyan-200 border border-cyan-600/60">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/80">
                             {tempBadge}
                           </span>
                         )}
                         {bev.customization?.packaging && bev.customization.packaging.price > 0 && (
-                          <span className="text-[10px] text-blue-300 font-bold">
+                          <span className="text-[10px] text-zinc-400 font-medium">
                             📦 {bev.customization.packaging.name}
                           </span>
                         )}
