@@ -96,13 +96,17 @@ function MainApp() {
       if (existingOrder && !shouldCloseTable) {
         // La mesa sigue abierta: Acumular los nuevos productos a la comanda existente
         const combinedItems = [...existingOrder.items, ...newOrder.items];
+        const combinedPackagings = [...(existingOrder.packagings || []), ...(newOrder.packagings || [])];
         const addedSubtotal = newOrder.items.reduce((s, i) => s + i.subtotal, 0);
-        const newTotal = existingOrder.total + addedSubtotal;
+        const addedPackagingsTotal = newOrder.packagingsTotal || 0;
+        const newTotal = existingOrder.total + addedSubtotal + addedPackagingsTotal;
 
         const updatedOrder = {
           ...existingOrder,
           items: combinedItems,
+          packagings: combinedPackagings,
           subtotal: existingOrder.subtotal + addedSubtotal,
+          packagingsTotal: (existingOrder.packagingsTotal || 0) + addedPackagingsTotal,
           total: newTotal,
           customerName: newOrder.customerName || existingOrder.customerName,
           status: 'PREPARANDO', // Reactivar para cocina si añadió más platos

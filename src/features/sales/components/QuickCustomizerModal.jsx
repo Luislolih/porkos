@@ -103,35 +103,34 @@ function CustomizerForm({
 
   // 5. Empaques asociados estrictamente a este producto
   const allPackagings = catalogPackagings || [];
-  const availablePackagings = allPackagings.filter((pkg) => {
-    if (!pkg.active) return false;
-    if (pkg.id === 'pkg_ninguno') return true;
+  const associatedPaidPackagings = allPackagings.filter((pkg) => {
+    if (!pkg.active || pkg.id === 'pkg_ninguno') return false;
     const isAssociatedInProduct = product.availablePackagingIds?.includes(pkg.id);
     const isAssociatedInPkg = pkg.applicableProductIds?.includes(product.id);
     return isAssociatedInProduct || isAssociatedInPkg;
   });
 
-  // Solo mostrar empaque si el producto tiene opciones asociadas
-  const hasPaidPackaging = availablePackagings.some((pkg) => pkg.id !== 'pkg_ninguno');
+  const nonePackaging = { id: 'pkg_ninguno', name: 'Sin Empaque / Salón', price: 0 };
+  const availablePackagings = [nonePackaging, ...associatedPaidPackagings];
+  const hasPaidPackaging = associatedPaidPackagings.length > 0;
 
   const [selectedPackaging, setSelectedPackaging] = useState(() => {
     if (initialCustomization?.packaging) {
       const match = availablePackagings.find((p) => p.id === initialCustomization.packaging.id);
       if (match) return match;
     }
-    // Si es para llevar o delivery, seleccionar por defecto el packaging asociado al producto
+    // Solo si es para llevar o delivery, seleccionar por defecto el packaging asociado al producto
     const isTakeoutOrDelivery =
       modality === 'PARA_LLEVAR' ||
       modality === 'DELIVERY' ||
-      modality === 'CONSUMO_EXTERNO' ||
       modality === 'LLEVAR';
 
-    if (isTakeoutOrDelivery) {
-      const associated = availablePackagings.find((p) => p.id !== 'pkg_ninguno');
-      if (associated) return associated;
+    if (isTakeoutOrDelivery && associatedPaidPackagings.length > 0) {
+      return associatedPaidPackagings[0];
     }
 
-    return availablePackagings[0] || { id: 'pkg_ninguno', name: 'Sin Empaque / Salón', price: 0 };
+    // En mesas, ir comiendo o cualquier otra modalidad: permitir elegir pero NO poner por defecto
+    return nonePackaging;
   });
 
   // 6. Temperatura: Para bebidas o productos con configuración explícita
@@ -424,18 +423,13 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 5. PACKAGING / EMPAQUE (ORDEN SOLICITADO: 5º PACKAGING) */}
+      {/* 5. PACKAGING / EMPAQUE */}
       {hasPaidPackaging && (
         <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-white uppercase tracking-wider block">
               5. Packaging / Empaque
             </span>
-            {(modality === 'PARA_LLEVAR' || modality === 'DELIVERY') && (
-              <span className="text-[10px] font-bold text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-500/30">
-                Seleccionado por {modality === 'DELIVERY' ? 'Delivery' : 'Llevar'}
-              </span>
-            )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {availablePackagings.map((pkg) => {
@@ -465,15 +459,12 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 6. TEMPERATURA / ESTADO */}
+      {/* 6. TEMPERATURA */}
       {hasTemperature && (
         <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-white uppercase tracking-wider block">
-              6. Temperatura / Estado
-            </span>
-            <span className="text-[10px] text-cyan-400 font-bold">
-              {isBeverage ? 'Bebida / Refresco' : ''}
+              6. Temperatura
             </span>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -501,14 +492,11 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 7. NOTA RÁPIDA (CON CHIPS RÁPIDOS) */}
+      {/* 7. NOTA RÁPIDA */}
       <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800 space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-xs font-black text-white uppercase tracking-wider block">
             7. Nota rápida
-          </span>
-          <span className="text-[10px] text-zinc-500">
-            {isBeverage ? 'Indicaciones para bebida / jugo' : 'Instrucciones para cocina'}
           </span>
         </div>
 

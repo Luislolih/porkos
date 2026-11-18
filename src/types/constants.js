@@ -37,9 +37,9 @@ export const ORDER_MODALITIES = {
   },
   CONSUMO_EXTERNO: {
     id: 'CONSUMO_EXTERNO',
-    label: 'Consumo Fuera',
-    icon: 'Package',
-    suggestPackaging: true,
+    label: 'Ir Comiendo',
+    icon: 'Utensils',
+    suggestPackaging: false,
     badgeColor: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
   },
   DELIVERY: {

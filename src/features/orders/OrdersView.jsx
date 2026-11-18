@@ -71,8 +71,9 @@ export default function OrdersView({ orders = [] }) {
       case 'DELIVERY':
         return <Bike className="w-3.5 h-3.5 text-emerald-400" />;
       case 'PARA_LLEVAR':
-      case 'CONSUMO_EXTERNO':
         return <ShoppingBag className="w-3.5 h-3.5 text-amber-400" />;
+      case 'CONSUMO_EXTERNO':
+        return <Utensils className="w-3.5 h-3.5 text-purple-400" />;
       case 'MARKET':
         return <Store className="w-3.5 h-3.5 text-purple-400" />;
       default:
@@ -257,7 +258,7 @@ export default function OrdersView({ orders = [] }) {
 
                     <div className="flex items-center gap-2 text-xs text-zinc-400 mt-0.5 flex-wrap">
                       <span className="font-semibold text-zinc-300">
-                        {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Para Llevar' : order.modality)}
+                        {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Para Llevar' : order.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : order.modality)}
                       </span>
                       {order.customerName && (
                         <span className="text-amber-400 font-bold truncate">
@@ -320,7 +321,7 @@ export default function OrdersView({ orders = [] }) {
         isOpen={Boolean(selectedOrder)}
         onClose={() => setSelectedOrder(null)}
         title={`Seguimiento: ${selectedOrder?.orderNumber}`}
-        subtitle={`Modalidad: ${selectedOrder?.tableName || selectedOrder?.modality}`}
+        subtitle={`Modalidad: ${selectedOrder?.tableName || (selectedOrder?.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : selectedOrder?.modality)}`}
         maxWidth="max-w-xl"
       >
         {selectedOrder && (

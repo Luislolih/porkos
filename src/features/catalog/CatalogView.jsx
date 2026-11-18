@@ -584,9 +584,6 @@ export default function CatalogView() {
             <h2 className="text-xl font-extrabold text-white tracking-tight">
               Catálogo & Opciones
             </h2>
-            <p className="text-xs text-zinc-400">
-              Configura platos, cremas, extras y empaques asociados
-            </p>
           </div>
         </div>
 
@@ -893,13 +890,6 @@ export default function CatalogView() {
       {/* ============================================================== */}
       {activeTab === 'categories' && (
         <div className="space-y-4">
-          <div className="bg-orange-950/20 border border-orange-500/30 p-3.5 rounded-2xl flex items-center gap-3">
-            <Tag className="w-5 h-5 text-[var(--color-porkos-orange)] shrink-0" />
-            <p className="text-xs text-orange-200 leading-relaxed">
-              <strong>Categorías Oficiales:</strong> Tu carta está organizada en <strong>TODAS</strong>, <strong>CLÁSICO</strong>, <strong>ARTESANAL</strong> y <strong>MARKET</strong> (bebidas, postres y snacks). Sin subcategorías complejas para mayor agilidad en ventas.
-            </p>
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {categories.map((cat) => {
               const assignedProductsCount = products.filter((p) => p.categoryId === cat.id).length;
@@ -1187,13 +1177,6 @@ export default function CatalogView() {
       {/* ============================================================== */}
       {activeTab === 'packagings' && (
         <div className="space-y-4">
-          <div className="bg-blue-950/20 border border-blue-900/40 p-3.5 rounded-2xl flex items-center gap-3">
-            <Package className="w-5 h-5 text-blue-400 shrink-0" />
-            <p className="text-xs text-blue-200 leading-relaxed">
-              <strong>Regla de empaques:</strong> Cada empaque está asociado a productos específicos. Solo los productos seleccionados mostrarán la opción de taper al momento de personalizar una comanda en caja.
-            </p>
-          </div>
-
           {packagings.length === 0 ? (
             <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto space-y-3.5 my-6">
               <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center">
@@ -1448,21 +1431,13 @@ export default function CatalogView() {
                 </button>
               </div>
 
-              {prodMarketSubtype === 'BEBIDA' && (
-                <p className="text-[10px] text-blue-300 font-medium">
-                  ❄️ Configurado como bebida: en caja y comanda permitirá elegir &quot;Helada&quot; o &quot;Sin Helar&quot;, más notas rápidas (&quot;fresco&quot;, &quot;sin azúcar&quot;).
-                </p>
-              )}
             </div>
           )}
 
           {/* Si es restaurante: opción de cocina */}
           {prodType === 'RESTAURANTE' && (
             <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800">
-              <div>
-                <label className="block text-zinc-300 font-bold text-xs">¿Requiere Cocina?</label>
-                <span className="text-[10px] text-zinc-500">Muestra la comanda en la pantalla de cocina</span>
-              </div>
+              <label className="text-zinc-300 font-bold text-xs cursor-pointer">¿Requiere Cocina?</label>
               <input
                 type="checkbox"
                 checked={prodKitchen}
@@ -1572,25 +1547,16 @@ export default function CatalogView() {
               </button>
             )}
 
-            {/* Mensajes informativos de almacenamiento */}
+            {/* Mensajes informativos de imagen */}
             {imageStorageSource === 'web_url' && (
               <p className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
-                ✓ Enlace web válido: se sincronizará en todos los dispositivos y comandas.
+                ✓ Enlace web válido
               </p>
             )}
 
             {imageStorageSource === 'local_preview' && (
-              <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-800/40 text-[11px] text-amber-300 space-y-1">
-                <span className="font-bold block">ⓘ Vista previa local en este navegador (Plan Spark activo)</span>
-                <span className="text-zinc-400 block text-[10px] leading-relaxed">
-                  Para no requerir facturación Blaze ni saturar Firestore, esta foto no se sube a la nube. Para que se vea en todas tus tablets y celulares, ingresa una URL web directa arriba o déjalo vacío para usar el icono automático de comida.
-                </span>
-              </div>
-            )}
-
-            {!imagePreview && (
-              <p className="text-[10px] text-zinc-500 italic">
-                ⓘ Si no colocas foto, el sistema mostrará automáticamente el icono de su categoría.
+              <p className="text-[10px] text-amber-400 font-medium">
+                ⓘ Vista previa local
               </p>
             )}
 

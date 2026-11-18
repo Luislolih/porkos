@@ -5,7 +5,6 @@ import {
   ShoppingBag,
   Flame,
   User,
-  CheckCircle,
   Store,
   Bike,
   Package,
@@ -34,7 +33,6 @@ function getPapasText(customization) {
 export default function CartView({
   onSendToKitchen,
   onCheckout,
-  onSettleTable,
   onEditItem,
   isMarketMode = false,
 }) {
@@ -67,6 +65,7 @@ export default function CartView({
   const isTableOccupied = selectedTable?.status === 'OCCUPIED';
   const isTakeout = modality === 'PARA_LLEVAR';
   const isDelivery = modality === 'DELIVERY';
+  const isIrComiendo = modality === 'CONSUMO_EXTERNO';
 
   return (
     <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl">
@@ -111,10 +110,12 @@ export default function CartView({
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                     : isDelivery
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : isIrComiendo
+                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                     : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
                 }`}
               >
-                {isTakeout ? '📦 Para Llevar' : isDelivery ? '🛵 Delivery' : '🍽️ Mesa'}
+                {isTakeout ? '📦 Para Llevar' : isDelivery ? '🛵 Delivery' : isIrComiendo ? '🍽️ Ir Comiendo' : '🍽️ Mesa'}
               </span>
             </div>
 
@@ -493,59 +494,47 @@ export default function CartView({
             >
               Cobrar {formatCurrency(total)}
             </Button>
-          ) : (
-            /* EN MODO RESTAURANTE: Mandar a cocina como acción principal, cobrar directo como alternativa */
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {hasKitchenItems ? (
-                <>
-                  <Button
-                    onClick={onSendToKitchen}
-                    disabled={items.length === 0}
-                    variant="primary"
-                    size="md"
-                    icon={Flame}
-                    className="text-xs sm:text-sm font-black py-3 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20"
-                  >
-                    {selectedTable ? `Mandar a Cocina (${selectedTable.label})` : 'Mandar a Cocina'}
-                  </Button>
-
-                  <Button
-                    onClick={onCheckout}
-                    disabled={items.length === 0}
-                    variant="secondary"
-                    size="md"
-                    icon={CreditCard}
-                    className="text-xs font-bold py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700"
-                  >
-                    Cobrar en Caja ({formatCurrency(total)})
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  onClick={onCheckout}
-                  disabled={items.length === 0}
-                  variant="primary"
-                  size="md"
-                  className="w-full text-xs sm:text-sm font-black py-3 bg-[var(--color-porkos-orange)] text-black"
-                >
-                  Cobrar {formatCurrency(total)}
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Si la mesa está ocupada y se quiere cerrar directamente desde aquí */}
-          {!isMarketMode && selectedTable && isTableOccupied && onSettleTable && (
+          ) : isTableOccupied && selectedTable ? (
+            /* EN MESA ABIERTA: Al añadir productos, debe añadir y sumar a la mesa, no cerrar ni cobrar */
             <Button
-              onClick={() => onSettleTable(selectedTable)}
-              variant="success"
-              size="md"
-              fullWidth
-              icon={CheckCircle}
-              className="text-xs font-black"
+              onClick={onSendToKitchen}
+              disabled={items.length === 0}
+              variant="primary"
+              size="lg"
+              icon={Plus}
+              className="w-full text-xs sm:text-sm font-black py-3.5 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20 cursor-pointer active:scale-98"
             >
-              Cerrar y Cobrar Mesa {selectedTable.label}
+              Añadir y Sumar a {selectedTable.label} (+{formatCurrency(total)})
             </Button>
+          ) : (
+            /* EN MESA LIBRE, PARA LLEVAR O DELIVERY */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Button
+                onClick={onSendToKitchen}
+                disabled={items.length === 0}
+                variant="primary"
+                size="md"
+                icon={Flame}
+                className="text-xs sm:text-sm font-black py-3 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20"
+              >
+                {selectedTable
+                  ? `Abrir comanda (${selectedTable.label})`
+                  : hasKitchenItems
+                  ? 'Mandar a Cocina'
+                  : 'Enviar Pedido'}
+              </Button>
+
+              <Button
+                onClick={onCheckout}
+                disabled={items.length === 0}
+                variant="secondary"
+                size="md"
+                icon={CreditCard}
+                className="text-xs font-bold py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700"
+              >
+                Cobrar en Caja ({formatCurrency(total)})
+              </Button>
+            </div>
           )}
         </div>
       </div>

@@ -103,6 +103,11 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                   <Bike className="w-3.5 h-3.5 text-emerald-400" />
                   <span>DELIVERY</span>
                 </span>
+              ) : order.modality === 'CONSUMO_EXTERNO' ? (
+                <span className="text-xs bg-purple-500/20 text-purple-300 px-2.5 py-1 rounded-lg font-black flex items-center gap-1.5 border border-purple-500/40 shadow-sm">
+                  <span>🍽️</span>
+                  <span>IR COMIENDO</span>
+                </span>
               ) : (
                 <span className="text-xs bg-zinc-800/90 text-zinc-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 border border-zinc-700/60">
                   <ModalityIcon className="w-3.5 h-3.5 text-zinc-400" />

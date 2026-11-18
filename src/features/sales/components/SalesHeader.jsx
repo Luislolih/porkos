@@ -1,4 +1,4 @@
-import { Utensils, Store, Search, Users, Bike, ShoppingBag, Package, User } from 'lucide-react';
+import { Utensils, Store, Search, Users, Bike, ShoppingBag, User } from 'lucide-react';
 import { SALES_MODES, ORDER_MODALITIES } from '../../../types/constants';
 import { useCart } from '../../../context/useCart';
 
@@ -21,7 +21,7 @@ export default function SalesHeader({
   const modalitiesList = [
     { id: ORDER_MODALITIES.MESA.id, label: 'Mesa', icon: Users },
     { id: ORDER_MODALITIES.PARA_LLEVAR.id, label: 'Llevar', icon: ShoppingBag },
-    { id: ORDER_MODALITIES.CONSUMO_EXTERNO.id, label: 'Fuera', icon: Package },
+    { id: ORDER_MODALITIES.CONSUMO_EXTERNO.id, label: 'Ir comiendo', icon: Utensils },
     { id: ORDER_MODALITIES.DELIVERY.id, label: 'Delivery', icon: Bike },
   ];
 
@@ -156,13 +156,7 @@ export default function SalesHeader({
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                placeholder={
-                  modality === ORDER_MODALITIES.PARA_LLEVAR.id
-                    ? 'Nombre para el recojo *'
-                    : modality === ORDER_MODALITIES.DELIVERY.id
-                    ? 'Cliente para delivery *'
-                    : 'Nombre cliente / comensal...'
-                }
+                placeholder="Cliente (opcional)..."
                 className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
               />
             </div>

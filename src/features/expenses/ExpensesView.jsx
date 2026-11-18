@@ -58,9 +58,6 @@ export default function ExpensesView() {
             <h2 className="text-xl font-extrabold text-white tracking-tight">
               Gastos & Compras Diarias
             </h2>
-            <p className="text-xs text-[var(--color-porkos-muted)]">
-              Control rápido de egresos y compras sincronizado en la nube
-            </p>
           </div>
         </div>
 

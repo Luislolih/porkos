@@ -100,7 +100,6 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
       salesMode !== SALES_MODES.MARKET &&
       (modality === 'PARA_LLEVAR' ||
         modality === 'DELIVERY' ||
-        modality === 'CONSUMO_EXTERNO' ||
         modality === 'LLEVAR');
 
     let defaultPackaging = null;
@@ -225,9 +224,15 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
       onOrderCreated(orderData);
     }
 
+    const isAddingToOpenTable = selectedTable?.status === 'OCCUPIED';
+
     clearCart();
     setIsMobileCartOpen(false);
-    showToast(`Comanda ${orderData.orderNumber} enviada a Cocina`);
+    showToast(
+      isAddingToOpenTable
+        ? `Productos sumados a ${selectedTable.label}`
+        : `Comanda ${orderData.orderNumber} enviada a Cocina`
+    );
   };
 
   // Cobro directo (alimenta el histórico de ventas)
@@ -333,8 +338,8 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
                 </p>
                 <p className="text-xs text-zinc-400">
                   {products.length === 0
-                    ? 'Ve a la pestaña "Productos" para agregar tus hamburguesas, choripanes y bebidas desde cero.'
-                    : 'Prueba cambiando de línea, subcategoría o término de búsqueda.'}
+                    ? 'Agrega productos en el menú Catálogo.'
+                    : 'Prueba otro término de búsqueda.'}
                 </p>
               </div>
             </div>
