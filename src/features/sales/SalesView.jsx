@@ -71,9 +71,14 @@ export default function SalesView({
   // Ordenados POR DEFECTO de mayor a menor salida según el histórico (salesCount)
   const filteredAndSortedProducts = useMemo(() => {
     const list = products.filter((prod) => {
-      // 1. En modo MARKET (Caja Rápida), mostrar exclusivamente productos de Market
+      // 1. En modo MARKET (Caja Rápida), mostrar exclusivamente productos de Market con sus subcategorías
       if (salesMode === SALES_MODES.MARKET) {
         if (!isProductMarket(prod)) return false;
+        if (selectedLine === 'MARKET_BEBIDAS') {
+          if (!isProductBeverage(prod)) return false;
+        } else if (selectedLine === 'MARKET_SNACKS') {
+          if (isProductBeverage(prod)) return false;
+        }
       } else {
         // En modo RESTAURANTE: filtrar por categoría (TODAS, COMIDA, BEBIDAS, MARKET)
         if (selectedLine === 'COMIDA') {
@@ -416,15 +421,16 @@ export default function SalesView({
             salesMode={salesMode}
             setSalesMode={(mode) => {
               setSalesMode(mode);
-              setSelectedLine(mode === SALES_MODES.MARKET ? 'MARKET' : 'ALL');
+              setSelectedLine(mode === SALES_MODES.MARKET ? 'MARKET_ALL' : 'ALL');
             }}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             tables={tables}
           />
 
-          {/* Categorías simplificadas: TODAS, CLÁSICO, ARTESANAL y MARKET */}
+          {/* Categorías contextuales (Restaurante o Market) */}
           <CategoryTabs
+            salesMode={salesMode}
             selectedLine={selectedLine}
             onSelectLine={setSelectedLine}
           />

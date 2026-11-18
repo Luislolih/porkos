@@ -387,7 +387,7 @@ function EditOrderModal({ order, isOpen, onClose, onSave, onEditInSales, tables 
                     onEditInSales(order);
                     onClose();
                   }}
-                  className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-zinc-900 hover:bg-zinc-850 text-amber-300 border border-amber-500/30 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                  className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-amber-500/30 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
                 >
                   <ShoppingBag className="w-3.5 h-3.5" />
                   <span>Abrir en Ventas para Añadir Platos de la Carta</span>
@@ -405,6 +405,7 @@ export default function OrdersView({
   orders = [],
   onUpdateOrder,
   onEditOrderInSales,
+  onClearAllOrders,
   tables = [],
 }) {
   const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'HISTORY'
@@ -412,6 +413,8 @@ export default function OrdersView({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingModalOrder, setEditingModalOrder] = useState(null);
+  const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
@@ -529,23 +532,37 @@ export default function OrdersView({
             })}
           </div>
 
-          {/* Search bar */}
-          <div className="relative flex-1 max-w-sm">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar por N° pedido, cliente o mesa..."
-              className="w-full bg-black/50 border border-zinc-800 rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
-            />
-            {searchQuery && (
+          {/* Search bar & Vaciar Historial */}
+          <div className="flex items-center gap-2 flex-1 max-w-md">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar pedido, cliente, mesa..."
+                className="w-full bg-black/50 border border-zinc-800 rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white text-xs cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {onClearAllOrders && orders.length > 0 && (
               <button
                 type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white text-xs cursor-pointer"
+                onClick={() => setIsConfirmClearOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 cursor-pointer transition-all shrink-0 active:scale-95"
+                title="Eliminar todo el historial de pedidos"
               >
-                <X className="w-3.5 h-3.5" />
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Vaciar Historial</span>
               </button>
             )}
           </div>
@@ -617,7 +634,7 @@ export default function OrdersView({
                   ${
                     !isFinished
                       ? 'border-zinc-800 hover:border-[var(--color-porkos-orange)]/50'
-                      : 'border-zinc-850 opacity-90'
+                      : 'border-zinc-800 opacity-90'
                   }
                 `}
                 title="Toca para ver el seguimiento y detalle del pedido"
@@ -663,7 +680,7 @@ export default function OrdersView({
                 </div>
 
                 {/* Right: Status Pill, Elapsed, Total, Tap CTA */}
-                <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-850">
+                <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-800">
                   <div className="flex items-center gap-2">
                     <span
                       className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
@@ -675,7 +692,7 @@ export default function OrdersView({
 
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        payConf.badgeClass || 'text-zinc-400 bg-zinc-850'
+                        payConf.badgeClass || 'text-zinc-400 bg-zinc-800'
                       }`}
                     >
                       {payConf.label || order.paymentStatus}
@@ -764,7 +781,7 @@ export default function OrdersView({
                         isCurrent
                           ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md'
                           : isDone
-                          ? 'bg-zinc-850 text-emerald-400 border-emerald-500/30 font-bold'
+                          ? 'bg-zinc-800 text-emerald-400 border-emerald-500/30 font-bold'
                           : 'bg-zinc-900/60 text-zinc-600 border-zinc-800'
                       }`}
                     >
@@ -963,6 +980,49 @@ export default function OrdersView({
           tables={tables}
         />
       )}
+
+      {/* Modal de Confirmación para Vaciar Historial */}
+      <Modal
+        isOpen={isConfirmClearOpen}
+        onClose={() => !isClearing && setIsConfirmClearOpen(false)}
+        title="¿Vaciar todo el historial de pedidos?"
+        subtitle="Esta acción eliminará todas las comandas registradas en la nube y localmente."
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <p className="text-xs sm:text-sm text-zinc-300">
+            Se eliminarán permanentemente <strong className="text-white font-black">{orders.length} pedidos</strong>. Tu caja y comandas quedarán en cero para poder registrar nuevos pedidos limpios.
+          </p>
+          <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+            <button
+              type="button"
+              disabled={isClearing}
+              onClick={() => setIsConfirmClearOpen(false)}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-zinc-800 text-zinc-300 hover:text-white cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={isClearing}
+              onClick={async () => {
+                setIsClearing(true);
+                try {
+                  if (onClearAllOrders) {
+                    await onClearAllOrders();
+                  }
+                  setIsConfirmClearOpen(false);
+                } finally {
+                  setIsClearing(false);
+                }
+              }}
+              className="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 cursor-pointer transition-all active:scale-95"
+            >
+              {isClearing ? 'Vaciando...' : 'Sí, Vaciar Historial'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

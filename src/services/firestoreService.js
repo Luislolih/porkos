@@ -115,6 +115,30 @@ export async function settleOrderInFirestore(orderNumber, paymentDetail) {
   }
 }
 
+export async function deleteOrderFromFirestore(orderNumber) {
+  try {
+    const docRef = doc(db, 'orders', orderNumber);
+    await deleteDoc(docRef);
+    return { success: true };
+  } catch (err) {
+    console.error('Error al eliminar orden en Firestore:', err);
+    return { success: false, error: err };
+  }
+}
+
+export async function clearAllOrdersFromFirestore() {
+  try {
+    const ordersCol = collection(db, 'orders');
+    const snapshot = await getDocs(ordersCol);
+    const deletePromises = snapshot.docs.map((docSnap) => deleteDoc(doc(db, 'orders', docSnap.id)));
+    await Promise.all(deletePromises);
+    return { success: true };
+  } catch (err) {
+    console.error('Error al vaciar órdenes en Firestore:', err);
+    return { success: false, error: err };
+  }
+}
+
 // =========================================================================
 // 2. PRODUCTOS
 // =========================================================================

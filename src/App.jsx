@@ -21,6 +21,7 @@ import {
   saveOrderToFirestore,
   updateOrderStatusInFirestore,
   settleOrderInFirestore,
+  clearAllOrdersFromFirestore,
 } from './services/firestoreService';
 import { Flame } from 'lucide-react';
 
@@ -247,6 +248,17 @@ function MainApp() {
     setCurrentModule(MODULES.SALES);
   };
 
+  // 9. Vaciar todo el historial de pedidos (Firestore + localStorage)
+  const handleClearAllOrders = async () => {
+    setOrders([]);
+    try {
+      localStorage.removeItem('porkos_orders');
+    } catch (e) {
+      console.warn('Error limpiando órdenes en localStorage:', e);
+    }
+    await clearAllOrdersFromFirestore();
+  };
+
   const activeKitchenCount = orders.filter(
     (o) =>
       (o.status === 'PENDIENTE' || o.status === 'PREPARANDO') &&
@@ -294,6 +306,7 @@ function MainApp() {
             orders={orders}
             onUpdateOrder={handleUpdateOrder}
             onEditOrderInSales={handleLoadOrderForEditing}
+            onClearAllOrders={handleClearAllOrders}
             tables={tables}
           />
         )}
@@ -314,7 +327,9 @@ function MainApp() {
 
         {activeModule === MODULES.DASHBOARD && <DashboardView orders={orders} />}
 
-        {activeModule === MODULES.SETTINGS && <SettingsView />}
+        {activeModule === MODULES.SETTINGS && (
+          <SettingsView onClearAllOrders={handleClearAllOrders} />
+        )}
       </main>
     </div>
   );

@@ -136,8 +136,10 @@ function DeliverySettingsTab({ initialFee, onSave }) {
   );
 }
 
-export default function SettingsView() {
+export default function SettingsView({ onClearAllOrders }) {
   const [activeTab, setActiveTab] = useState('catalog'); // 'catalog' | 'delivery' | 'users' | 'system'
+  const [isConfirmOrdersClearOpen, setIsConfirmOrdersClearOpen] = useState(false);
+  const [isClearingOrders, setIsClearingOrders] = useState(false);
 
   const {
     user: currentUser,
@@ -687,6 +689,74 @@ service cloud.firestore {
                 <span className="text-blue-400 font-bold">CAJERO:</span>
                 <span className="text-zinc-400">Ventas, mesas y pedidos</span>
               </div>
+            </div>
+          </div>
+
+          {/* Mantenimiento de Datos y Pedidos */}
+          {onClearAllOrders && (
+            <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 space-y-3 md:col-span-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Trash2 className="w-4 h-4 text-rose-400" />
+                    <span>Reinicio & Mantenimiento de Comandas</span>
+                  </h4>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Elimina todo el historial de pedidos de la base de datos y de tu navegador para registrar datos limpios desde cero.
+                  </p>
+                </div>
+
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setIsConfirmOrdersClearOpen(true)}
+                  className="shrink-0"
+                >
+                  Vaciar Historial de Pedidos
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal Confirmación de Vaciar Pedidos */}
+      {isConfirmOrdersClearOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-xs"
+            onClick={() => !isClearingOrders && setIsConfirmOrdersClearOpen(false)}
+          />
+          <div className="relative bg-[#141414] border border-zinc-800 rounded-2xl p-5 max-w-md w-full space-y-4 z-10 shadow-2xl">
+            <h3 className="text-base font-black text-white">¿Vaciar todo el historial de pedidos?</h3>
+            <p className="text-xs text-zinc-300">
+              Esta acción eliminará todas las órdenes registradas en Firestore y en el almacenamiento local. Las mesas quedarán disponibles y podrás empezar desde cero.
+            </p>
+            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+              <button
+                type="button"
+                disabled={isClearingOrders}
+                onClick={() => setIsConfirmOrdersClearOpen(false)}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-zinc-800 text-zinc-300 hover:text-white cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isClearingOrders}
+                onClick={async () => {
+                  setIsClearingOrders(true);
+                  try {
+                    await onClearAllOrders();
+                    setIsConfirmOrdersClearOpen(false);
+                  } finally {
+                    setIsClearingOrders(false);
+                  }
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 cursor-pointer"
+              >
+                {isClearingOrders ? 'Eliminando...' : 'Sí, Vaciar Pedidos'}
+              </button>
             </div>
           </div>
         </div>

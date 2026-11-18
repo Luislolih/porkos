@@ -204,22 +204,7 @@ export default function CatalogView() {
     setProdLine(line);
     setProdType(type);
 
-    const isBeverage =
-      prod.marketSubtype === 'BEBIDA' ||
-      prod.marketSubtype === 'JUGO' ||
-      prod.isJuice ||
-      prod.line === 'BEBIDAS_MARKET' ||
-      prod.line === 'BEBIDAS' ||
-      prod.categoryId === 'cat_bebidas' ||
-      Boolean(prod.temperatureConfig?.enabled) ||
-      prod.name?.toLowerCase().includes('jugo') ||
-      prod.name?.toLowerCase().includes('gaseosa') ||
-      prod.name?.toLowerCase().includes('refresco') ||
-      prod.name?.toLowerCase().includes('chicha') ||
-      prod.name?.toLowerCase().includes('agua') ||
-      prod.name?.toLowerCase().includes('cerveza') ||
-      prod.name?.toLowerCase().includes('cola') ||
-      prod.name?.toLowerCase().includes('inka');
+    const isBeverage = isProductBeverage(prod);
 
     const isJuiceProduct = Boolean(
       prod.isJuice ||
@@ -246,7 +231,7 @@ export default function CatalogView() {
     setProdKitchen(line === 'MARKET' ? false : (prod.requiresKitchen ?? true));
     setProdHasPapas(Boolean(prod.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas')));
     setProdHasSalad(Boolean(prod.saladConfig?.enabled || cat === 'cat_clasico' || cat === 'cat_comida'));
-    setProdHasTemperature(Boolean(prod.temperatureConfig?.enabled || isBeverage));
+    setProdHasTemperature(Boolean(isBeverage));
     setProdSelectedCreams(prod.creamsConfig?.availableCreamIds || creams.map((c) => c.id));
     setProdAvailablePackagingIds(prod.availablePackagingIds || []);
     setImageUploadError(null);
@@ -284,16 +269,16 @@ export default function CatalogView() {
       const isMarket = prodType === 'MARKET' || prodLine === 'MARKET' || prodCategory === 'cat_market';
       const isDrink = isMarket
         ? (prodMarketSubtype === 'BEBIDA' || prodMarketSubtype === 'JUGO')
-        : (prodHasTemperature || prodCategory === 'cat_bebidas' || prodIsJuice);
+        : (prodCategory === 'cat_bebidas' || prodIsJuice || prodHasTemperature);
 
       const productPayload = {
         name: prodName.trim(),
         categoryId: prodCategory,
         line: prodLine,
         type: prodType,
-        isJuice: prodIsJuice,
-        juiceConfig: prodIsJuice ? { enabled: true } : null,
-        marketSubtype: prodIsJuice ? 'JUGO' : (isMarket ? prodMarketSubtype : null),
+        isJuice: Boolean(isDrink && prodIsJuice),
+        juiceConfig: isDrink && prodIsJuice ? { enabled: true } : null,
+        marketSubtype: isMarket ? (prodIsJuice ? 'JUGO' : prodMarketSubtype || 'COMIDA') : null,
         price: parseFloat(prodPrice) || 0,
         cost: parseFloat(prodCost) || 0,
         image: cleanImage,
@@ -301,22 +286,22 @@ export default function CatalogView() {
         requiresKitchen: prodType === 'MARKET' ? false : prodKitchen,
         modifiers,
         availablePackagingIds: prodAvailablePackagingIds,
-        saladConfig: prodHasSalad && prodType === 'RESTAURANTE'
+        saladConfig: !isMarket && !isDrink && prodHasSalad && prodType === 'RESTAURANTE'
           ? {
               enabled: true,
               defaultMode: 'CON_ENSALADA',
               ingredients: ['Lechuga', 'Tomate', 'Pepinillo'],
             }
           : null,
-        temperatureConfig: isDrink || prodHasTemperature
+        temperatureConfig: isDrink
           ? {
               enabled: true,
               defaultOption: 'HELADA',
             }
           : null,
         creamsConfig: {
-          enabled: prodType === 'RESTAURANTE' && prodSelectedCreams.length > 0,
-          availableCreamIds: prodType === 'RESTAURANTE' ? prodSelectedCreams : [],
+          enabled: !isMarket && !isDrink && prodType === 'RESTAURANTE' && prodSelectedCreams.length > 0,
+          availableCreamIds: !isMarket && !isDrink && prodType === 'RESTAURANTE' ? prodSelectedCreams : [],
           defaultCreamIds: [],
           defaultMode: 'CUSTOM',
         },
@@ -1479,29 +1464,33 @@ export default function CatalogView() {
             </div>
           )}
 
-          {/* Opción Tipo Jugo / Batido (permite notas de azúcar en comanda) */}
-          <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800">
-            <div>
-              <label className="text-zinc-200 font-bold text-xs cursor-pointer">
-                🍹 ¿Es Tipo Jugo / Bebida Natural?
-              </label>
-              <span className="text-[10px] text-zinc-500 block">
-                Permite elegir en caja: sin azúcar, bajo azúcar, poco azúcar, etc.
-              </span>
+          {/* Opción Tipo Jugo / Batido (permite notas de azúcar en comanda) - Solo para bebidas */}
+          {(prodCategory === 'cat_bebidas' || prodMarketSubtype === 'BEBIDA' || prodMarketSubtype === 'JUGO') && (
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800">
+              <div>
+                <label className="text-zinc-200 font-bold text-xs cursor-pointer">
+                  🍹 ¿Es Tipo Jugo / Bebida Natural?
+                </label>
+                <span className="text-[10px] text-zinc-500 block">
+                  Permite elegir en caja: sin azúcar, bajo azúcar, poco azúcar, etc.
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={prodIsJuice}
+                onChange={(e) => {
+                  setProdIsJuice(e.target.checked);
+                  if (e.target.checked) {
+                    setProdHasTemperature(true);
+                    setProdMarketSubtype('JUGO');
+                  } else {
+                    setProdMarketSubtype('BEBIDA');
+                  }
+                }}
+                className="w-5 h-5 accent-[var(--color-porkos-orange)] cursor-pointer"
+              />
             </div>
-            <input
-              type="checkbox"
-              checked={prodIsJuice}
-              onChange={(e) => {
-                setProdIsJuice(e.target.checked);
-                if (e.target.checked) {
-                  setProdHasTemperature(true);
-                  setProdMarketSubtype('JUGO');
-                }
-              }}
-              className="w-5 h-5 accent-[var(--color-porkos-orange)] cursor-pointer"
-            />
-          </div>
+          )}
 
           {/* Si es restaurante: opción de cocina */}
           {prodType === 'RESTAURANTE' && (

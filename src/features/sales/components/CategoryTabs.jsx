@@ -1,20 +1,33 @@
-import { Utensils, UtensilsCrossed, CupSoda, Store } from 'lucide-react';
+import { Utensils, UtensilsCrossed, CupSoda, Store, Cookie } from 'lucide-react';
+import { SALES_MODES } from '../../../types/constants';
 
-const CATEGORY_TABS = [
+const RESTAURANT_TABS = [
   { id: 'ALL', label: 'TODAS', icon: Utensils },
   { id: 'COMIDA', label: 'COMIDA', icon: UtensilsCrossed },
   { id: 'BEBIDAS', label: 'BEBIDAS', icon: CupSoda },
   { id: 'MARKET', label: 'MARKET', icon: Store },
 ];
 
+const MARKET_TABS = [
+  { id: 'MARKET_ALL', label: 'TODO EL MARKET', icon: Store },
+  { id: 'MARKET_BEBIDAS', label: 'BEBIDAS / SODAS', icon: CupSoda },
+  { id: 'MARKET_SNACKS', label: 'POSTRES & SNACKS', icon: Cookie },
+];
+
 export default function CategoryTabs({
+  salesMode = SALES_MODES.RESTAURANT,
   selectedLine = 'ALL',
   onSelectLine,
 }) {
+  const isMarket = salesMode === SALES_MODES.MARKET;
+  const tabs = isMarket ? MARKET_TABS : RESTAURANT_TABS;
+
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-      {CATEGORY_TABS.map((tab) => {
-        const isSelected = selectedLine === tab.id;
+      {tabs.map((tab) => {
+        const isSelected =
+          selectedLine === tab.id ||
+          (isMarket && tab.id === 'MARKET_ALL' && selectedLine === 'ALL');
         const Icon = tab.icon;
 
         return (

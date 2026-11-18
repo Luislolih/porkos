@@ -94,7 +94,7 @@ export default function SalesHeader({
 
       {/* Lower bar: Modalidades + Mesa ('Elegir') + 'Nombre cliente' a la derecha */}
       {salesMode === SALES_MODES.RESTAURANT && (
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-black/40 p-1.5 rounded-xl border border-zinc-850">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-black/40 p-1.5 rounded-xl border border-zinc-800/80">
           {/* Modalidades */}
           <div className="flex items-center gap-1 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none">
             {modalitiesList.map((m) => {
