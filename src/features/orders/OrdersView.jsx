@@ -406,49 +406,49 @@ export default function OrdersView({ orders = [] }) {
                         {item.quantity}× {item.name}
                       </span>
 
-                      {/* Cremas */}
-                      {item.customization?.creamsSummary && (
-                        <p className="text-[11px] text-orange-400 font-semibold">
-                          Cremas: {item.customization.creamsSummary}
-                        </p>
-                      )}
-
-                      {/* Ensalada */}
+                      {/* 1. Ensalada */}
                       {item.customization?.saladSummary && (
                         <p className="text-[10px] text-emerald-400 font-medium">
                           • {item.customization.saladSummary}
                         </p>
                       )}
 
-                      {/* Papas y Modificadores */}
+                      {/* 2. Papas y Modificadores */}
                       {item.customization?.selectedModifiers?.map((m) => (
                         <p key={m.groupId} className="text-[10px] text-zinc-400">
                           • {m.optionName}
                         </p>
                       ))}
 
-                      {/* Extras */}
+                      {/* 3. Cremas (solo si existen y no es market vacío) */}
+                      {item.customization?.creamsSummary && item.customization.creamsSummary.trim() !== '' && (
+                        <p className="text-[11px] text-orange-400 font-semibold">
+                          Cremas: {item.customization.creamsSummary}
+                        </p>
+                      )}
+
+                      {/* 4. Extras */}
                       {item.customization?.selectedExtras?.map((e) => (
                         <p key={e.id} className="text-[10px] text-amber-300 font-medium">
                           + {e.name}
                         </p>
                       ))}
 
-                      {/* Empaque individual */}
+                      {/* 5. Empaque individual */}
                       {item.customization?.packaging && item.customization.packaging.price > 0 && (
                         <p className="text-[10px] text-blue-300 font-medium">
                           📦 {item.customization.packaging.name}
                         </p>
                       )}
 
-                      {/* Temperatura */}
+                      {/* 6. Temperatura */}
                       {item.customization?.temperature && (
                         <p className="text-[10px] text-cyan-300 font-bold">
-                          {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar / Al Tiempo'}
+                          {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
                         </p>
                       )}
 
-                      {/* Nota */}
+                      {/* 7. Nota */}
                       {item.customization?.itemNotes && (
                         <p className="text-[10px] text-amber-300 italic">
                           &ldquo;{item.customization.itemNotes}&rdquo;

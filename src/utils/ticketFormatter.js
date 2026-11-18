@@ -3,7 +3,20 @@ export function getItemTicketDetails(customization) {
 
   const lines = [];
 
-  // 1. PAPAS: HILO o FRITAS o SIN PAPAS
+  // 1. ENSALADA: COMPLETA / SIN ENSALADA / TOMATE, LECHUGA (1º EN COMANDA Y COCINA)
+  if (customization.saladSummary) {
+    let saladVal = customization.saladSummary;
+    if (saladVal === 'CON ENSALADA COMPLETA') {
+      saladVal = 'COMPLETA';
+    } else if (saladVal === 'SIN ENSALADA') {
+      saladVal = 'SIN ENSALADA';
+    } else if (saladVal.startsWith('SOLO ')) {
+      saladVal = saladVal.replace('SOLO ', '');
+    }
+    lines.push({ label: 'ENSALADA', value: saladVal, type: 'salad' });
+  }
+
+  // 2. PAPAS: HILO o FRITAS o SIN PAPAS (2º EN COMANDA Y COCINA)
   const papasMod = customization.selectedModifiers?.find(
     (m) =>
       m.groupId === 'mod_papas' ||
@@ -40,19 +53,6 @@ export function getItemTicketDetails(customization) {
       });
     }
   });
-
-  // 2. ENSALADA: COMPLETA / SIN ENSALADA / TOMATE, LECHUGA
-  if (customization.saladSummary) {
-    let saladVal = customization.saladSummary;
-    if (saladVal === 'CON ENSALADA COMPLETA') {
-      saladVal = 'COMPLETA';
-    } else if (saladVal === 'SIN ENSALADA') {
-      saladVal = 'SIN ENSALADA';
-    } else if (saladVal.startsWith('SOLO ')) {
-      saladVal = saladVal.replace('SOLO ', '');
-    }
-    lines.push({ label: 'ENSALADA', value: saladVal, type: 'salad' });
-  }
 
   // 3. CREMAS: MAYO, KETCHUP
   if (customization.creamsSummary) {

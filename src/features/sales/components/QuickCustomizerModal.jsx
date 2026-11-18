@@ -51,12 +51,29 @@ function CustomizerForm({
     return initialMods;
   });
 
-  // 3. Cremas: lista dinámica de cremas activas
-  const availableCreams = (catalogCreams || []).filter(
-    (c) => c.active && (product.creamsConfig?.availableCreamIds?.length ? product.creamsConfig.availableCreamIds.includes(c.id) : true)
+  // Identificar si es producto de Market (bebidas, snacks, postres, etc.)
+  const isMarketProduct = Boolean(
+    product.type === 'MARKET' ||
+    product.line === 'MARKET' ||
+    product.categoryId === 'cat_market' ||
+    product.categoryId === 'cat_bebidas' ||
+    product.line === 'BEBIDAS_MARKET' ||
+    product.marketSubtype
   );
 
+  // 3. Cremas: lista dinámica de cremas activas (NUNCA para productos de Market)
+  const availableCreams = isMarketProduct
+    ? []
+    : (catalogCreams || []).filter(
+        (c) =>
+          c.active &&
+          (product.creamsConfig?.availableCreamIds?.length
+            ? product.creamsConfig.availableCreamIds.includes(c.id)
+            : true)
+      );
+
   const [selectedCreams, setSelectedCreams] = useState(() => {
+    if (isMarketProduct) return [];
     if (initialCustomization?.creamsDetail?.selected) {
       return initialCustomization.creamsDetail.selected;
     }
@@ -172,15 +189,19 @@ function CustomizerForm({
 
   // Confirmar
   const handleConfirm = () => {
-    let summary = 'SIN CREMAS';
-    if (selectedCreams.length > 0) {
-      const creamDiminutives = selectedCreams
-        .map((id) => {
-          const c = availableCreams.find((cream) => cream.id === id);
-          return c?.shortName || c?.name || '';
-        })
-        .filter(Boolean);
-      summary = creamDiminutives.join(', ');
+    let summary = '';
+    if (!isMarketProduct) {
+      if (selectedCreams.length > 0) {
+        const creamDiminutives = selectedCreams
+          .map((id) => {
+            const c = availableCreams.find((cream) => cream.id === id);
+            return c?.shortName || c?.name || '';
+          })
+          .filter(Boolean);
+        summary = creamDiminutives.join(', ');
+      } else {
+        summary = 'SIN CREMAS';
+      }
     }
 
     const formattedModifiers = [];
@@ -217,10 +238,12 @@ function CustomizerForm({
     const customization = {
       temperature: hasTemperature ? temperature : null,
       creamsSummary: summary,
-      creamsDetail: {
-        selected: selectedCreams,
-        mode: 'CUSTOM',
-      },
+      creamsDetail: isMarketProduct
+        ? { selected: [], mode: 'NONE' }
+        : {
+            selected: selectedCreams,
+            mode: 'CUSTOM',
+          },
       saladSummary: hasSalad ? (saladMode === 'SIN_ENSALADA' ? 'SIN ENSALADA' : 'CON ENSALADA') : '',
       saladDetail: {
         mode: saladMode,
@@ -456,7 +479,7 @@ function CustomizerForm({
           <div className="grid grid-cols-2 gap-2">
             {[
               { id: 'HELADA', label: '❄️ Helada' },
-              { id: 'SIN_HELAR', label: '🌡️ Sin Helar / Al Tiempo' },
+              { id: 'SIN_HELAR', label: '🌡️ Sin Helar' },
             ].map((tOpt) => (
               <button
                 key={tOpt.id}
