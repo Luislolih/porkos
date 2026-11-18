@@ -15,50 +15,44 @@ import { optimizeProductImage, validateImageFile, formatBytes } from '../utils/i
 export { formatBytes, validateImageFile };
 
 // Cachear en memoria el bucket que funciona para no repetir fallbacks
-let activeStorageInstance = storage;
-let discoveredBucketName = firebaseConfig.storageBucket || `${firebaseConfig.projectId}.firebasestorage.app`;
+let activeStorageInstance = null;
+let discoveredBucketName = null;
 
 /**
  * Obtiene lista de instancias de Storage a probar en orden
  */
 function getStorageCandidates() {
-  const candidates = [];
-
-  // 1. Instancia activa descubierta previamente
-  if (activeStorageInstance) {
-    candidates.push({ instance: activeStorageInstance, name: discoveredBucketName });
+  const projectId = firebaseConfig.projectId || 'porkos-ac37d';
+  const bucketNames = [
+    `${projectId}.appspot.com`,
+    `${projectId}.firebasestorage.app`,
+  ];
+  if (firebaseConfig.storageBucket && !bucketNames.includes(firebaseConfig.storageBucket)) {
+    bucketNames.unshift(firebaseConfig.storageBucket);
   }
 
-  // 2. Bucket por defecto de configuración
-  const defaultBucket = firebaseConfig.storageBucket || `${firebaseConfig.projectId}.firebasestorage.app`;
-  if (defaultBucket !== discoveredBucketName) {
-    candidates.push({ instance: getStorage(app, `gs://${defaultBucket}`), name: defaultBucket });
+  // Si ya descubrimos cuál funciona, ponerlo al inicio
+  if (discoveredBucketName && bucketNames.includes(discoveredBucketName)) {
+    bucketNames.sort((a, b) => (a === discoveredBucketName ? -1 : b === discoveredBucketName ? 1 : 0));
   }
 
-  // 3. Bucket clásico .appspot.com
-  const appspotBucket = `${firebaseConfig.projectId}.appspot.com`;
-  if (appspotBucket !== defaultBucket && appspotBucket !== discoveredBucketName) {
-    candidates.push({ instance: getStorage(app, `gs://${appspotBucket}`), name: appspotBucket });
-  }
-
-  // 4. Bucket nuevo .firebasestorage.app
-  const modernBucket = `${firebaseConfig.projectId}.firebasestorage.app`;
-  if (modernBucket !== defaultBucket && modernBucket !== discoveredBucketName && modernBucket !== appspotBucket) {
-    candidates.push({ instance: getStorage(app, `gs://${modernBucket}`), name: modernBucket });
-  }
-
-  return candidates;
+  return bucketNames.map((name) => ({
+    name,
+    instance: getStorage(app, `gs://${name}`),
+  }));
 }
 
 /**
- * Prueba la conexión con Firebase Storage intentando subir y borrar un blob de prueba de 1 byte
+ * Prueba la conexión con Firebase Storage intentando subir y borrar un blob de prueba
  */
 export async function testStorageConnection() {
   const candidates = getStorageCandidates();
-  const testBlob = new Blob(['1'], { type: 'text/plain' });
-  const testPath = `_test/connection_${Date.now()}.txt`;
+  const testBlob = new Blob(['porkos_test'], { type: 'text/plain' });
+  // Usar ruta products/ para coincidir tanto con reglas globales como con match /products/...
+  const testPath = `products/_test_connection_${Date.now()}.txt`;
 
   let lastError = null;
+  const attempts = [];
 
   for (const candidate of candidates) {
     try {
@@ -66,7 +60,7 @@ export async function testStorageConnection() {
       await uploadBytes(testRef, testBlob, { contentType: 'text/plain' });
       await deleteObject(testRef).catch(() => {});
 
-      // Si funcionó, registrar este bucket como el activo
+      // Si funcionó, registrar este bucket como el activo permanente
       activeStorageInstance = candidate.instance;
       discoveredBucketName = candidate.name;
 
@@ -78,30 +72,28 @@ export async function testStorageConnection() {
       };
     } catch (err) {
       lastError = err;
-      // Si el bucket no existe, continuar con el siguiente candidato
-      if (err.code === 'storage/bucket-not-found' || err.message?.toLowerCase().includes('bucket')) {
-        continue;
-      }
-      // Si es de permisos o CORS, reportarlo de inmediato
-      break;
+      attempts.push({ bucket: candidate.name, code: err.code, message: err.message });
+      // Continuar con el siguiente candidato (por si el otro bucket tiene las reglas activas)
+      continue;
     }
   }
 
   let friendlyMessage = 'No se pudo conectar a Firebase Storage.';
   if (lastError?.code === 'storage/unauthorized') {
-    friendlyMessage = 'Permiso denegado por Reglas de Seguridad en Firebase Console.';
+    friendlyMessage = 'Permiso denegado (storage/unauthorized). En Firebase Console, asegúrate de haber hecho clic en el botón azul "Publicar" (Publish).';
   } else if (lastError?.code === 'storage/bucket-not-found') {
-    friendlyMessage = 'El bucket de Storage aún no ha sido activado en tu Firebase Console.';
+    friendlyMessage = 'El bucket no existe. Haz clic en "Comenzar" (Get Started) en la pestaña Storage de Firebase Console.';
   } else if (lastError?.message?.toLowerCase().includes('cors') || lastError?.name === 'TypeError') {
     friendlyMessage = 'El navegador bloqueó la conexión por políticas de CORS en Google Cloud Storage.';
   }
 
   return {
     success: false,
-    bucket: discoveredBucketName,
+    bucket: discoveredBucketName || candidates[0]?.name,
     message: friendlyMessage,
     error: lastError,
     errorCode: lastError?.code || 'unknown',
+    attempts,
   };
 }
 
@@ -181,10 +173,8 @@ export async function uploadProductImage(file, productId = null) {
       };
     } catch (err) {
       lastError = err;
-      if (err.code === 'storage/bucket-not-found' || err.message?.toLowerCase().includes('bucket')) {
-        continue; // Probar siguiente bucket
-      }
-      break; // Error de permisos o red, detener
+      // Probar el siguiente bucket por si las reglas están en .appspot.com o .firebasestorage.app
+      continue;
     }
   }
 

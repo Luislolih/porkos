@@ -1,30 +1,8 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-
-    // Helper: Usuario autenticado
-    function isAuthenticated() {
-      return request.auth != null && request.auth.token.email != null;
-    }
-
-    // Helper: Verificar si es administrador o propietario en Firestore
-    function isAdminOrOwner() {
-      return isAuthenticated() && (
-        request.auth.token.email == 'admin@porkos.pe' ||
-        firestore.get(/databases/(default)/documents/users/$(request.auth.token.email)).data.role in ['ADMIN', 'OWNER', 'COORDINADOR']
-      );
-    }
-
-    // Reglas para imágenes de productos:
-    // - Lectura: Permitida para visualización de catálogo (POS y clientes)
-    // - Escritura: Solo administradores y coordinadores autorizados
-    // - Guardián Backend: Archivos deben ser imágenes y no exceder 250 KB (garantiza compresión previa obligatoria)
-    match /products/{productId}/{fileName} {
-      allow read: if true;
-      allow write: if isAdminOrOwner()
-        && request.resource.size < 250 * 1024
-        && request.resource.contentType.matches('image/(webp|jpeg|png)');
-      allow delete: if isAdminOrOwner();
+    match /{allPaths=**} {
+      allow read, write: if true;
     }
   }
 }

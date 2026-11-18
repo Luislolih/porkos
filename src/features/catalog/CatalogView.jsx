@@ -2432,13 +2432,27 @@ service cloud.firestore {
               </p>
             </div>
 
+            <div className="bg-amber-950/40 border border-amber-500/40 p-3 rounded-xl text-amber-200 text-xs space-y-1.5">
+              <div className="font-extrabold text-amber-400 flex items-center gap-1.5">
+                <span>⚠️</span> ¿Te sale "Permiso Denegado"? Revisa estos 2 puntos clave:
+              </div>
+              <ul className="list-disc pl-4 space-y-1 text-zinc-300 text-[11px]">
+                <li>
+                  <strong className="text-white">¿Hiciste clic en "Publicar" (Publish)?</strong> Luego de pegar el código en Firebase Console, es <strong>obligatorio</strong> hacer clic en el botón azul <strong className="text-amber-300">Publicar</strong> arriba a la derecha. Si no lo presionas, Firebase mantiene bloqueado el acceso.
+                </li>
+                <li>
+                  <strong className="text-white">Regla universal recomendada:</strong> Usa <code className="bg-black/60 px-1.5 py-0.5 rounded text-amber-300">match /{'{allPaths=**}'}</code> con <code className="bg-black/60 px-1.5 py-0.5 rounded text-amber-300">allow read, write: if true;</code> para habilitar todas las carpetas de subida.
+                </li>
+              </ul>
+            </div>
+
             <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-black text-amber-400">Paso 2: Copiar y Publicar las Reglas</span>
                 <button
                   type="button"
                   onClick={() => {
-                    const rulesText = `rules_version = '2';\nservice firebase.storage {\n  match /b/{bucket}/o {\n    match /products/{allPaths=**} {\n      allow read: if true;\n      allow write: if true;\n      allow delete: if true;\n    }\n  }\n}`;
+                    const rulesText = `rules_version = '2';\nservice firebase.storage {\n  match /b/{bucket}/o {\n    match /{allPaths=**} {\n      allow read, write: if true;\n    }\n  }\n}`;
                     navigator.clipboard.writeText(rulesText);
                     setHasCopiedStorageRules(true);
                     setTimeout(() => setHasCopiedStorageRules(false), 3000);
@@ -2455,10 +2469,8 @@ service cloud.firestore {
 {`rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /products/{allPaths=**} {
-      allow read: if true;
-      allow write: if true;
-      allow delete: if true;
+    match /{allPaths=**} {
+      allow read, write: if true;
     }
   }
 }`}
