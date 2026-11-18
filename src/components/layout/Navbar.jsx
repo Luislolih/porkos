@@ -125,7 +125,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
                     </span>
                   </div>
                   <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     Online
                   </span>
                 </div>

@@ -8,6 +8,7 @@ import ProductCard from './components/ProductCard';
 import QuickCustomizerModal from './components/QuickCustomizerModal';
 import CartView from './components/CartView';
 import QuickPaymentModal from './components/QuickPaymentModal';
+import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
 import { formatCurrency } from '../../utils/formatters';
 import { getNextOrderNumber } from '../../utils/orderNumber';
 import { isProductBeverage, isProductMarket, isProductFood } from '../../utils/productCategories';
@@ -556,6 +557,9 @@ export default function SalesView({
         total={total}
         onConfirmPayment={handleConfirmPayment}
       />
+
+      {/* Flecha flotante para subir al inicio en listas largas */}
+      <ScrollToTopButton />
     </div>
   );
 }

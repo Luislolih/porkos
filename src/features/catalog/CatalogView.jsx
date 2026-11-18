@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import {
   UtensilsCrossed,
   Plus,
@@ -14,10 +14,16 @@ import {
 } from 'lucide-react';
 import { useCatalog } from '../../context/useCatalog';
 import { formatCurrency } from '../../utils/formatters';
-import { uploadProductImage } from '../../services/storageService';
+import {
+  uploadProductImage,
+  deleteProductImageFromStorage,
+  calculateCatalogStorageStats,
+  formatBytes,
+} from '../../services/storageService';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
+import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
 import { isProductBeverage } from '../../utils/productCategories';
 
 export default function CatalogView() {
@@ -52,6 +58,9 @@ export default function CatalogView() {
     deletePackaging,
     togglePackagingActive,
   } = useCatalog();
+
+  // Estadísticas globales de optimización y almacenamiento de imágenes
+  const catalogStorageStats = useMemo(() => calculateCatalogStorageStats(products), [products]);
 
   const [activeTab, setActiveTab] = useState('products'); // 'products' | 'categories' | 'creams' | 'extras' | 'packagings'
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
@@ -93,6 +102,9 @@ export default function CatalogView() {
   // Estados de carga de foto
   const fileInputRef = useRef(null);
   const [imagePreview, setImagePreview] = useState('');
+  const [prodThumbnailUrl, setProdThumbnailUrl] = useState('');
+  const [prodImageMetadata, setProdImageMetadata] = useState(null);
+  const [imageStats, setImageStats] = useState(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imageUploadError, setImageUploadError] = useState(null);
   const [imageStorageSource, setImageStorageSource] = useState(null); // 'firebase' | 'local' | null
@@ -134,11 +146,24 @@ export default function CatalogView() {
       const result = await uploadProductImage(file, editingProduct?.id);
       if (result?.url) {
         setProdImage(result.url);
+        setProdThumbnailUrl(result.thumbnailUrl || result.url);
+        setProdImageMetadata(result.imageMetadata || null);
+        setImageStats({
+          originalSize: result.originalSize,
+          optimizedSize: result.optimizedSize,
+          reductionPercent: result.reductionPercent,
+        });
         setImagePreview(result.url);
         setImageStorageSource('firebase');
       } else if (result?.localPreviewUrl) {
-        // En Plan Spark (sin Storage): mantenemos la vista previa local sin persistir Base64 en Firestore
         setProdImage('');
+        setProdThumbnailUrl('');
+        setProdImageMetadata(null);
+        setImageStats({
+          originalSize: result.originalSize,
+          optimizedSize: result.optimizedSize,
+          reductionPercent: result.reductionPercent,
+        });
         setImagePreview(result.localPreviewUrl);
         setImageStorageSource('local_preview');
       }
@@ -159,6 +184,9 @@ export default function CatalogView() {
 
   const handleRemovePhoto = () => {
     setProdImage('');
+    setProdThumbnailUrl('');
+    setProdImageMetadata(null);
+    setImageStats(null);
     setImagePreview('');
     setImageStorageSource(null);
     setImageUploadError(null);
@@ -177,6 +205,9 @@ export default function CatalogView() {
     setProdPrice('');
     setProdCost('');
     setProdImage('');
+    setProdThumbnailUrl('');
+    setProdImageMetadata(null);
+    setImageStats(null);
     setImagePreview('');
     setImageStorageSource(null);
     setProdDescription('');
@@ -221,6 +252,9 @@ export default function CatalogView() {
     setProdCost((prod.cost || '').toString());
     const existingImg = prod.image || '';
     setProdImage(existingImg);
+    setProdThumbnailUrl(prod.thumbnailUrl || existingImg);
+    setProdImageMetadata(prod.imageMetadata || null);
+    setImageStats(null);
     setImagePreview(existingImg);
     setImageStorageSource(
       existingImg.startsWith('http')
@@ -266,6 +300,16 @@ export default function CatalogView() {
         cleanImage = '';
       }
 
+      // Si se reemplazó la foto y la versión anterior estaba en Firebase Storage, limpiar archivo huérfano
+      if (
+        editingProduct &&
+        editingProduct.image &&
+        editingProduct.image !== cleanImage &&
+        (editingProduct.imageMetadata || editingProduct.image.includes('firebasestorage'))
+      ) {
+        deleteProductImageFromStorage(editingProduct.imageMetadata || editingProduct.image).catch(() => {});
+      }
+
       const isMarket = prodType === 'MARKET' || prodLine === 'MARKET' || prodCategory === 'cat_market';
       const isDrink = isMarket
         ? (prodMarketSubtype === 'BEBIDA' || prodMarketSubtype === 'JUGO')
@@ -282,6 +326,8 @@ export default function CatalogView() {
         price: parseFloat(prodPrice) || 0,
         cost: parseFloat(prodCost) || 0,
         image: cleanImage,
+        thumbnailUrl: prodThumbnailUrl || cleanImage,
+        imageMetadata: prodImageMetadata || (cleanImage === editingProduct?.image ? editingProduct?.imageMetadata : null),
         description: prodDescription.trim(),
         requiresKitchen: prodType === 'MARKET' ? false : prodKitchen,
         modifiers,
@@ -747,6 +793,22 @@ export default function CatalogView() {
           {/* ============================================================== */}
       {activeTab === 'products' && (
         <>
+          {/* Banner de optimización y capacidad de almacenamiento de fotos */}
+          <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-black border border-zinc-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs shadow-md">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="text-zinc-200 font-bold">Optimización de Imágenes:</span>
+              <span className="text-emerald-400 font-mono font-black text-sm">
+                {catalogStorageStats.totalFormatted}
+              </span>
+              <span className="text-zinc-400 text-[11px]">
+                ({catalogStorageStats.countWithImages} fotos optimizadas WebP • ~{catalogStorageStats.averageFormatted} c/u)
+              </span>
+            </div>
+            <div className="text-[11px] text-zinc-400">
+              Cuota Firebase: <span className="text-white font-mono font-bold">{catalogStorageStats.capacityPercent}%</span> de 5 GB libres
+            </div>
+          </div>
           {products.length === 0 ? (
             <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto space-y-3.5 my-6">
               <div className="w-14 h-14 rounded-2xl bg-orange-500/10 text-[var(--color-porkos-orange)] border border-orange-500/20 flex items-center justify-center">
@@ -779,6 +841,7 @@ export default function CatalogView() {
                 <div className="flex gap-3 items-start">
                   <ProductThumbnail
                     src={p.image}
+                    thumbnailUrl={p.thumbnailUrl}
                     name={p.name}
                     isBeverage={isProductBeverage(p)}
                     className="w-16 h-16"
@@ -789,9 +852,16 @@ export default function CatalogView() {
                     <h4 className="font-bold text-sm text-white truncate">
                       {p.name}
                     </h4>
-                    <span className="text-sm text-[var(--color-porkos-orange)] font-extrabold block mt-0.5">
-                      {formatCurrency(p.price)}
-                    </span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-sm text-[var(--color-porkos-orange)] font-extrabold">
+                        {formatCurrency(p.price)}
+                      </span>
+                      {p.imageMetadata?.sizeBytes && (
+                        <span className="text-[10px] text-zinc-400 font-mono bg-black/40 px-1.5 py-0.2 rounded border border-zinc-800">
+                          {formatBytes(p.imageMetadata.sizeBytes)}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex flex-wrap gap-1 mt-1 text-[10px]">
                       <span className="bg-zinc-800 text-zinc-300 px-1.5 py-0.2 rounded font-bold uppercase">
                         {p.type}
@@ -856,6 +926,9 @@ export default function CatalogView() {
                       type="button"
                       onClick={() => {
                         if (confirm(`¿Seguro que deseas eliminar "${p.name}"?`)) {
+                          if (p.imageMetadata || p.image) {
+                            deleteProductImageFromStorage(p.imageMetadata || p.image).catch(() => {});
+                          }
                           deleteProduct(p.id);
                         }
                       }}
@@ -1533,13 +1606,14 @@ export default function CatalogView() {
             </div>
           </div>
 
-          {/* Carga y Gestión de Fotografía */}
+          {/* Carga y Gestión de Fotografía con Optimización Inteligente */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-zinc-300 font-bold text-xs">
-                URL de Imagen Web (Opcional - Sincronizada en la nube)
+              <label className="text-zinc-300 font-bold text-xs flex items-center gap-1.5">
+                <Camera className="w-4 h-4 text-[var(--color-porkos-orange)]" />
+                Fotografía del Producto (WebP Optimizado)
               </label>
-              {prodImage && (
+              {(prodImage || imagePreview) && (
                 <button
                   type="button"
                   onClick={handleRemovePhoto}
@@ -1557,64 +1631,102 @@ export default function CatalogView() {
               onChange={(e) => {
                 const val = e.target.value.trim();
                 setProdImage(val);
+                setProdThumbnailUrl(val);
                 setImagePreview(val);
+                setProdImageMetadata(null);
+                setImageStats(null);
                 setImageStorageSource(val.startsWith('http') ? 'web_url' : null);
               }}
-              placeholder="https://ejemplo.com/hamburguesa.jpg (Cloudinary, Imgur, direct link)"
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-mono placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              placeholder="https://ejemplo.com/hamburguesa.webp (URL directa opcional)"
+              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
 
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               onChange={handleFileSelect}
               className="hidden"
             />
 
             {imagePreview ? (
-              <div className="relative rounded-xl overflow-hidden border border-zinc-700 bg-black/60 group">
-                <img
-                  src={imagePreview}
-                  alt="Vista previa plato"
-                  className="w-full h-40 object-cover"
-                />
-                <div className="absolute top-2 right-2 flex items-center gap-1.5">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="danger"
-                    onClick={handleRemovePhoto}
-                    icon={Trash2}
-                  >
-                    Quitar
-                  </Button>
+              <div className="space-y-2">
+                <div className="relative rounded-xl overflow-hidden border border-zinc-700 bg-black/60 group">
+                  <img
+                    src={imagePreview}
+                    alt="Vista previa plato"
+                    className="w-full h-44 object-cover"
+                  />
+                  <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="danger"
+                      onClick={handleRemovePhoto}
+                      icon={Trash2}
+                    >
+                      Quitar
+                    </Button>
+                  </div>
+
+                  {isUploadingImage && (
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-xs flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-7 h-7 text-[var(--color-porkos-orange)] animate-spin" />
+                      <span className="text-xs font-bold text-white">
+                        Optimizando en navegador y subiendo...
+                      </span>
+                      <span className="text-[10px] text-zinc-400">
+                        Generando WebP 640px y Miniatura 240px
+                      </span>
+                    </div>
+                  )}
                 </div>
+
+                {/* Badge comparativo de compresión inteligente */}
+                {imageStats && (
+                  <div className="bg-emerald-950/30 border border-emerald-500/30 p-2.5 rounded-xl text-xs space-y-1">
+                    <div className="flex items-center justify-between font-bold">
+                      <span className="text-zinc-300">Compresión Inteligente WebP:</span>
+                      <span className="text-emerald-400 font-mono font-black text-sm">
+                        -{imageStats.reductionPercent}% Reducción
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-[11px] text-zinc-400 font-mono">
+                      <span>Original: {formatBytes(imageStats.originalSize)}</span>
+                      <span className="text-white font-bold">
+                        Optimizado: {formatBytes(imageStats.optimizedSize)} (640px + Miniatura)
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploadingImage}
-                className="w-full h-20 rounded-xl border-2 border-dashed border-zinc-800 hover:border-zinc-700 bg-zinc-900/30 hover:bg-zinc-900/60 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer p-3 group"
+                className="w-full h-24 rounded-xl border-2 border-dashed border-zinc-800 hover:border-zinc-700 bg-zinc-900/30 hover:bg-zinc-900/60 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer p-3 group"
               >
-                <Camera className="w-5 h-5 text-zinc-500 group-hover:text-[var(--color-porkos-orange)] transition-colors" />
-                <span className="text-[11px] font-bold text-zinc-400 group-hover:text-zinc-200">
-                  O seleccionar archivo desde tu galería / PC para vista previa local
+                <Camera className="w-6 h-6 text-zinc-500 group-hover:text-[var(--color-porkos-orange)] transition-colors" />
+                <span className="text-xs font-bold text-zinc-300 group-hover:text-white">
+                  Subir fotografía desde tu dispositivo
+                </span>
+                <span className="text-[10px] text-zinc-500 text-center">
+                  Compresión automática a WebP (640px, ~50-90 KB). La imagen original nunca se sube a Firebase.
                 </span>
               </button>
             )}
 
             {/* Mensajes informativos de imagen */}
-            {imageStorageSource === 'web_url' && (
+            {imageStorageSource === 'firebase' && (
               <p className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
-                ✓ Enlace web válido
+                ✓ Foto optimizada y guardada en Firebase Storage
               </p>
             )}
 
             {imageStorageSource === 'local_preview' && (
               <p className="text-[10px] text-amber-400 font-medium">
-                ⓘ Vista previa local
+                ⓘ Vista previa local (WebP comprimido en navegador)
               </p>
             )}
 
@@ -2214,6 +2326,9 @@ service cloud.firestore {
           </div>
         </form>
       </Modal>
+
+      {/* Flecha flotante para subir al inicio en listas largas */}
+      <ScrollToTopButton />
     </div>
   );
 }

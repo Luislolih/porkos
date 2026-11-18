@@ -134,7 +134,7 @@ export default function CartView({
 
           {/* Exigir número de mesa obligatorio si modalidad es MESA */}
           {modality === 'MESA' && !selectedTable && (
-            <div className="bg-amber-950/40 border border-amber-500/50 p-2.5 rounded-xl space-y-1.5 text-xs animate-pulse">
+            <div className="bg-amber-950/40 border border-amber-500/50 p-2.5 rounded-xl space-y-1.5 text-xs">
               <div className="flex items-center gap-1.5 text-amber-300 font-extrabold text-[11px]">
                 <Utensils className="w-3.5 h-3.5 text-amber-400" />
                 <span>⚠️ Mesa Requerida: Selecciona la mesa para continuar *</span>
@@ -630,7 +630,7 @@ export default function CartView({
                 icon={Flame}
                 className={`text-xs sm:text-sm font-black py-3 ${
                   modality === 'MESA' && !selectedTable
-                    ? 'bg-amber-600 hover:bg-amber-500 text-black border border-amber-400 animate-pulse'
+                    ? 'bg-amber-600 hover:bg-amber-500 text-black border border-amber-400'
                     : 'bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20'
                 }`}
               >

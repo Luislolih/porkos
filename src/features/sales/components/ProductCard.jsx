@@ -35,6 +35,7 @@ export default function ProductCard({
       <div className="relative h-28 sm:h-32 w-full overflow-hidden bg-zinc-900">
         <ProductThumbnail
           src={product.image}
+          thumbnailUrl={product.thumbnailUrl}
           name={product.name}
           isBeverage={isBeverage}
           className="w-full h-full object-cover rounded-none transition-transform duration-300 group-hover:scale-105"

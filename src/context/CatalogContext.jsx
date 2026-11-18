@@ -70,9 +70,22 @@ function sanitizeProduct(prod) {
   } else {
     cleanImage = '';
   }
+
+  let cleanThumb = prod.thumbnailUrl || '';
+  if (typeof cleanThumb === 'string') {
+    cleanThumb = cleanThumb.trim();
+    if (!cleanThumb.startsWith('http://') && !cleanThumb.startsWith('https://')) {
+      cleanThumb = '';
+    }
+  } else {
+    cleanThumb = '';
+  }
+
   return normalizeProductCategory({
     ...prod,
     image: cleanImage,
+    thumbnailUrl: cleanThumb || cleanImage,
+    imageMetadata: prod.imageMetadata && typeof prod.imageMetadata === 'object' ? prod.imageMetadata : null,
   });
 }
 
