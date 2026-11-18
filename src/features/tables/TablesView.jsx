@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Grid2X2, Clock, Plus, CheckCircle, ShoppingBag, Utensils, Edit3 } from 'lucide-react';
 import { formatCurrency, formatElapsedTime } from '../../utils/formatters';
 import QuickPaymentModal from '../sales/components/QuickPaymentModal';
@@ -11,6 +11,13 @@ export default function TablesView({
   onEditTableOrder,
 }) {
   const [closingOrder, setClosingOrder] = useState(null);
+  const [, setTick] = useState(0);
+
+  // Re-evaluar tiempos transcurridos de mesas cada 20 segundos
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 20000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleOpenCloseModal = (table, tableOrders, total) => {
     setClosingOrder({

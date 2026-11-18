@@ -18,8 +18,21 @@ export function formatFirestoreDate(val) {
   if (!val) return new Date();
   if (val instanceof Date) return val;
   if (val instanceof Timestamp) return val.toDate();
+  if (typeof val.toDate === 'function') {
+    try {
+      const d = val.toDate();
+      if (!isNaN(d.getTime())) return d;
+    } catch {
+      // fallback
+    }
+  }
+  if (typeof val.seconds === 'number') {
+    return new Date(val.seconds * 1000 + (val.nanoseconds ? Math.floor(val.nanoseconds / 1000000) : 0));
+  }
+  if (typeof val._seconds === 'number') {
+    return new Date(val._seconds * 1000 + (val._nanoseconds ? Math.floor(val._nanoseconds / 1000000) : 0));
+  }
   if (typeof val === 'number') return new Date(val);
-  if (typeof val.toDate === 'function') return val.toDate();
   if (typeof val === 'string') {
     const d = new Date(val);
     if (!isNaN(d.getTime())) return d;
@@ -70,11 +83,18 @@ export async function saveOrderToFirestore(orderData) {
     const orderDocId = orderData.orderNumber;
     const docRef = doc(db, 'orders', orderDocId);
 
-    const cleanData = sanitizePayload({
-      ...orderData,
-      createdAt: orderData.createdAt instanceof Date ? Timestamp.fromDate(orderData.createdAt) : serverTimestamp(),
+    // Limpiar campos undefined del payload sin destruir clases Timestamp
+    const sanitized = sanitizePayload(orderData);
+
+    const validCreatedAt = orderData.createdAt instanceof Date
+      ? orderData.createdAt
+      : formatFirestoreDate(orderData.createdAt);
+
+    const cleanData = {
+      ...sanitized,
+      createdAt: Timestamp.fromDate(validCreatedAt),
       updatedAt: serverTimestamp(),
-    });
+    };
 
     await setDoc(docRef, cleanData, { merge: true });
     return { success: true };
@@ -398,11 +418,16 @@ export function subscribeToExpenses(onUpdate, onError) {
 export async function saveExpenseToFirestore(expense) {
   try {
     const docRef = doc(db, 'expenses', expense.id);
-    const cleanData = sanitizePayload({
-      ...expense,
-      date: expense.date instanceof Date ? Timestamp.fromDate(expense.date) : serverTimestamp(),
+    const sanitized = sanitizePayload(expense);
+    const validDate = expense.date instanceof Date
+      ? expense.date
+      : formatFirestoreDate(expense.date);
+
+    const cleanData = {
+      ...sanitized,
+      date: Timestamp.fromDate(validDate),
       createdAt: serverTimestamp(),
-    });
+    };
     await setDoc(docRef, cleanData);
     return true;
   } catch (err) {

@@ -323,19 +323,6 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
             </button>
           );
         })}
-
-        {/* 5th Button: Menú Completo */}
-        <button
-          type="button"
-          onClick={() => setIsMobileMenuOpen(true)}
-          className={`
-            flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all relative cursor-pointer
-            ${isMobileMenuOpen ? 'text-[var(--color-porkos-orange)] font-bold' : 'text-zinc-400 hover:text-zinc-200'}
-          `}
-        >
-          <Menu className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5 tracking-tight">Menú</span>
-        </button>
       </nav>
     </>
   );

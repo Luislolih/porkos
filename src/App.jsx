@@ -23,6 +23,7 @@ import {
   settleOrderInFirestore,
   clearAllOrdersFromFirestore,
 } from './services/firestoreService';
+import { parseToDate } from './utils/formatters';
 import { Flame } from 'lucide-react';
 
 function saveOrdersLocal(ordersList) {
@@ -46,10 +47,17 @@ function MainApp() {
       const saved = localStorage.getItem('porkos_orders');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return parsed.map((o) => ({
-          ...o,
-          createdAt: o.createdAt ? new Date(o.createdAt) : new Date(),
-        }));
+        return parsed.map((o) => {
+          const hasKitchenItems = o.items?.some((i) => i.requiresKitchen);
+          const isSoloMarket = o.modality === 'MARKET' || !hasKitchenItems;
+          const isTable = o.modality === 'MESA' || Boolean(o.tableId);
+          return {
+            ...o,
+            status: isSoloMarket ? 'ENTREGADO' : o.status,
+            paymentStatus: isTable ? (o.paymentStatus || 'PENDING') : 'PAID',
+            createdAt: parseToDate(o.createdAt) || new Date(),
+          };
+        });
       }
       return [];
     } catch {
@@ -63,7 +71,29 @@ function MainApp() {
     const unsubscribe = subscribeToOrders(
       (remoteOrders) => {
         if (remoteOrders && remoteOrders.length > 0) {
-          const sorted = [...remoteOrders].sort((a, b) => {
+          const normalized = remoteOrders.map((o) => {
+            const hasKitchenItems = o.items?.some((i) => i.requiresKitchen);
+            const isSoloMarket = o.modality === 'MARKET' || !hasKitchenItems;
+            const isTable = o.modality === 'MESA' || Boolean(o.tableId);
+            const correctedStatus = isSoloMarket && (o.status === 'PENDIENTE' || o.status === 'PREPARANDO')
+              ? 'ENTREGADO'
+              : o.status;
+            const correctedPayment = isTable ? (o.paymentStatus || 'PENDING') : 'PAID';
+
+            // Si cambió de estado porque era solo market en cocina, persistir corrección en Firestore
+            if (correctedStatus !== o.status && o.orderNumber) {
+              updateOrderStatusInFirestore(o.orderNumber, 'ENTREGADO');
+            }
+
+            return {
+              ...o,
+              status: correctedStatus,
+              paymentStatus: correctedPayment,
+              createdAt: parseToDate(o.createdAt) || (o.createdAt instanceof Date ? o.createdAt : new Date()),
+            };
+          });
+
+          const sorted = [...normalized].sort((a, b) => {
             const timeA = a.createdAt?.getTime ? a.createdAt.getTime() : new Date(a.createdAt || 0).getTime();
             const timeB = b.createdAt?.getTime ? b.createdAt.getTime() : new Date(b.createdAt || 0).getTime();
             if (!isNaN(timeA) && !isNaN(timeB) && timeB !== timeA) return timeB - timeA;
@@ -98,7 +128,7 @@ function MainApp() {
     }));
   }, [activeTableIds]);
 
-  // 3. Manejar creación de comanda: cada pedido es individual y entra siempre en estado PENDIENTE
+  // 3. Manejar creación de comanda: cada pedido es individual
   const handleOrderCreated = async (newOrder) => {
     // Exigir número de mesa si la modalidad es MESA
     if (newOrder.modality === 'MESA' && !newOrder.tableId) {
@@ -106,11 +136,15 @@ function MainApp() {
       return;
     }
 
+    const isTableModality = newOrder.modality === 'MESA' || Boolean(newOrder.tableId);
+    const hasKitchenItems = newOrder.items?.some((i) => i.requiresKitchen);
+    const isSoloMarket = newOrder.modality === 'MARKET' || !hasKitchenItems;
+
     const cleanOrder = {
       ...newOrder,
-      status: newOrder.status || 'PENDIENTE',
-      paymentStatus: newOrder.paymentStatus || 'PENDING',
-      createdAt: newOrder.createdAt instanceof Date ? newOrder.createdAt : new Date(),
+      status: isSoloMarket ? 'ENTREGADO' : (newOrder.status || 'PENDIENTE'),
+      paymentStatus: isTableModality ? (newOrder.paymentStatus || 'PENDING') : 'PAID',
+      createdAt: newOrder.createdAt instanceof Date ? newOrder.createdAt : parseToDate(newOrder.createdAt) || new Date(),
     };
 
     // Actualización optimista local

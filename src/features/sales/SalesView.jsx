@@ -234,13 +234,17 @@ export default function SalesView({
       }
     }
 
+    const hasKitchenItems = items.some((i) => i.requiresKitchen);
+    const isMarketSale = salesMode === SALES_MODES.MARKET || !hasKitchenItems;
+    const isTable = modality === 'MESA' || modality === ORDER_MODALITIES.MESA?.id;
+
     const orderData = {
-      orderNumber: getNextOrderNumber(orders, 'P'),
-      modality,
-      status: 'PENDIENTE',
-      paymentStatus: 'PENDING',
-      tableId: selectedTable?.id || null,
-      tableName: selectedTable?.label || null,
+      orderNumber: getNextOrderNumber(orders, isMarketSale ? 'M' : 'P'),
+      modality: isMarketSale && salesMode === SALES_MODES.MARKET ? 'MARKET' : modality,
+      status: isMarketSale ? 'ENTREGADO' : 'PENDIENTE',
+      paymentStatus: isTable ? 'PENDING' : 'PAID',
+      tableId: isTable ? (selectedTable?.id || null) : null,
+      tableName: isTable ? (selectedTable?.label || null) : null,
       customerName: (customerName?.trim() || customer.name?.trim()) || null,
       customer: modality === 'DELIVERY' ? { ...customer, name: customerName?.trim() || customer.name?.trim() || '' } : null,
       items: [...items],
@@ -266,7 +270,9 @@ export default function SalesView({
     clearCart();
     setIsMobileCartOpen(false);
     showToast(
-      isAddingToOpenTable
+      isMarketSale
+        ? `Venta ${orderData.orderNumber} entregada`
+        : isAddingToOpenTable
         ? `Comanda ${orderData.orderNumber} enviada a Cocina (${selectedTable.label})`
         : `Comanda ${orderData.orderNumber} enviada a Cocina`
     );

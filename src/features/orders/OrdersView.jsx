@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Eye,
@@ -415,6 +415,13 @@ export default function OrdersView({
   const [editingModalOrder, setEditingModalOrder] = useState(null);
   const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [, setTick] = useState(0);
+
+  // Actualizar tiempos transcurridos en tiempo real cada 20 segundos
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 20000);
+    return () => clearInterval(timer);
+  }, []);
 
   const filteredOrders = useMemo(() => {
     const list = orders.filter((o) => {
@@ -624,7 +631,9 @@ export default function OrdersView({
         ) : (
           filteredOrders.map((order) => {
             const statusConf = ORDER_STATUS[order.status] || {};
-            const payConf = PAYMENT_STATUS[order.paymentStatus] || {};
+            const isTable = order.modality === 'MESA' || Boolean(order.tableId);
+            const effectivePaymentStatus = isTable ? (order.paymentStatus || 'PENDING') : 'PAID';
+            const payConf = PAYMENT_STATUS[effectivePaymentStatus] || {};
             const isFinished = order.status === 'ENTREGADO' || order.status === 'CANCELADO';
 
             return (
@@ -705,7 +714,7 @@ export default function OrdersView({
                         payConf.badgeClass || 'text-zinc-400 bg-zinc-800'
                       }`}
                     >
-                      {payConf.label || order.paymentStatus}
+                      {payConf.label || effectivePaymentStatus}
                     </span>
                   </div>
 

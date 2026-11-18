@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Clock,
   Users,
@@ -18,15 +18,21 @@ import { isProductBeverage } from '../../utils/productCategories';
 
 export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
   const [activeTab, setActiveTab] = useState('PENDIENTE');
+  const [, setTick] = useState(0);
+
+  // Actualizar tiempos transcurridos en tiempo real cada 15 segundos
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 15000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Identificador de bebidas / refrescos para entrega en cocina y despacho
   const isBeverageItem = (item) => isProductBeverage(item);
 
-  // Filtrar pedidos que tengan productos que requieran cocina o bebidas y no estén cancelados ni entregados
+  // Filtrar pedidos que tengan productos que requieran cocina y no estén cancelados ni entregados
   const activeKitchenOrders = orders.filter((o) => {
     const hasKitchenItems = o.items?.some((i) => i.requiresKitchen);
-    const hasBeverages = o.items?.some((i) => isBeverageItem(i));
-    return (hasKitchenItems || hasBeverages) && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO';
+    return hasKitchenItems && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO';
   });
 
   // Ordenar comandas de cocina por orden de llegada (FIFO: Primero en llegar, primero en atender)
@@ -60,8 +66,8 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
     }
   };
 
-  // Renderizador de cada ticket de cocina
-  const renderOrderCard = (order, currentStatus) => {
+  // Renderizador de cada ticket de cocina con indicación clara del turno de llegada
+  const renderOrderCard = (order, currentStatus, queueIndex) => {
     const ModalityIcon = getModalityIcon(order.modality);
     const isDelayed = isOrderDelayed(order.createdAt, 12);
     const kitchenItems = order.items?.filter((item) => item.requiresKitchen) || [];
@@ -72,57 +78,41 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
       <div
         key={order.orderNumber}
         className={`
-          bg-zinc-900/90 border rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between gap-3 shadow-lg transition-all
+          bg-[#141414] border rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between gap-3 shadow-lg transition-all
           ${
             currentStatus === 'PREPARANDO'
-              ? 'border-zinc-700 border-t-4 border-t-[var(--color-porkos-orange)]'
+              ? 'border-amber-500/40 ring-1 ring-amber-500/20'
               : currentStatus === 'LISTO'
-              ? 'border-zinc-700 border-t-4 border-t-emerald-500'
-              : 'border-zinc-800 border-t-4 border-t-zinc-600'
+              ? 'border-emerald-500/40 ring-1 ring-emerald-500/20'
+              : isDelayed
+              ? 'border-rose-500/40 ring-1 ring-rose-500/20'
+              : 'border-zinc-800/90 hover:border-zinc-700'
           }
         `}
       >
-        {/* Cabecera del Ticket */}
-        <div className="space-y-1.5 pb-2.5 border-b border-zinc-800">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                {order.orderNumber}
-              </span>
-
-              {/* Distintivo de Modalidad Destacado */}
-              {order.modality === 'PARA_LLEVAR' ? (
-                <span className="text-xs bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-lg font-black flex items-center gap-1.5 border border-amber-500/40 shadow-sm">
-                  <ShoppingBag className="w-3.5 h-3.5 text-amber-400" />
-                  <span>PARA LLEVAR</span>
-                </span>
-              ) : order.modality === 'DELIVERY' ? (
-                <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded-lg font-black flex items-center gap-1.5 border border-emerald-500/40 shadow-sm">
-                  <Bike className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>DELIVERY</span>
-                </span>
-              ) : order.modality === 'CONSUMO_EXTERNO' ? (
-                <span className="text-xs bg-purple-500/20 text-purple-300 px-2.5 py-1 rounded-lg font-black flex items-center gap-1.5 border border-purple-500/40 shadow-sm">
-                  <span>🍽️</span>
-                  <span>IR COMIENDO</span>
-                </span>
-              ) : (
-                <span className="text-xs bg-zinc-800/90 text-zinc-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 border border-zinc-700/60">
-                  <ModalityIcon className="w-3.5 h-3.5 text-zinc-400" />
-                  <span>{order.tableName || order.modality}</span>
+        {/* Cabecera del Ticket: Turno en cola, Código de Comanda y Tiempo */}
+        <div className="space-y-2 pb-2.5 border-b border-zinc-800/80">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {queueIndex !== undefined && (
+                <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-zinc-800 text-zinc-300 border border-zinc-700/80 shrink-0">
+                  #{queueIndex}
                 </span>
               )}
+              <span className="text-xl sm:text-2xl font-black text-white tracking-tight truncate">
+                {order.orderNumber}
+              </span>
             </div>
 
             {/* Temporizador */}
             <div
-              className={`flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-lg border ${
+              className={`flex items-center gap-1.5 text-xs font-bold px-2 py-0.5 rounded-lg border shrink-0 ${
                 isDelayed
-                  ? 'bg-rose-950/60 text-rose-300 border-rose-800/80'
-                  : 'bg-zinc-800 text-zinc-300 border-zinc-700/60'
+                  ? 'bg-rose-950/40 text-rose-300 border-rose-800/80'
+                  : 'bg-zinc-900 text-zinc-300 border-zinc-800'
               }`}
             >
-              <Clock className="w-3 h-3 text-zinc-400" />
+              <Clock className="w-3.5 h-3.5 text-zinc-400" />
               <span>{formatElapsedTime(order.createdAt)}</span>
               <span className="text-zinc-500 font-normal text-[10px] ml-0.5 hidden sm:inline">
                 ({formatTime(order.createdAt)})
@@ -130,20 +120,36 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
             </div>
           </div>
 
-          {/* Nombre de cliente & Datos de entrega */}
-          {(order.customerName || order.customer?.name) && (
-            <div className="text-xs font-medium text-zinc-300 bg-black/40 px-2.5 py-1.5 rounded-lg border border-zinc-800/60 flex items-center justify-between gap-1.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-zinc-500 text-[10px] uppercase font-bold">Cliente:</span>
-                <span className="text-white font-extrabold text-xs">{order.customerName || order.customer?.name}</span>
-              </div>
-              {order.modality === 'PARA_LLEVAR' && (
-                <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded">
-                  Recojo en barra
-                </span>
-              )}
-            </div>
-          )}
+          {/* Modalidad y Nombre de Cliente */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            {order.modality === 'PARA_LLEVAR' ? (
+              <span className="text-xs bg-amber-500/10 text-amber-300 px-2.5 py-1 rounded-lg font-black flex items-center gap-1.5 border border-amber-500/30">
+                <ShoppingBag className="w-3.5 h-3.5 text-amber-400" />
+                <span>PARA LLEVAR</span>
+              </span>
+            ) : order.modality === 'DELIVERY' ? (
+              <span className="text-xs bg-emerald-500/10 text-emerald-300 px-2.5 py-1 rounded-lg font-black flex items-center gap-1.5 border border-emerald-500/30">
+                <Bike className="w-3.5 h-3.5 text-emerald-400" />
+                <span>DELIVERY</span>
+              </span>
+            ) : order.modality === 'CONSUMO_EXTERNO' ? (
+              <span className="text-xs bg-purple-500/10 text-purple-300 px-2.5 py-1 rounded-lg font-black flex items-center gap-1.5 border border-purple-500/30">
+                <Package className="w-3.5 h-3.5 text-purple-400" />
+                <span>IR COMIENDO</span>
+              </span>
+            ) : (
+              <span className="text-xs bg-zinc-800 text-zinc-200 px-2.5 py-1 rounded-lg font-black flex items-center gap-1.5 border border-zinc-700">
+                <ModalityIcon className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
+                <span>{order.tableName || order.modality}</span>
+              </span>
+            )}
+
+            {(order.customerName || order.customer?.name) && (
+              <span className="text-xs font-bold text-zinc-300 truncate max-w-[150px]">
+                {order.customerName || order.customer?.name}
+              </span>
+            )}
+          </div>
 
           {/* Dirección en caso de Delivery */}
           {order.modality === 'DELIVERY' && order.customer?.address && (
@@ -318,28 +324,48 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
         )}
 
         {/* Botón de Avance de Estado */}
-        <div className="pt-2 border-t border-zinc-800">
+        <div className="pt-2 border-t border-zinc-800/80 flex items-center gap-2">
           {currentStatus === 'PENDIENTE' && (
-            <button
-              type="button"
-              onClick={() => onUpdateOrderStatus(order.orderNumber, 'PREPARANDO')}
-              className="w-full py-2.5 px-3 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-98"
-            >
-              <Flame className="w-4 h-4 fill-current" />
-              <span>Iniciar Preparación</span>
-              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => onUpdateOrderStatus(order.orderNumber, 'PREPARANDO')}
+                className="flex-1 py-2.5 px-3 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-98"
+              >
+                <Flame className="w-4 h-4 fill-current" />
+                <span>Iniciar Preparación</span>
+                <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdateOrderStatus(order.orderNumber, 'ENTREGADO')}
+                className="py-2.5 px-3 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 flex items-center justify-center transition-all cursor-pointer active:scale-98"
+                title="Despachar directamente"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              </button>
+            </>
           )}
 
           {currentStatus === 'PREPARANDO' && (
-            <button
-              type="button"
-              onClick={() => onUpdateOrderStatus(order.orderNumber, 'LISTO')}
-              className="w-full py-2.5 px-3 rounded-xl text-xs font-black bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
-            >
-              <Check className="w-4 h-4 stroke-[3] text-emerald-400" />
-              <span>Marcar como Listo</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => onUpdateOrderStatus(order.orderNumber, 'LISTO')}
+                className="flex-1 py-2.5 px-3 rounded-xl text-xs font-black bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
+              >
+                <Check className="w-4 h-4 stroke-[3] text-emerald-400" />
+                <span>Marcar como Listo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdateOrderStatus(order.orderNumber, 'ENTREGADO')}
+                className="py-2.5 px-3 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 flex items-center justify-center transition-all cursor-pointer active:scale-98"
+                title="Despachar directamente"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              </button>
+            </>
           )}
 
           {currentStatus === 'LISTO' && (
@@ -476,7 +502,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
-                {pendientes.map((order) => renderOrderCard(order, 'PENDIENTE'))}
+                {pendientes.map((order, idx) => renderOrderCard(order, 'PENDIENTE', idx + 1))}
               </div>
             )}
           </div>
@@ -493,7 +519,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
-                {preparando.map((order) => renderOrderCard(order, 'PREPARANDO'))}
+                {preparando.map((order, idx) => renderOrderCard(order, 'PREPARANDO', idx + 1))}
               </div>
             )}
           </div>
@@ -510,7 +536,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
-                {listos.map((order) => renderOrderCard(order, 'LISTO'))}
+                {listos.map((order, idx) => renderOrderCard(order, 'LISTO', idx + 1))}
               </div>
             )}
           </div>
@@ -530,7 +556,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                 {pendientes.length === 0 ? (
                   <p className="text-xs text-zinc-600 text-center py-8">Sin comandas</p>
                 ) : (
-                  pendientes.map((order) => renderOrderCard(order, 'PENDIENTE'))
+                  pendientes.map((order, idx) => renderOrderCard(order, 'PENDIENTE', idx + 1))
                 )}
               </div>
             </div>
@@ -546,7 +572,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                 {preparando.length === 0 ? (
                   <p className="text-xs text-zinc-600 text-center py-8">Sin comandas</p>
                 ) : (
-                  preparando.map((order) => renderOrderCard(order, 'PREPARANDO'))
+                  preparando.map((order, idx) => renderOrderCard(order, 'PREPARANDO', idx + 1))
                 )}
               </div>
             </div>
@@ -562,7 +588,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                 {listos.length === 0 ? (
                   <p className="text-xs text-zinc-600 text-center py-8">Sin comandas</p>
                 ) : (
-                  listos.map((order) => renderOrderCard(order, 'LISTO'))
+                  listos.map((order, idx) => renderOrderCard(order, 'LISTO', idx + 1))
                 )}
               </div>
             </div>
