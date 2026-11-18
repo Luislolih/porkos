@@ -253,6 +253,7 @@ export function CartProvider({ children }) {
         quantity: 1,
         requiresKitchen: product.type === 'MARKET' ? false : (product.requiresKitchen ?? true),
         image: product.image,
+        thumbnailUrl: product.thumbnailUrl || product.image,
         customization: custom,
         subtotal: unitPrice,
       };

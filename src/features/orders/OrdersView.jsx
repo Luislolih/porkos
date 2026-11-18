@@ -91,7 +91,7 @@ function EditOrderModal({ order, isOpen, onClose, onSave, onEditInSales, tables 
     }
 
     if (isMesa && !tableId) {
-      setErrorMessage('⚠️ Debes seleccionar un número de mesa obligatorio.');
+      setErrorMessage('Debes seleccionar un número de mesa.');
       return;
     }
 

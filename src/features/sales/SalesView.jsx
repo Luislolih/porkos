@@ -217,7 +217,7 @@ export default function SalesView({
     // Exigir número de mesa si la modalidad es MESA
     if (salesMode !== SALES_MODES.MARKET && (modality === 'MESA' || modality === ORDER_MODALITIES.MESA.id)) {
       if (!selectedTable?.id) {
-        showToast('⚠️ Debes seleccionar un número de mesa para continuar');
+        showToast('Debes seleccionar un número de mesa para continuar');
         return;
       }
     }
@@ -276,7 +276,7 @@ export default function SalesView({
     // Exigir número de mesa si la modalidad es MESA
     if (salesMode !== SALES_MODES.MARKET && (modality === 'MESA' || modality === ORDER_MODALITIES.MESA.id)) {
       if (!selectedTable?.id) {
-        showToast('⚠️ Debes seleccionar un número de mesa para continuar');
+        showToast('Debes seleccionar un número de mesa para continuar');
         return;
       }
     }
@@ -309,7 +309,7 @@ export default function SalesView({
     // Exigir número de mesa si la modalidad es MESA
     if (salesMode !== SALES_MODES.MARKET && (modality === 'MESA' || modality === ORDER_MODALITIES.MESA.id)) {
       if (!selectedTable?.id) {
-        showToast('⚠️ Debes seleccionar un número de mesa para la comanda');
+        showToast('Debes seleccionar un número de mesa para la comanda');
         return;
       }
     }

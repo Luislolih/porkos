@@ -20,6 +20,7 @@ import { useCart } from '../../../context/useCart';
 import { useCatalog } from '../../../context/useCatalog';
 import { formatCurrency } from '../../../utils/formatters';
 import Button from '../../../components/ui/Button';
+import ProductThumbnail from '../../../components/ui/ProductThumbnail';
 
 function getPapasText(customization) {
   const papasMod = customization?.selectedModifiers?.find(
@@ -132,12 +133,12 @@ export default function CartView({
             </div>
           )}
 
-          {/* Exigir número de mesa obligatorio si modalidad es MESA de forma compacta y limpia */}
+          {/* Selector de mesa limpio y sobrio sin advertencias visuales */}
           {modality === 'MESA' && !selectedTable && (
-            <div className="flex items-center justify-between gap-2 bg-zinc-900/90 border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs">
-              <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
-                <Utensils className="w-3.5 h-3.5 shrink-0" />
-                <span>Mesa Requerida:</span>
+            <div className="flex items-center justify-between gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-xl text-xs">
+              <div className="flex items-center gap-1.5 text-zinc-300 font-semibold text-xs">
+                <Utensils className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
+                <span>Mesa:</span>
               </div>
               <select
                 value=""
@@ -145,7 +146,7 @@ export default function CartView({
                   const t = tables.find((item) => item.id === e.target.value);
                   if (t) setSelectedTable(t);
                 }}
-                className="bg-black border border-amber-500/40 text-amber-300 text-xs font-bold rounded-lg px-2.5 py-1 focus:outline-none cursor-pointer"
+                className="bg-black border border-zinc-700 text-zinc-200 text-xs font-semibold rounded-lg px-2.5 py-1 focus:outline-none focus:border-zinc-500 cursor-pointer"
               >
                 <option value="">Seleccionar mesa...</option>
                 {tables.map((t) => (
@@ -304,19 +305,30 @@ export default function CartView({
                 key={item.itemId}
                 className="bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700/80 rounded-xl p-3 space-y-2 transition-colors"
               >
-                {/* Main row: Title, quantity, price */}
+                {/* Main row: Thumbnail, Title, quantity, price */}
                 <div
                   onClick={() => isCustomizable && onEditItem && onEditItem(item)}
-                  className={`flex items-start justify-between gap-2 ${
+                  className={`flex items-start justify-between gap-2.5 ${
                     isCustomizable ? 'cursor-pointer group' : ''
                   }`}
                 >
-                  <div className="flex-1 min-w-0">
+                  {/* Miniatura visual interactiva del plato */}
+                  <div className="shrink-0 transition-transform group-hover:scale-105 active:scale-95">
+                    <ProductThumbnail
+                      src={item.image}
+                      thumbnailUrl={item.thumbnailUrl || item.image}
+                      name={item.name}
+                      className="w-12 h-12 rounded-xl"
+                      iconSize="w-5 h-5"
+                    />
+                  </div>
+
+                  <div className="flex-1 min-w-0 pt-0.5">
                     <div className="flex items-center gap-1.5">
                       {item.requiresKitchen && (
                         <Flame className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                       )}
-                      <h5 className={`font-bold text-sm text-zinc-100 leading-snug truncate ${isCustomizable ? 'group-hover:text-white' : ''}`}>
+                      <h5 className={`font-bold text-sm text-zinc-100 leading-snug truncate ${isCustomizable ? 'group-hover:text-[var(--color-porkos-orange)]' : ''}`}>
                         {item.name}
                       </h5>
                     </div>
@@ -327,7 +339,7 @@ export default function CartView({
                     </div>
                   </div>
 
-                  <span className="font-extrabold text-sm text-white shrink-0">
+                  <span className="font-extrabold text-sm text-white shrink-0 pt-0.5">
                     {formatCurrency(item.subtotal)}
                   </span>
                 </div>
@@ -634,12 +646,12 @@ export default function CartView({
                 icon={Flame}
                 className={`text-xs sm:text-sm font-black py-3 ${
                   modality === 'MESA' && !selectedTable
-                    ? 'bg-amber-600 hover:bg-amber-500 text-black border border-amber-400'
+                    ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
                     : 'bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20'
                 }`}
               >
                 {modality === 'MESA' && !selectedTable
-                  ? '⚠️ Elegir Mesa para Enviar'
+                  ? 'Elegir mesa para enviar'
                   : selectedTable
                   ? `Abrir comanda (${selectedTable.label})`
                   : hasKitchenItems
