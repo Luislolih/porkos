@@ -155,7 +155,7 @@ export default function TablesView({
                       title="Añadir más productos a la comanda"
                     >
                       <Plus className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
-                      <span>+ Pedir</span>
+                      <span>Pedir</span>
                     </button>
 
                     <button

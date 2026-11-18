@@ -63,9 +63,15 @@ function MainApp() {
     const unsubscribe = subscribeToOrders(
       (remoteOrders) => {
         if (remoteOrders && remoteOrders.length > 0) {
-          setOrders(remoteOrders);
+          const sorted = [...remoteOrders].sort((a, b) => {
+            const timeA = a.createdAt?.getTime ? a.createdAt.getTime() : new Date(a.createdAt || 0).getTime();
+            const timeB = b.createdAt?.getTime ? b.createdAt.getTime() : new Date(b.createdAt || 0).getTime();
+            if (!isNaN(timeA) && !isNaN(timeB) && timeB !== timeA) return timeB - timeA;
+            return (b.orderNumber || '').localeCompare(a.orderNumber || '', undefined, { numeric: true });
+          });
+          setOrders(sorted);
           try {
-            localStorage.setItem('porkos_orders', JSON.stringify(remoteOrders));
+            localStorage.setItem('porkos_orders', JSON.stringify(sorted));
           } catch (e) {
             console.warn('Error guardando órdenes en localStorage:', e);
           }
@@ -311,7 +317,7 @@ function MainApp() {
           />
         )}
 
-        {activeModule === 'mesas' && (
+        {(activeModule === MODULES.TABLES || activeModule === 'mesas') && (
           <TablesView
             tables={tables}
             orders={orders}

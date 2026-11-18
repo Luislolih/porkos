@@ -8,9 +8,9 @@ export const APP_ROLES = {
     badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
     defaultModules: [
       MODULES.SALES,
+      MODULES.TABLES,
       MODULES.KITCHEN,
       MODULES.ORDERS,
-      'mesas',
       MODULES.CATALOG,
       MODULES.EXPENSES,
       MODULES.DASHBOARD,
@@ -24,9 +24,9 @@ export const APP_ROLES = {
     badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     defaultModules: [
       MODULES.SALES,
+      MODULES.TABLES,
       MODULES.KITCHEN,
       MODULES.ORDERS,
-      'mesas',
       MODULES.CATALOG,
       MODULES.EXPENSES,
       MODULES.DASHBOARD,
@@ -48,18 +48,18 @@ export const APP_ROLES = {
     badgeClass: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
     defaultModules: [
       MODULES.SALES,
-      MODULES.ORDERS,
-      'mesas',
+      MODULES.TABLES,
       MODULES.KITCHEN,
+      MODULES.ORDERS,
     ],
   },
 };
 
 export const ALL_MODULE_DEFINITIONS = [
   { id: MODULES.SALES, label: 'Ventas (POS)' },
+  { id: MODULES.TABLES, label: 'Control de Mesas' },
   { id: MODULES.KITCHEN, label: 'Cocina (KDS)' },
   { id: MODULES.ORDERS, label: 'Pedidos / Histórico' },
-  { id: 'mesas', label: 'Control de Mesas' },
   { id: MODULES.CATALOG, label: 'Productos / Carta' },
   { id: MODULES.EXPENSES, label: 'Gastos y Compras' },
   { id: MODULES.DASHBOARD, label: 'Dashboard / Reportes' },

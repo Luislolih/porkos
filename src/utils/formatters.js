@@ -1,3 +1,5 @@
+import { getNextOrderNumber } from './orderNumber';
+
 export const formatCurrency = (amount) => {
   const num = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
   return `S/ ${num.toFixed(2)}`;
@@ -29,7 +31,6 @@ export const isOrderDelayed = (dateInput, thresholdMins = 10) => {
   return Date.now() - date.getTime() > thresholdMins * 60 * 1000;
 };
 
-export const generateOrderNumber = () => {
-  const randomNum = Math.floor(100 + Math.random() * 900);
-  return `P-${randomNum}`;
+export const generateOrderNumber = (orders = [], prefix = 'P') => {
+  return getNextOrderNumber(orders, prefix);
 };

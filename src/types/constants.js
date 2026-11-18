@@ -1,5 +1,6 @@
 export const MODULES = {
   SALES: 'ventas',
+  TABLES: 'mesas',
   KITCHEN: 'cocina',
   ORDERS: 'pedidos',
   CATALOG: 'productos',

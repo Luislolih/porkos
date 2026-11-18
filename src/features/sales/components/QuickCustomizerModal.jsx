@@ -33,15 +33,11 @@ function CustomizerForm({
     Boolean(initialCustomization?.temperature)
   );
 
-  // 1. Ensalada (Solo si no es bebida ni producto exclusivo de market)
+  // 1. Ensalada: Solo aparece si el producto está configurado específicamente con ensalada (hasSalad = true)
   const hasSalad = Boolean(
     !isBeverage &&
     !isMarketProduct &&
-    (product.saladConfig?.enabled ||
-      product.categoryId === 'cat_comida' ||
-      product.categoryId === 'cat_clasico' ||
-      product.line === 'COMIDA' ||
-      product.line === 'CLASICO')
+    (product.saladConfig?.enabled === true || product.hasSalad === true)
   );
   const [saladMode, setSaladMode] = useState(() => {
     return initialCustomization?.saladDetail?.mode || 'CON_ENSALADA';

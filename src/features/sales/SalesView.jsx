@@ -167,7 +167,7 @@ export default function SalesView({
           selected: [],
           mode: 'NONE',
         },
-        saladSummary: product.saladConfig?.enabled ? 'CON ENSALADA COMPLETA' : '',
+        saladSummary: (product.saladConfig?.enabled === true || product.hasSalad === true) ? 'CON ENSALADA' : '',
         selectedModifiers: defaultMods,
         selectedExtras: [],
         packaging: defaultPackaging,

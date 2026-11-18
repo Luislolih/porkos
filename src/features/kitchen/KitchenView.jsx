@@ -29,9 +29,21 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
     return (hasKitchenItems || hasBeverages) && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO';
   });
 
-  const pendientes = activeKitchenOrders.filter((o) => o.status === 'PENDIENTE');
-  const preparando = activeKitchenOrders.filter((o) => o.status === 'PREPARANDO');
-  const listos = activeKitchenOrders.filter((o) => o.status === 'LISTO');
+  // Ordenar comandas de cocina por orden de llegada (FIFO: Primero en llegar, primero en atender)
+  const sortByArrival = (orderList) => {
+    return [...orderList].sort((a, b) => {
+      const timeA = a.createdAt?.getTime ? a.createdAt.getTime() : new Date(a.createdAt || 0).getTime();
+      const timeB = b.createdAt?.getTime ? b.createdAt.getTime() : new Date(b.createdAt || 0).getTime();
+      if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB) {
+        return timeA - timeB;
+      }
+      return (a.orderNumber || '').localeCompare(b.orderNumber || '', undefined, { numeric: true });
+    });
+  };
+
+  const pendientes = sortByArrival(activeKitchenOrders.filter((o) => o.status === 'PENDIENTE'));
+  const preparando = sortByArrival(activeKitchenOrders.filter((o) => o.status === 'PREPARANDO'));
+  const listos = sortByArrival(activeKitchenOrders.filter((o) => o.status === 'LISTO'));
 
   const getModalityIcon = (mod) => {
     switch (mod) {

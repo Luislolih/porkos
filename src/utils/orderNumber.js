@@ -1,31 +1,36 @@
 /**
- * Genera números de comanda y venta correlativos y limpios (ej. P-001, P-002, M-001...)
- * basados en el historial de órdenes del día, evitando códigos aleatorios y facilitando
- * la lectura en salón, cocina y caja.
+ * Genera números de comanda y venta estrictamente correlativos y limpios (P-001, P-002, M-001...)
+ * basados en el historial diario, eliminando códigos aleatorios o saltos inesperados.
  */
 export function getNextOrderNumber(orders = [], prefix = 'P') {
-  const today = new Date().toDateString();
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
-  // Filtrar órdenes que se hayan creado en la jornada de hoy
+  // Filtrar órdenes que correspondan a la jornada de hoy
   const todayOrders = (orders || []).filter((o) => {
     if (!o.createdAt) return false;
-    const d = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
-    return d.toDateString() === today;
+    const time = o.createdAt?.toDate
+      ? o.createdAt.toDate().getTime()
+      : o.createdAt?.getTime
+      ? o.createdAt.getTime()
+      : new Date(o.createdAt).getTime();
+    return !isNaN(time) && time >= startOfDay;
   });
 
   let maxSeq = 0;
   todayOrders.forEach((o) => {
     if (o.orderNumber && typeof o.orderNumber === 'string') {
-      const match = o.orderNumber.match(new RegExp(`^${prefix}-(\\d+)`, 'i'));
+      const match = o.orderNumber.match(new RegExp(`^(?:${prefix}-?|#?)(\\d+)`, 'i'));
       if (match && match[1]) {
         const num = parseInt(match[1], 10);
-        if (!isNaN(num) && num > maxSeq) {
+        // Descartar números aleatorios antiguos (> 500) para no romper la secuencia correlativa normal
+        if (!isNaN(num) && num > maxSeq && num < 500) {
           maxSeq = num;
         }
       }
     }
   });
 
-  const nextSeq = Math.max(maxSeq + 1, todayOrders.length + 1);
+  const nextSeq = maxSeq > 0 ? maxSeq + 1 : todayOrders.length + 1;
   return `${prefix}-${String(nextSeq).padStart(3, '0')}`;
 }

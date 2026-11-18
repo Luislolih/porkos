@@ -20,6 +20,10 @@ export function formatFirestoreDate(val) {
   if (val instanceof Timestamp) return val.toDate();
   if (typeof val === 'number') return new Date(val);
   if (typeof val.toDate === 'function') return val.toDate();
+  if (typeof val === 'string') {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) return d;
+  }
   return new Date();
 }
 

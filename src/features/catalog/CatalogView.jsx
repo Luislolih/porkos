@@ -245,7 +245,7 @@ export default function CatalogView() {
     setProdMarketSubtype('BEBIDA');
     setProdIsJuice(false);
     setProdHasPapas(true);
-    setProdHasSalad(true);
+    setProdHasSalad(false);
     setProdHasTemperature(false);
     setProdSelectedCreams(creams.map((c) => c.id));
     setProdAvailablePackagingIds([]);
@@ -294,7 +294,7 @@ export default function CatalogView() {
     setProdDescription(prod.description || '');
     setProdKitchen(line === 'MARKET' ? false : (prod.requiresKitchen ?? true));
     setProdHasPapas(Boolean(prod.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas')));
-    setProdHasSalad(Boolean(prod.saladConfig?.enabled || cat === 'cat_clasico' || cat === 'cat_comida'));
+    setProdHasSalad(Boolean(prod.saladConfig?.enabled === true || prod.hasSalad === true));
     setProdHasTemperature(Boolean(isBeverage));
     setProdSelectedCreams(prod.creamsConfig?.availableCreamIds || creams.map((c) => c.id));
     setProdAvailablePackagingIds(prod.availablePackagingIds || []);
@@ -366,6 +366,7 @@ export default function CatalogView() {
         requiresKitchen: prodType === 'MARKET' ? false : prodKitchen,
         modifiers,
         availablePackagingIds: prodAvailablePackagingIds,
+        hasSalad: Boolean(!isMarket && !isDrink && prodHasSalad && prodType === 'RESTAURANTE'),
         saladConfig: !isMarket && !isDrink && prodHasSalad && prodType === 'RESTAURANTE'
           ? {
               enabled: true,
@@ -1802,16 +1803,37 @@ export default function CatalogView() {
                   <span className="font-semibold text-zinc-200">🍟 Papas Fritas/Hilo</span>
                 </label>
 
-                {/* Ensalada */}
-                <label className="flex items-center gap-2 p-2 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={prodHasSalad}
-                    onChange={(e) => setProdHasSalad(e.target.checked)}
-                    className="accent-[var(--color-porkos-orange)]"
-                  />
-                  <span className="font-semibold text-zinc-200">🥗 Ensalada (Tom/Pep/Lech)</span>
-                </label>
+                {/* Ensalada (Sí / No) */}
+                <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-900 border border-zinc-800">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm">🥗</span>
+                    <span className="font-semibold text-zinc-200 text-xs">Lleva Ensalada:</span>
+                  </div>
+                  <div className="flex bg-black/60 p-0.5 rounded-md border border-zinc-800 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setProdHasSalad(true)}
+                      className={`px-2.5 py-0.5 text-xs font-bold rounded transition-all cursor-pointer ${
+                        prodHasSalad
+                          ? 'bg-emerald-500 text-black font-black'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      Sí
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProdHasSalad(false)}
+                      className={`px-2.5 py-0.5 text-xs font-bold rounded transition-all cursor-pointer ${
+                        !prodHasSalad
+                          ? 'bg-zinc-800 text-zinc-200 font-bold'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      No
+                    </button>
+                  </div>
+                </div>
 
                 {/* Temperatura */}
                 <label className="flex items-center gap-2 p-2 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer">

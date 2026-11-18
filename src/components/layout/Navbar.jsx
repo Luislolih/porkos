@@ -23,7 +23,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
 
   const allNavItems = [
     { id: MODULES.SALES, label: 'Ventas', desc: 'Caja y comandas', icon: ShoppingBag },
-    { id: 'mesas', label: 'Mesas', desc: 'Control de salón', icon: Grid2X2 },
+    { id: MODULES.TABLES, label: 'Mesas', desc: 'Control de salón', icon: Grid2X2 },
     { id: MODULES.KITCHEN, label: 'Cocina', desc: 'Comandas en preparación', icon: Flame, badge: activeOrdersCount },
     { id: MODULES.ORDERS, label: 'Pedidos', desc: 'Seguimiento de órdenes', icon: ClipboardList },
     { id: MODULES.CATALOG, label: 'Productos', desc: 'Catálogo de carta y market', icon: UtensilsCrossed },
@@ -37,7 +37,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
 
   const mobileQuickItems = [
     { id: MODULES.SALES, label: 'Ventas', icon: ShoppingBag },
-    { id: 'mesas', label: 'Mesas', icon: Grid2X2 },
+    { id: MODULES.TABLES, label: 'Mesas', icon: Grid2X2 },
     { id: MODULES.KITCHEN, label: 'Cocina', icon: Flame, badge: activeOrdersCount },
     { id: MODULES.ORDERS, label: 'Pedidos', icon: ClipboardList },
   ].filter((item) => canAccessModule(item.id));

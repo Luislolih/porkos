@@ -417,7 +417,7 @@ export default function OrdersView({
   const [isClearing, setIsClearing] = useState(false);
 
   const filteredOrders = useMemo(() => {
-    return orders.filter((o) => {
+    const list = orders.filter((o) => {
       // Filtro por pestaña (Activas vs Historial)
       if (activeTab === 'ACTIVE') {
         const isActive = o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO';
@@ -446,6 +446,16 @@ export default function OrdersView({
       }
 
       return true;
+    });
+
+    // Ordenar de forma consistente: más recientes al inicio
+    return list.sort((a, b) => {
+      const timeA = a.createdAt?.getTime ? a.createdAt.getTime() : new Date(a.createdAt || 0).getTime();
+      const timeB = b.createdAt?.getTime ? b.createdAt.getTime() : new Date(b.createdAt || 0).getTime();
+      if (!isNaN(timeA) && !isNaN(timeB) && timeB !== timeA) {
+        return timeB - timeA;
+      }
+      return (b.orderNumber || '').localeCompare(a.orderNumber || '', undefined, { numeric: true });
     });
   }, [orders, activeTab, filterModality, searchQuery]);
 
