@@ -18,6 +18,7 @@ import {
   uploadProductImage,
   deleteProductImageFromStorage,
   calculateCatalogStorageStats,
+  testStorageConnection,
   formatBytes,
 } from '../../services/storageService';
 import Button from '../../components/ui/Button';
@@ -66,8 +67,29 @@ export default function CatalogView() {
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
+  const [isTestingStorage, setIsTestingStorage] = useState(false);
+  const [storageTestResult, setStorageTestResult] = useState(null);
+  const [hasCopiedStorageRules, setHasCopiedStorageRules] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [statusToast, setStatusToast] = useState(null);
+
+  const handleTestStorage = async () => {
+    setIsTestingStorage(true);
+    setStorageTestResult(null);
+    try {
+      const res = await testStorageConnection();
+      setStorageTestResult(res);
+    } catch (err) {
+      setStorageTestResult({
+        success: false,
+        message: err.message || 'Error desconocido al probar Firebase Storage',
+        errorCode: err.code || 'error',
+      });
+    } finally {
+      setIsTestingStorage(false);
+    }
+  };
 
   // Modales de Categoría
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -156,8 +178,9 @@ export default function CatalogView() {
         setImagePreview(result.url);
         setImageStorageSource('firebase');
       } else if (result?.localPreviewUrl) {
-        setProdImage('');
-        setProdThumbnailUrl('');
+        // Almacenar la versión WebP optimizada (~35 KB) para que SIEMPRE se visualice en la app
+        setProdImage(result.localPreviewUrl);
+        setProdThumbnailUrl(result.localPreviewUrl);
         setProdImageMetadata(null);
         setImageStats({
           originalSize: result.originalSize,
@@ -165,7 +188,14 @@ export default function CatalogView() {
           reductionPercent: result.reductionPercent,
         });
         setImagePreview(result.localPreviewUrl);
-        setImageStorageSource('local_preview');
+        setImageStorageSource('local_optimized');
+        if (result.errorCode === 'storage/unauthorized') {
+          setImageUploadError('Aviso: Firebase Storage rechazó la subida por reglas de seguridad. Tu foto se comprimió y se guardará para verse en la app. Toca "Configurar Storage" para sincronizarla en la nube.');
+        } else if (result.errorCode === 'storage/bucket-not-found') {
+          setImageUploadError('Aviso: El bucket de Firebase Storage no está activado en tu consola. Tu foto se comprimió y se guardará para verse en la app. Toca "Configurar Storage" para activarlo.');
+        } else {
+          setImageUploadError(result.errorMessage || 'Foto optimizada lista para guardar en la app.');
+        }
       }
     } catch (err) {
       console.error('Error procesando foto:', err);
@@ -294,9 +324,13 @@ export default function CatalogView() {
         });
       }
 
-      // Sanitizar imagen: Solo URLs http o https válidas. NUNCA Base64 ni blob en Firestore
+      // Sanitizar imagen: URLs http/https válidas o WebP optimizado (data:image)
       let cleanImage = prodImage.trim();
-      if (!cleanImage.startsWith('http://') && !cleanImage.startsWith('https://')) {
+      if (
+        !cleanImage.startsWith('http://') &&
+        !cleanImage.startsWith('https://') &&
+        !cleanImage.startsWith('data:image/')
+      ) {
         cleanImage = '';
       }
 
@@ -805,8 +839,19 @@ export default function CatalogView() {
                 ({catalogStorageStats.countWithImages} fotos optimizadas WebP • ~{catalogStorageStats.averageFormatted} c/u)
               </span>
             </div>
-            <div className="text-[11px] text-zinc-400">
-              Cuota Firebase: <span className="text-white font-mono font-bold">{catalogStorageStats.capacityPercent}%</span> de 5 GB libres
+            <div className="flex items-center gap-2.5">
+              <div className="text-[11px] text-zinc-400">
+                Cuota Firebase: <span className="text-white font-mono font-bold">{catalogStorageStats.capacityPercent}%</span> de 5 GB
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setIsStorageModalOpen(true)}
+                className="text-xs border-zinc-700 text-zinc-300 hover:text-white"
+              >
+                ⚙️ Configurar Storage
+              </Button>
             </div>
           </div>
           {products.length === 0 ? (
@@ -1626,22 +1671,6 @@ export default function CatalogView() {
             </div>
 
             <input
-              type="url"
-              value={prodImage}
-              onChange={(e) => {
-                const val = e.target.value.trim();
-                setProdImage(val);
-                setProdThumbnailUrl(val);
-                setImagePreview(val);
-                setProdImageMetadata(null);
-                setImageStats(null);
-                setImageStorageSource(val.startsWith('http') ? 'web_url' : null);
-              }}
-              placeholder="https://ejemplo.com/hamburguesa.webp (URL directa opcional)"
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
-            />
-
-            <input
               ref={fileInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
@@ -1720,7 +1749,13 @@ export default function CatalogView() {
             {/* Mensajes informativos de imagen */}
             {imageStorageSource === 'firebase' && (
               <p className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
-                ✓ Foto optimizada y guardada en Firebase Storage
+                ✓ Foto optimizada y sincronizada en Firebase Storage
+              </p>
+            )}
+
+            {imageStorageSource === 'local_optimized' && (
+              <p className="text-[11px] text-amber-300 font-bold flex items-center gap-1">
+                ✓ Foto optimizada a WebP (~35 KB) guardada para la app
               </p>
             )}
 
@@ -2325,6 +2360,122 @@ service cloud.firestore {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal de Configuración y Diagnóstico de Firebase Storage */}
+      <Modal
+        isOpen={isStorageModalOpen}
+        onClose={() => setIsStorageModalOpen(false)}
+        title="Configuración de Firebase Storage"
+        maxWidth="max-w-2xl"
+      >
+        <div className="space-y-4 text-xs">
+          <p className="text-zinc-300 leading-relaxed">
+            PORKOAPP optimiza automáticamente las fotos en tu navegador a formato <strong className="text-white">WebP (640px, ~50-80 KB)</strong>. Para que se guarden en la nube en Firebase Cloud Storage, sigue estos 2 sencillos pasos en tu consola de Firebase:
+          </p>
+
+          {/* Test de Conexión Live */}
+          <div className="bg-black/50 border border-zinc-800 p-3.5 rounded-xl space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white text-xs">Diagnóstico en Tiempo Real:</span>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleTestStorage}
+                disabled={isTestingStorage}
+                className="text-xs"
+              >
+                {isTestingStorage ? 'Probando...' : '🔍 Probar Conexión con Storage'}
+              </Button>
+            </div>
+
+            {storageTestResult && (
+              <div
+                className={`p-3 rounded-xl border space-y-1 ${
+                  storageTestResult.success
+                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                    : 'bg-rose-950/40 border-rose-500/40 text-rose-300'
+                }`}
+              >
+                <div className="font-bold flex items-center gap-1.5">
+                  {storageTestResult.success ? '✓' : '⚠️'} {storageTestResult.message}
+                </div>
+                {storageTestResult.errorCode && (
+                  <div className="text-[11px] text-zinc-400 font-mono">
+                    Código de error: {storageTestResult.errorCode}
+                  </div>
+                )}
+                {storageTestResult.bucket && (
+                  <div className="text-[11px] text-zinc-400 font-mono">
+                    Bucket probado: {storageTestResult.bucket}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Pasos de configuración */}
+          <div className="space-y-3">
+            <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 space-y-1.5">
+              <span className="font-black text-amber-400">Paso 1: Abrir Firebase Console</span>
+              <p className="text-zinc-400 leading-relaxed">
+                Ingresa a tu consola de Firebase en la sección Storage:{' '}
+                <a
+                  href="https://console.firebase.google.com/project/porkos-ac37d/storage"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[var(--color-porkos-orange)] underline font-bold"
+                >
+                  console.firebase.google.com/project/porkos-ac37d/storage
+                </a>
+                . Si aparece el botón <strong>"Comenzar" (Get Started)</strong>, haz clic en él y sigue las instrucciones para crear tu bucket.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-black text-amber-400">Paso 2: Copiar y Publicar las Reglas</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rulesText = `rules_version = '2';\nservice firebase.storage {\n  match /b/{bucket}/o {\n    match /products/{allPaths=**} {\n      allow read: if true;\n      allow write: if true;\n      allow delete: if true;\n    }\n  }\n}`;
+                    navigator.clipboard.writeText(rulesText);
+                    setHasCopiedStorageRules(true);
+                    setTimeout(() => setHasCopiedStorageRules(false), 3000);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-[var(--color-porkos-orange)] text-black font-extrabold text-[11px] cursor-pointer hover:bg-orange-500 transition-colors"
+                >
+                  {hasCopiedStorageRules ? '✓ ¡Reglas Copiadas!' : '📋 Copiar Reglas'}
+                </button>
+              </div>
+              <p className="text-zinc-400 leading-relaxed">
+                En la pestaña <strong>Reglas (Rules)</strong> de Storage en Firebase Console, pega el siguiente código y haz clic en <strong>Publicar (Publish)</strong>:
+              </p>
+              <pre className="bg-black/80 p-2.5 rounded-lg border border-zinc-800 text-[11px] font-mono text-zinc-300 overflow-x-auto">
+{`rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /products/{allPaths=**} {
+      allow read: if true;
+      allow write: if true;
+      allow delete: if true;
+    }
+  }
+}`}
+              </pre>
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsStorageModalOpen(false)}
+            >
+              Cerrar
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Flecha flotante para subir al inicio en listas largas */}

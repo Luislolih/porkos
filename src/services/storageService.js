@@ -7,10 +7,103 @@ import { optimizeProductImage, validateImageFile, formatBytes } from '../utils/i
  * - Carga únicamente versiones optimizadas (WebP 640px y Miniatura 240px).
  * - La imagen original NUNCA se sube a Firebase Storage.
  * - Evita archivos huérfanos eliminando versiones anteriores al editar o eliminar productos.
- * - Agrega headers de caché persistente (Cache-Control: 1 año).
+ * - Soporte multi-bucket automático (resuelve entre .firebasestorage.app y .appspot.com).
+ * - Fallback inteligente: si la nube no está configurada aún, mantiene la imagen optimizada
+ *   en Base64 WebP (~35 KB) para que NUNCA desaparezca de la app.
  */
 
 export { formatBytes, validateImageFile };
+
+// Cachear en memoria el bucket que funciona para no repetir fallbacks
+let activeStorageInstance = storage;
+let discoveredBucketName = firebaseConfig.storageBucket || `${firebaseConfig.projectId}.firebasestorage.app`;
+
+/**
+ * Obtiene lista de instancias de Storage a probar en orden
+ */
+function getStorageCandidates() {
+  const candidates = [];
+
+  // 1. Instancia activa descubierta previamente
+  if (activeStorageInstance) {
+    candidates.push({ instance: activeStorageInstance, name: discoveredBucketName });
+  }
+
+  // 2. Bucket por defecto de configuración
+  const defaultBucket = firebaseConfig.storageBucket || `${firebaseConfig.projectId}.firebasestorage.app`;
+  if (defaultBucket !== discoveredBucketName) {
+    candidates.push({ instance: getStorage(app, `gs://${defaultBucket}`), name: defaultBucket });
+  }
+
+  // 3. Bucket clásico .appspot.com
+  const appspotBucket = `${firebaseConfig.projectId}.appspot.com`;
+  if (appspotBucket !== defaultBucket && appspotBucket !== discoveredBucketName) {
+    candidates.push({ instance: getStorage(app, `gs://${appspotBucket}`), name: appspotBucket });
+  }
+
+  // 4. Bucket nuevo .firebasestorage.app
+  const modernBucket = `${firebaseConfig.projectId}.firebasestorage.app`;
+  if (modernBucket !== defaultBucket && modernBucket !== discoveredBucketName && modernBucket !== appspotBucket) {
+    candidates.push({ instance: getStorage(app, `gs://${modernBucket}`), name: modernBucket });
+  }
+
+  return candidates;
+}
+
+/**
+ * Prueba la conexión con Firebase Storage intentando subir y borrar un blob de prueba de 1 byte
+ */
+export async function testStorageConnection() {
+  const candidates = getStorageCandidates();
+  const testBlob = new Blob(['1'], { type: 'text/plain' });
+  const testPath = `_test/connection_${Date.now()}.txt`;
+
+  let lastError = null;
+
+  for (const candidate of candidates) {
+    try {
+      const testRef = ref(candidate.instance, testPath);
+      await uploadBytes(testRef, testBlob, { contentType: 'text/plain' });
+      await deleteObject(testRef).catch(() => {});
+
+      // Si funcionó, registrar este bucket como el activo
+      activeStorageInstance = candidate.instance;
+      discoveredBucketName = candidate.name;
+
+      return {
+        success: true,
+        bucket: candidate.name,
+        message: `¡Conexión exitosa con el bucket "${candidate.name}"!`,
+        error: null,
+      };
+    } catch (err) {
+      lastError = err;
+      // Si el bucket no existe, continuar con el siguiente candidato
+      if (err.code === 'storage/bucket-not-found' || err.message?.toLowerCase().includes('bucket')) {
+        continue;
+      }
+      // Si es de permisos o CORS, reportarlo de inmediato
+      break;
+    }
+  }
+
+  let friendlyMessage = 'No se pudo conectar a Firebase Storage.';
+  if (lastError?.code === 'storage/unauthorized') {
+    friendlyMessage = 'Permiso denegado por Reglas de Seguridad en Firebase Console.';
+  } else if (lastError?.code === 'storage/bucket-not-found') {
+    friendlyMessage = 'El bucket de Storage aún no ha sido activado en tu Firebase Console.';
+  } else if (lastError?.message?.toLowerCase().includes('cors') || lastError?.name === 'TypeError') {
+    friendlyMessage = 'El navegador bloqueó la conexión por políticas de CORS en Google Cloud Storage.';
+  }
+
+  return {
+    success: false,
+    bucket: discoveredBucketName,
+    message: friendlyMessage,
+    error: lastError,
+    errorCode: lastError?.code || 'unknown',
+  };
+}
 
 /**
  * Sube tanto la versión principal optimizada (640px) como la miniatura (240px)
@@ -34,7 +127,7 @@ export async function uploadProductImage(file, productId = null) {
 
   const metadata = {
     contentType: `image/${mainExt}`,
-    cacheControl: 'public,max-age=31536000,immutable', // 1 año de caché para cero descargas redundantes
+    cacheControl: 'public,max-age=31536000,immutable', // 1 año de caché
   };
 
   const thumbMetadata = {
@@ -42,79 +135,76 @@ export async function uploadProductImage(file, productId = null) {
     cacheControl: 'public,max-age=31536000,immutable',
   };
 
-  try {
-    const mainRef = ref(storage, mainPath);
-    const thumbRef = ref(storage, thumbPath);
+  const candidates = getStorageCandidates();
+  let lastError = null;
 
-    let mainSnapshot;
-    let thumbSnapshot;
-
+  for (const candidate of candidates) {
     try {
-      [mainSnapshot, thumbSnapshot] = await Promise.all([
+      const mainRef = ref(candidate.instance, mainPath);
+      const thumbRef = ref(candidate.instance, thumbPath);
+
+      const [mainSnap, thumbSnap] = await Promise.all([
         uploadBytes(mainRef, optimized.main.blob, metadata),
         uploadBytes(thumbRef, optimized.thumb.blob, thumbMetadata),
       ]);
-    } catch (primaryErr) {
-      // Fallback a bucket alternativo si el primario no resuelve por DNS
-      if (
-        primaryErr.code === 'storage/bucket-not-found' ||
-        primaryErr.message?.toLowerCase().includes('bucket')
-      ) {
-        const altBucket = `${firebaseConfig.projectId}.appspot.com`;
-        const altStorage = getStorage(app, `gs://${altBucket}`);
-        const altMainRef = ref(altStorage, mainPath);
-        const altThumbRef = ref(altStorage, thumbPath);
 
-        [mainSnapshot, thumbSnapshot] = await Promise.all([
-          uploadBytes(altMainRef, optimized.main.blob, metadata),
-          uploadBytes(altThumbRef, optimized.thumb.blob, thumbMetadata),
-        ]);
-      } else {
-        throw primaryErr;
+      const [mainDownloadUrl, thumbDownloadUrl] = await Promise.all([
+        getDownloadURL(mainSnap.ref),
+        getDownloadURL(thumbSnap.ref),
+      ]);
+
+      // Guardar el bucket que funcionó exitosamente
+      activeStorageInstance = candidate.instance;
+      discoveredBucketName = candidate.name;
+
+      return {
+        success: true,
+        url: mainDownloadUrl,
+        thumbnailUrl: thumbDownloadUrl,
+        bucketUsed: candidate.name,
+        imageMetadata: {
+          sizeBytes: optimized.main.sizeBytes,
+          thumbSizeBytes: optimized.thumb.sizeBytes,
+          totalSizeBytes: optimized.main.sizeBytes + optimized.thumb.sizeBytes,
+          width: optimized.main.width,
+          height: optimized.main.height,
+          format: mainExt,
+          storagePath: mainPath,
+          thumbStoragePath: thumbPath,
+          uploadedAt: new Date().toISOString(),
+        },
+        originalSize: optimized.original.sizeBytes,
+        optimizedSize: optimized.main.sizeBytes,
+        reductionPercent: optimized.reductionPercent,
+        localPreviewUrl: optimized.main.dataUrl,
+        error: null,
+      };
+    } catch (err) {
+      lastError = err;
+      if (err.code === 'storage/bucket-not-found' || err.message?.toLowerCase().includes('bucket')) {
+        continue; // Probar siguiente bucket
       }
+      break; // Error de permisos o red, detener
     }
-
-    const [mainDownloadUrl, thumbDownloadUrl] = await Promise.all([
-      getDownloadURL(mainSnapshot.ref),
-      getDownloadURL(thumbSnapshot.ref),
-    ]);
-
-    return {
-      success: true,
-      url: mainDownloadUrl,
-      thumbnailUrl: thumbDownloadUrl,
-      imageMetadata: {
-        sizeBytes: optimized.main.sizeBytes,
-        thumbSizeBytes: optimized.thumb.sizeBytes,
-        totalSizeBytes: optimized.main.sizeBytes + optimized.thumb.sizeBytes,
-        width: optimized.main.width,
-        height: optimized.main.height,
-        format: mainExt,
-        storagePath: mainPath,
-        thumbStoragePath: thumbPath,
-        uploadedAt: new Date().toISOString(),
-      },
-      originalSize: optimized.original.sizeBytes,
-      optimizedSize: optimized.main.sizeBytes,
-      reductionPercent: optimized.reductionPercent,
-      localPreviewUrl: optimized.main.dataUrl,
-    };
-  } catch (storageErr) {
-    console.warn('Advertencia subiendo imagen a Firebase Storage:', storageErr);
-    // Si falla la nube (por ejemplo, sin conexión o sin reglas de Storage configuradas),
-    // retornamos el preview local para no trabar al operador
-    return {
-      success: false,
-      url: null,
-      thumbnailUrl: null,
-      imageMetadata: null,
-      originalSize: optimized.original.sizeBytes,
-      optimizedSize: optimized.main.sizeBytes,
-      reductionPercent: optimized.reductionPercent,
-      localPreviewUrl: optimized.main.dataUrl,
-      error: storageErr.message || 'No se pudo subir a la nube. Se usará la vista previa local.',
-    };
   }
+
+  console.warn('Firebase Storage no disponible actualmente:', lastError);
+
+  // FALLBACK SEGURO: Retornamos la versión WebP optimizada (~35 KB)
+  // para que el producto SIEMPRE se vea en la app y no se pierda la foto
+  return {
+    success: false,
+    url: null,
+    thumbnailUrl: null,
+    imageMetadata: null,
+    originalSize: optimized.original.sizeBytes,
+    optimizedSize: optimized.main.sizeBytes,
+    reductionPercent: optimized.reductionPercent,
+    localPreviewUrl: optimized.main.dataUrl,
+    error: lastError,
+    errorCode: lastError?.code || 'unknown',
+    errorMessage: lastError?.message || 'Error al conectar con Firebase Storage',
+  };
 }
 
 /**
@@ -126,10 +216,8 @@ export async function deleteProductImageFromStorage(imageMetadataOrPath) {
   const pathsToDelete = [];
 
   if (typeof imageMetadataOrPath === 'string') {
-    // Si es una URL o ruta directa de Firebase Storage
     if (imageMetadataOrPath.includes('firebasestorage.googleapis.com')) {
       try {
-        // Extraer ruta relativa de la URL codificada
         const matches = imageMetadataOrPath.match(/\/o\/([^?]+)/);
         if (matches && matches[1]) {
           pathsToDelete.push(decodeURIComponent(matches[1]));
@@ -149,12 +237,13 @@ export async function deleteProductImageFromStorage(imageMetadataOrPath) {
     }
   }
 
+  const currentStorage = activeStorageInstance || storage;
+
   for (const path of pathsToDelete) {
     try {
-      const fileRef = ref(storage, path);
+      const fileRef = ref(currentStorage, path);
       await deleteObject(fileRef);
     } catch (err) {
-      // Si el archivo ya no existe, no es un error fatal
       if (err.code !== 'storage/object-not-found') {
         console.warn(`No se pudo eliminar archivo huérfano en Storage (${path}):`, err);
       }
@@ -176,8 +265,9 @@ export function calculateCatalogStorageStats(products = []) {
         totalBytes += p.imageMetadata.totalSizeBytes;
       } else if (p.imageMetadata?.sizeBytes) {
         totalBytes += p.imageMetadata.sizeBytes + (p.imageMetadata.thumbSizeBytes || 18 * 1024);
+      } else if (typeof p.image === 'string' && p.image.startsWith('data:image')) {
+        totalBytes += Math.round(p.image.length * 0.75); // Tamaño aproximado de base64 en bytes
       } else {
-        // Estimación promedio de 80 KB para imágenes antiguas sin metadata
         totalBytes += 80 * 1024;
       }
     }
@@ -191,7 +281,6 @@ export function calculateCatalogStorageStats(products = []) {
     totalBytes,
     totalFormatted: formatBytes(totalBytes),
     averageFormatted: formatBytes(averageBytes),
-    // 500 fotos estimadas a ~90 KB promedio = ~45 MB (dentro del límite de 5000 MB de Firebase Spark)
     capacityPercent: ((totalBytes / (5 * 1024 * 1024 * 1024)) * 100).toFixed(2),
   };
 }

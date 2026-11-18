@@ -58,13 +58,23 @@ function normalizeProductCategory(prod) {
   };
 }
 
-// Sanitizar producto: Solo admitir URLs http/https válidas, nunca blob ni Base64
+function isValidImageString(val) {
+  if (typeof val !== 'string') return false;
+  const s = val.trim();
+  return (
+    s.startsWith('https://') ||
+    s.startsWith('http://') ||
+    s.startsWith('data:image/')
+  );
+}
+
+// Sanitizar producto: Solo admitir URLs http/https válidas o WebP optimizado en data:image
 function sanitizeProduct(prod) {
   if (!prod) return prod;
   let cleanImage = prod.image || '';
   if (typeof cleanImage === 'string') {
     cleanImage = cleanImage.trim();
-    if (!cleanImage.startsWith('http://') && !cleanImage.startsWith('https://')) {
+    if (!isValidImageString(cleanImage)) {
       cleanImage = '';
     }
   } else {
@@ -74,7 +84,7 @@ function sanitizeProduct(prod) {
   let cleanThumb = prod.thumbnailUrl || '';
   if (typeof cleanThumb === 'string') {
     cleanThumb = cleanThumb.trim();
-    if (!cleanThumb.startsWith('http://') && !cleanThumb.startsWith('https://')) {
+    if (!isValidImageString(cleanThumb)) {
       cleanThumb = '';
     }
   } else {
