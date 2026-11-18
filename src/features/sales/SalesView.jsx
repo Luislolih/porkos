@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { SALES_MODES } from '../../types/constants';
 import { useCart } from '../../context/useCart';
 import { useCatalog } from '../../context/useCatalog';
@@ -40,6 +40,21 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
     deliveryFee,
     clearCart,
   } = useCart();
+
+  // Prevenir scroll en el fondo (ventas) al abrir el cajón de comanda en móvil
+  useEffect(() => {
+    if (!isMobileCartOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    const originalTouchAction = document.body.style.touchAction;
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.touchAction = originalTouchAction;
+    };
+  }, [isMobileCartOpen]);
 
   // Filtrar productos por Categorías principales: TODAS, CLÁSICO, ARTESANAL, MARKET y Búsqueda
   // Ordenados POR DEFECTO de mayor a menor salida según el histórico (salesCount)
@@ -361,19 +376,31 @@ export default function SalesView({ onOrderCreated, tables = [], onSettleTableOr
 
       {/* Mobile Cart Drawer */}
       {isMobileCartOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end">
+        <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end overscroll-contain">
           <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm touch-none"
             onClick={() => setIsMobileCartOpen(false)}
           />
-          <div className="relative z-10 max-h-[85vh] h-full flex flex-col">
-            <CartView
-              isMarketMode={salesMode === SALES_MODES.MARKET}
-              onSendToKitchen={handleSendToKitchen}
-              onCheckout={() => setIsPaymentOpen(true)}
-              onSettleTable={onSettleTableOrder}
-              onEditItem={handleEditCartItem}
-            />
+          <div className="relative z-10 max-h-[88vh] h-full flex flex-col bg-[var(--color-porkos-surface)] rounded-t-3xl border-t border-[var(--color-porkos-border)] shadow-2xl overflow-hidden overscroll-contain">
+            {/* Tirador superior para cerrar o deslizar */}
+            <div
+              className="w-full py-2.5 flex items-center justify-center cursor-pointer shrink-0 touch-none bg-black/30 border-b border-zinc-800/60"
+              onClick={() => setIsMobileCartOpen(false)}
+              title="Toca para cerrar"
+            >
+              <div className="w-12 h-1 bg-zinc-600 rounded-full" />
+            </div>
+
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <CartView
+                isMarketMode={salesMode === SALES_MODES.MARKET}
+                onSendToKitchen={handleSendToKitchen}
+                onCheckout={() => setIsPaymentOpen(true)}
+                onSettleTable={onSettleTableOrder}
+                onEditItem={handleEditCartItem}
+                onCloseMobileCart={() => setIsMobileCartOpen(false)}
+              />
+            </div>
           </div>
         </div>
       )}

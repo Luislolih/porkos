@@ -81,3 +81,9 @@ textarea,
 button {
   touch-action: manipulation;
 }
+
+/* Prevenir scroll encadenado al fondo en modales y cajones móviles */
+.overscroll-contain {
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch;
+}

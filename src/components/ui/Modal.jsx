@@ -13,9 +13,12 @@ export default function Modal({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Prevenir scroll en el fondo mientras el modal está abierto
+    // Prevenir scroll en el fondo mientras el modal está abierto (incluyendo touch en iOS/móviles)
     const originalOverflow = document.body.style.overflow;
+    const originalTouchAction = document.body.style.touchAction;
+
     document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
 
     // Cerrar modal al presionar Escape
     const handleKeyDown = (e) => {
@@ -27,6 +30,7 @@ export default function Modal({
 
     return () => {
       document.body.style.overflow = originalOverflow;
+      document.body.style.touchAction = originalTouchAction;
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);
@@ -37,11 +41,11 @@ export default function Modal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain"
     >
-      {/* Backdrop con desenfoque suave y color mate */}
+      {/* Backdrop con desenfoque suave y prevención de touch events */}
       <div
-        className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity duration-200"
+        className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity duration-200 touch-none"
         onClick={onClose}
         aria-hidden="true"
       />

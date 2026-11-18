@@ -441,6 +441,13 @@ export default function OrdersView({ orders = [] }) {
                         </p>
                       )}
 
+                      {/* Temperatura */}
+                      {item.customization?.temperature && (
+                        <p className="text-[10px] text-cyan-300 font-bold">
+                          {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar / Al Tiempo'}
+                        </p>
+                      )}
+
                       {/* Nota */}
                       {item.customization?.itemNotes && (
                         <p className="text-[10px] text-amber-300 italic">

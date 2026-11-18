@@ -37,6 +37,7 @@ export default function CartView({
   onSettleTable,
   onEditItem,
   isMarketMode = false,
+  onCloseMobileCart,
 }) {
   const {
     items,
@@ -86,15 +87,28 @@ export default function CartView({
           </span>
         </div>
 
-        {items.length > 0 && (
-          <button
-            type="button"
-            onClick={clearCart}
-            className="text-xs text-zinc-400 hover:text-rose-400 font-medium transition-colors cursor-pointer"
-          >
-            Limpiar
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {items.length > 0 && (
+            <button
+              type="button"
+              onClick={clearCart}
+              className="text-xs text-zinc-400 hover:text-rose-400 font-medium transition-colors cursor-pointer"
+            >
+              Limpiar
+            </button>
+          )}
+
+          {onCloseMobileCart && (
+            <button
+              type="button"
+              onClick={onCloseMobileCart}
+              className="p-1 rounded-lg text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 transition-colors cursor-pointer text-xs font-bold px-2"
+              title="Cerrar comanda"
+            >
+              ✕ Cerrar
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Target status bar: Mesa / Para Llevar / Delivery / Cliente (SOLO en Restaurante) */}
@@ -235,7 +249,7 @@ export default function CartView({
       )}
 
       {/* Items list */}
-      <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
+      <div className="flex-1 overflow-y-auto p-3.5 space-y-3 overscroll-contain">
         {items.length === 0 ? (
           <div className="h-48 flex flex-col items-center justify-center text-center text-zinc-500">
             {isMarketMode ? (
@@ -254,7 +268,16 @@ export default function CartView({
           </div>
         ) : (
           items.map((item) => {
-            const isCustomizable = !isMarketMode && item.requiresKitchen;
+            const isCustomizable = Boolean(onEditItem);
+            const hasDetails = Boolean(
+              getPapasText(item.customization) ||
+              item.customization?.creamsSummary ||
+              item.customization?.saladSummary ||
+              (item.customization?.selectedExtras && item.customization.selectedExtras.length > 0) ||
+              (item.customization?.packaging && item.customization.packaging.price > 0) ||
+              item.customization?.temperature ||
+              item.customization?.itemNotes
+            );
 
             return (
               <div
@@ -267,7 +290,7 @@ export default function CartView({
                   className={`flex items-start justify-between gap-2 ${
                     isCustomizable ? 'cursor-pointer group' : ''
                   }`}
-                  title={isCustomizable ? 'Toca para personalizar cremas, papas, etc.' : undefined}
+                  title={isCustomizable ? 'Toca para personalizar temperatura, notas o extras' : undefined}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
@@ -296,9 +319,9 @@ export default function CartView({
                 </div>
 
                 {/* Customization Details - Formato Gastronómico Interactivo */}
-                {!isMarketMode && item.requiresKitchen && item.customization && (
+                {hasDetails ? (
                   <div
-                    onClick={() => onEditItem && onEditItem(item)}
+                    onClick={() => isCustomizable && onEditItem && onEditItem(item)}
                     className="text-[11px] space-y-1 bg-black/60 p-2.5 rounded-xl border border-zinc-800 hover:border-[var(--color-porkos-orange)]/60 transition-all cursor-pointer group"
                     title="Toca para editar opciones de este producto"
                   >
@@ -315,17 +338,19 @@ export default function CartView({
                     )}
 
                     {/* CREMAS */}
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-extrabold text-orange-400 text-[10px] tracking-wider">
-                        CREMAS:
-                      </span>
-                      <span className="font-bold text-zinc-200">
-                        {item.customization.creamsSummary || 'SIN CREMAS'}
-                      </span>
-                    </div>
+                    {item.customization?.creamsSummary && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-orange-400 text-[10px] tracking-wider">
+                          CREMAS:
+                        </span>
+                        <span className="font-bold text-zinc-200">
+                          {item.customization.creamsSummary}
+                        </span>
+                      </div>
+                    )}
 
                     {/* ENSALADA */}
-                    {item.customization.saladSummary && (
+                    {item.customization?.saladSummary && (
                       <div className="flex items-center gap-1.5">
                         <span className="font-extrabold text-emerald-400 text-[10px] tracking-wider">
                           ENSALADA:
@@ -337,7 +362,7 @@ export default function CartView({
                     )}
 
                     {/* EXTRAS */}
-                    {item.customization.selectedExtras?.length > 0 && (
+                    {item.customization?.selectedExtras?.length > 0 && (
                       <div className="flex items-center gap-1.5">
                         <span className="font-extrabold text-amber-400 text-[10px] tracking-wider">
                           EXTRAS:
@@ -354,7 +379,7 @@ export default function CartView({
                     )}
 
                     {/* EMPAQUE INDIVIDUAL */}
-                    {item.customization.packaging && item.customization.packaging.price > 0 && (
+                    {item.customization?.packaging && item.customization.packaging.price > 0 && (
                       <div className="flex items-center gap-1.5">
                         <span className="font-extrabold text-blue-400 text-[10px] tracking-wider">
                           EMPAQUE:
@@ -366,19 +391,19 @@ export default function CartView({
                     )}
 
                     {/* TEMPERATURA */}
-                    {item.customization.temperature && (
+                    {item.customization?.temperature && (
                       <div className="flex items-center gap-1.5">
                         <span className="font-extrabold text-cyan-400 text-[10px] tracking-wider">
                           TEMP:
                         </span>
                         <span className="font-bold text-cyan-300">
-                          {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
+                          {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar / Al Tiempo'}
                         </span>
                       </div>
                     )}
 
                     {/* NOTA */}
-                    {item.customization.itemNotes && (
+                    {item.customization?.itemNotes && (
                       <div className="flex items-start gap-1.5 pt-0.5 border-t border-zinc-800/80">
                         <span className="font-extrabold text-zinc-400 text-[10px] tracking-wider">
                           NOTA:
@@ -389,6 +414,21 @@ export default function CartView({
                       </div>
                     )}
                   </div>
+                ) : (
+                  isCustomizable && (
+                    <div
+                      onClick={() => onEditItem(item)}
+                      className="flex items-center justify-between text-[11px] text-zinc-400 bg-zinc-900/40 hover:bg-zinc-850 px-2 py-1 rounded-lg border border-zinc-800/60 hover:border-zinc-700 cursor-pointer transition-colors"
+                      title="Toca para agregar temperatura o notas"
+                    >
+                      <span className="text-[10px] text-zinc-400">
+                        {item.requiresKitchen ? 'Opciones estándar de cocina' : 'Temperatura (Helada/Sin helar) y notas'}
+                      </span>
+                      <span className="text-[10px] text-[var(--color-porkos-orange)] font-bold">
+                        + Personalizar
+                      </span>
+                    </div>
+                  )
                 )}
 
                 {/* Controls: Delete & Quantity */}

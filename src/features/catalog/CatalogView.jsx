@@ -76,6 +76,7 @@ export default function CatalogView() {
   const [prodCategory, setProdCategory] = useState('cat_clasico');
   const [prodLine, setProdLine] = useState('CLASICO');
   const [prodType, setProdType] = useState('RESTAURANTE');
+  const [prodMarketSubtype, setProdMarketSubtype] = useState('BEBIDA'); // 'BEBIDA' | 'COMIDA'
   const [prodPrice, setProdPrice] = useState('');
   const [prodCost, setProdCost] = useState('');
   const [prodImage, setProdImage] = useState('');
@@ -178,6 +179,7 @@ export default function CatalogView() {
     setImageStorageSource(null);
     setProdDescription('');
     setProdKitchen(true);
+    setProdMarketSubtype('BEBIDA');
     setProdHasPapas(true);
     setProdHasSalad(true);
     setProdHasTemperature(false);
@@ -198,6 +200,22 @@ export default function CatalogView() {
     setProdCategory(cat);
     setProdLine(line);
     setProdType(type);
+
+    const isBeverage =
+      prod.marketSubtype === 'BEBIDA' ||
+      prod.line === 'BEBIDAS_MARKET' ||
+      prod.categoryId === 'cat_bebidas' ||
+      Boolean(prod.temperatureConfig?.enabled) ||
+      prod.name?.toLowerCase().includes('jugo') ||
+      prod.name?.toLowerCase().includes('gaseosa') ||
+      prod.name?.toLowerCase().includes('refresco') ||
+      prod.name?.toLowerCase().includes('chicha') ||
+      prod.name?.toLowerCase().includes('agua') ||
+      prod.name?.toLowerCase().includes('cerveza') ||
+      prod.name?.toLowerCase().includes('cola') ||
+      prod.name?.toLowerCase().includes('inka');
+
+    setProdMarketSubtype(prod.marketSubtype || (isBeverage ? 'BEBIDA' : 'COMIDA'));
     setProdPrice(prod.price.toString());
     setProdCost((prod.cost || '').toString());
     const existingImg = prod.image || '';
@@ -247,11 +265,15 @@ export default function CatalogView() {
         cleanImage = '';
       }
 
+      const isMarket = prodType === 'MARKET' || prodLine === 'MARKET' || prodCategory === 'cat_market';
+      const isDrink = isMarket ? prodMarketSubtype === 'BEBIDA' : prodHasTemperature;
+
       const productPayload = {
         name: prodName.trim(),
         categoryId: prodCategory,
         line: prodLine,
         type: prodType,
+        marketSubtype: isMarket ? prodMarketSubtype : null,
         price: parseFloat(prodPrice) || 0,
         cost: parseFloat(prodCost) || 0,
         image: cleanImage,
@@ -266,7 +288,7 @@ export default function CatalogView() {
               ingredients: ['Lechuga', 'Tomate', 'Pepinillo'],
             }
           : null,
-        temperatureConfig: prodHasTemperature
+        temperatureConfig: isDrink || prodHasTemperature
           ? {
               enabled: true,
               defaultOption: 'HELADA',
@@ -772,6 +794,11 @@ export default function CatalogView() {
                       <span className="bg-zinc-800 text-zinc-300 px-1.5 py-0.2 rounded font-bold uppercase">
                         {p.type}
                       </span>
+                      {p.type === 'MARKET' && (
+                        <span className={`px-1.5 py-0.2 rounded font-bold ${p.marketSubtype === 'BEBIDA' || p.temperatureConfig?.enabled ? 'bg-cyan-950/60 text-cyan-300 border border-cyan-500/30' : 'bg-purple-950/60 text-purple-300 border border-purple-500/30'}`}>
+                          {p.marketSubtype === 'BEBIDA' || p.temperatureConfig?.enabled ? '🥤 Bebida (Helar)' : '🍪 Comida / Snack'}
+                        </span>
+                      )}
                       {p.requiresKitchen && (
                         <span className="bg-orange-500/10 text-orange-400 px-1.5 py-0.2 rounded font-bold">
                           Cocina
@@ -1356,6 +1383,7 @@ export default function CatalogView() {
                       if (opt.type === 'MARKET') {
                         setProdKitchen(false);
                         setProdAvailablePackagingIds([]);
+                        setProdHasTemperature(prodMarketSubtype === 'BEBIDA');
                       } else {
                         setProdKitchen(true);
                       }
@@ -1375,6 +1403,58 @@ export default function CatalogView() {
               })}
             </div>
           </div>
+
+          {/* Si es MARKET: selector de tipo Bebida vs Comida/Snack */}
+          {(prodType === 'MARKET' || prodLine === 'MARKET' || prodCategory === 'cat_market') && (
+            <div className="bg-blue-950/20 p-3 rounded-xl border border-blue-500/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-zinc-200 font-bold flex items-center gap-1.5 text-xs">
+                  <span>Tipo de Producto Market *</span>
+                </label>
+                <span className="text-[10px] text-zinc-400">
+                  Controla si se ofrece helado o sin helar
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProdMarketSubtype('BEBIDA');
+                    setProdHasTemperature(true);
+                  }}
+                  className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    prodMarketSubtype === 'BEBIDA'
+                      ? 'bg-blue-600 text-white border-transparent font-black shadow-md'
+                      : 'bg-black/50 text-zinc-400 hover:text-white border-zinc-800'
+                  }`}
+                >
+                  <span>🥤 Bebida / Refresco</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProdMarketSubtype('COMIDA');
+                    setProdHasTemperature(false);
+                  }}
+                  className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    prodMarketSubtype === 'COMIDA'
+                      ? 'bg-blue-600 text-white border-transparent font-black shadow-md'
+                      : 'bg-black/50 text-zinc-400 hover:text-white border-zinc-800'
+                  }`}
+                >
+                  <span>🍪 Comida / Postre / Snack</span>
+                </button>
+              </div>
+
+              {prodMarketSubtype === 'BEBIDA' && (
+                <p className="text-[10px] text-blue-300 font-medium">
+                  ❄️ Configurado como bebida: en caja y comanda permitirá elegir &quot;Helada&quot; o &quot;Sin Helar&quot;, más notas rápidas (&quot;fresco&quot;, &quot;sin azúcar&quot;).
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Si es restaurante: opción de cocina */}
           {prodType === 'RESTAURANTE' && (

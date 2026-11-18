@@ -48,6 +48,11 @@ export default function ProductCard({
               <Flame className="w-3 h-3 text-[var(--color-porkos-orange)]" /> Cocina
             </span>
           )}
+          {(product.marketSubtype === 'BEBIDA' || product.temperatureConfig?.enabled) && (
+            <span className="bg-black/80 text-cyan-300 text-[10px] font-bold px-1.5 py-0.5 rounded border border-cyan-500/40 flex items-center gap-1 shadow-sm">
+              ❄️ Bebida
+            </span>
+          )}
         </div>
 
         {/* Quick Add floating pill icon */}

@@ -117,12 +117,28 @@ function CustomizerForm({
     return availablePackagings[0] || { id: 'pkg_ninguno', name: 'Sin Empaque / Salón', price: 0 };
   });
 
-  // 6. Temperatura: ÚNICAMENTE si el producto la tiene habilitada explícitamente
-  const hasTemperature = Boolean(product.temperatureConfig?.enabled);
+  // 6. Temperatura: Para bebidas o productos con configuración explícita
+  const isBeverage = Boolean(
+    product.marketSubtype === 'BEBIDA' ||
+    product.line === 'BEBIDAS_MARKET' ||
+    product.categoryId === 'cat_bebidas' ||
+    Boolean(product.temperatureConfig?.enabled) ||
+    initialCustomization?.temperature ||
+    product.name?.toLowerCase().includes('jugo') ||
+    product.name?.toLowerCase().includes('gaseosa') ||
+    product.name?.toLowerCase().includes('refresco') ||
+    product.name?.toLowerCase().includes('chicha') ||
+    product.name?.toLowerCase().includes('agua') ||
+    product.name?.toLowerCase().includes('cerveza') ||
+    product.name?.toLowerCase().includes('cola') ||
+    product.name?.toLowerCase().includes('inka')
+  );
+
+  const hasTemperature = Boolean(product.temperatureConfig?.enabled ?? isBeverage);
   const [temperature, setTemperature] = useState(() => {
-    if (!hasTemperature) return null;
     if (initialCustomization?.temperature) return initialCustomization.temperature;
-    return product.temperatureConfig?.defaultOption || 'HELADA';
+    if (hasTemperature) return product.temperatureConfig?.defaultOption || 'HELADA';
+    return null;
   });
 
   // 7. Notas
@@ -426,23 +442,28 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 6. TEMPERATURA (ÚNICAMENTE SI ESTÁ HABILITADA PARA ESTE PRODUCTO) */}
+      {/* 6. TEMPERATURA / ESTADO */}
       {hasTemperature && (
         <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-          <span className="text-xs font-black text-white uppercase tracking-wider block">
-            6. Temperatura
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-white uppercase tracking-wider block">
+              6. Temperatura / Estado
+            </span>
+            <span className="text-[10px] text-cyan-400 font-bold">
+              {isBeverage ? 'Bebida / Refresco' : ''}
+            </span>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             {[
               { id: 'HELADA', label: '❄️ Helada' },
-              { id: 'SIN_HELAR', label: 'Sin Helar' },
+              { id: 'SIN_HELAR', label: '🌡️ Sin Helar / Al Tiempo' },
             ].map((tOpt) => (
               <button
                 key={tOpt.id}
                 type="button"
                 onClick={() => setTemperature(tOpt.id)}
                 className={`
-                  h-12 rounded-xl font-black text-xs border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
+                  h-12 rounded-xl font-black text-xs sm:text-sm border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
                   ${
                     temperature === tOpt.id
                       ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] shadow-md'
@@ -457,17 +478,56 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 7. NOTA RÁPIDA */}
-      <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800 space-y-1.5">
-        <span className="text-xs font-black text-white uppercase tracking-wider block">
-          Nota rápida
-        </span>
+      {/* 7. NOTA RÁPIDA (CON CHIPS RÁPIDOS) */}
+      <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-black text-white uppercase tracking-wider block">
+            7. Nota rápida
+          </span>
+          <span className="text-[10px] text-zinc-500">
+            {isBeverage ? 'Indicaciones para bebida / jugo' : 'Instrucciones para cocina'}
+          </span>
+        </div>
+
+        {/* Chips de atajo rápido contextuales */}
+        <div className="flex flex-wrap gap-1.5">
+          {(isBeverage
+            ? ['Fresco', 'Sin azúcar', 'Poca azúcar', 'Con hielo', 'Sin hielo', 'Para llevar']
+            : ['Bien cocida', 'Término medio', 'Sin sal', 'Poco picante', 'Cebolla pochada', 'Para llevar']
+          ).map((chip) => {
+            const isChipSelected = notes.toLowerCase().includes(chip.toLowerCase());
+            return (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => {
+                  if (isChipSelected) {
+                    const regex = new RegExp(`(^|,\\s*)${chip}`, 'i');
+                    const updated = notes.replace(regex, '').replace(/^,\s*/, '').trim();
+                    setNotes(updated);
+                  } else {
+                    const updated = notes.trim() ? `${notes.trim()}, ${chip}` : chip;
+                    setNotes(updated);
+                  }
+                }}
+                className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer active:scale-95 ${
+                  isChipSelected
+                    ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-sm'
+                    : 'bg-black/60 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                }`}
+              >
+                {chip}
+              </button>
+            );
+          })}
+        </div>
+
         <input
           type="text"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Ej: bien cocida, cebolla pochada..."
-          className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
+          placeholder={isBeverage ? 'Ej. Fresco, sin azúcar, poco hielo...' : 'Ej: bien cocida, cebolla pochada...'}
+          className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
         />
       </div>
 

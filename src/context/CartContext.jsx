@@ -19,43 +19,55 @@ export function CartProvider({ children }) {
   const [discount, setDiscount] = useState(0);
 
   const addItem = (product, customization = null) => {
-    // Si es un producto de MARKET o estándar sin extras/personalizaciones, incrementar cantidad directamente
-    const isStandardItem =
-      product.type === 'MARKET' ||
-      (!customization?.selectedExtras?.length &&
-        !customization?.packaging?.price &&
-        !customization?.itemNotes);
+    const custom = customization || {
+      temperature: product.temperatureConfig?.enabled ? (product.temperatureConfig?.defaultOption || 'HELADA') : null,
+      creamsSummary: 'SIN CREMAS',
+      creamsDetail: { selected: [], removed: [], lowQuantity: [] },
+      selectedModifiers: [],
+      selectedExtras: [],
+      packaging: null,
+      removedIngredients: [],
+      itemNotes: '',
+    };
+
+    // Dos ítems son idénticos si comparten el mismo producto Y las mismas opciones (temperatura, notas, extras, packaging, papas, cremas)
+    const isIdentical = (item) => {
+      if (item.productId !== product.id) return false;
+      const iCust = item.customization || {};
+
+      const sameTemp = (iCust.temperature || null) === (custom.temperature || null);
+      const sameNotes = (iCust.itemNotes || '').trim().toLowerCase() === (custom.itemNotes || '').trim().toLowerCase();
+      const samePkg = (iCust.packaging?.id || null) === (custom.packaging?.id || null);
+      const sameCreams = (iCust.creamsSummary || '') === (custom.creamsSummary || '');
+      const sameSalad = (iCust.saladSummary || '') === (custom.saladSummary || '');
+      const sameExtras = JSON.stringify(iCust.selectedExtras || []) === JSON.stringify(custom.selectedExtras || []);
+      const sameMods = JSON.stringify(iCust.selectedModifiers || []) === JSON.stringify(custom.selectedModifiers || []);
+
+      return sameTemp && sameNotes && samePkg && sameCreams && sameSalad && sameExtras && sameMods;
+    };
 
     setItems((prev) => {
-      if (isStandardItem) {
-        const idx = prev.findIndex(
-          (i) =>
-            i.productId === product.id &&
-            (!i.customization?.selectedExtras?.length &&
-              !i.customization?.packaging?.price &&
-              !i.customization?.itemNotes)
-        );
-        if (idx >= 0) {
-          return prev.map((item, index) => {
-            if (index === idx) {
-              const newQty = item.quantity + 1;
-              return {
-                ...item,
-                quantity: newQty,
-                subtotal: item.unitPrice * newQty,
-              };
-            }
-            return item;
-          });
-        }
+      const idx = prev.findIndex(isIdentical);
+      if (idx >= 0) {
+        return prev.map((item, index) => {
+          if (index === idx) {
+            const newQty = item.quantity + 1;
+            return {
+              ...item,
+              quantity: newQty,
+              subtotal: item.unitPrice * newQty,
+            };
+          }
+          return item;
+        });
       }
 
       const extrasTotal =
-        customization?.selectedExtras?.reduce(
+        custom?.selectedExtras?.reduce(
           (sum, ext) => sum + ext.unitPrice * (ext.quantity || 1),
           0
         ) || 0;
-      const packagingPrice = customization?.packaging?.price || 0;
+      const packagingPrice = custom?.packaging?.price || 0;
       const unitPrice = product.price + extrasTotal + packagingPrice;
       const itemId = `${product.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
 
@@ -68,15 +80,7 @@ export function CartProvider({ children }) {
         quantity: 1,
         requiresKitchen: product.type === 'MARKET' ? false : (product.requiresKitchen ?? true),
         image: product.image,
-        customization: customization || {
-          creamsSummary: 'SIN CREMAS',
-          creamsDetail: { selected: [], removed: [], lowQuantity: [] },
-          selectedModifiers: [],
-          selectedExtras: [],
-          packaging: null,
-          removedIngredients: [],
-          itemNotes: '',
-        },
+        customization: custom,
         subtotal: unitPrice,
       };
 
