@@ -321,6 +321,7 @@ export function CartProvider({ children }) {
     });
     setDiscount(0);
     setEditingOrder(null);
+    setSelectedTable(null);
   };
 
   const addPackaging = (pkg) => {

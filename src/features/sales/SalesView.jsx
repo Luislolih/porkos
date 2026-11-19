@@ -398,6 +398,7 @@ export default function SalesView({
     }
 
     cancelEditingOrder();
+    clearCart();
     setIsMobileCartOpen(false);
     showToast(`Comanda ${updatedOrder.orderNumber} actualizada`);
     if (onReturnToOrders) {
@@ -407,6 +408,7 @@ export default function SalesView({
 
   const handleCancelEditing = () => {
     cancelEditingOrder();
+    clearCart();
     setIsMobileCartOpen(false);
     if (onReturnToOrders) {
       onReturnToOrders();

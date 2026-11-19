@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Plus,
   Minus,
@@ -22,6 +23,7 @@ import { useCatalog } from '../../../context/useCatalog';
 import { formatCurrency } from '../../../utils/formatters';
 import Button from '../../../components/ui/Button';
 import ProductThumbnail from '../../../components/ui/ProductThumbnail';
+import Modal from '../../../components/ui/Modal';
 
 function getPapasText(customization) {
   const papasMod = customization?.selectedModifiers?.find(
@@ -73,6 +75,7 @@ export default function CartView({
     cancelEditingOrder,
   } = useCart();
   const { packagings: catalogPackagings } = useCatalog();
+  const [isTablePickerOpen, setIsTablePickerOpen] = useState(false);
 
   const availablePackagings = (catalogPackagings || []).filter((p) => p.active && p.id !== 'pkg_ninguno');
   const hasKitchenItems = items.some((item) => item.requiresKitchen);
@@ -135,28 +138,20 @@ export default function CartView({
             </div>
           )}
 
-          {/* Selector de mesa limpio y sobrio sin advertencias visuales */}
+          {/* Selector de mesa interactivo */}
           {modality === 'MESA' && !selectedTable && (
             <div className="flex items-center justify-between gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-xl text-xs">
               <div className="flex items-center gap-1.5 text-zinc-300 font-semibold text-xs">
                 <Utensils className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
-                <span>Mesa:</span>
+                <span>Mesa del Salón:</span>
               </div>
-              <select
-                value=""
-                onChange={(e) => {
-                  const t = tables.find((item) => item.id === e.target.value);
-                  if (t) setSelectedTable(t);
-                }}
-                className="bg-black border border-zinc-700 text-zinc-200 text-xs font-semibold rounded-lg px-2.5 py-1 focus:outline-none focus:border-zinc-500 cursor-pointer"
+              <button
+                type="button"
+                onClick={() => setIsTablePickerOpen(true)}
+                className="bg-black hover:bg-zinc-800 border border-zinc-700 hover:border-[var(--color-porkos-orange)] text-zinc-200 text-xs font-bold rounded-lg px-3 py-1 focus:outline-none cursor-pointer flex items-center gap-1.5 transition-colors"
               >
-                <option value="">Seleccionar mesa...</option>
-                {tables.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label} ({t.status === 'OCCUPIED' ? 'Ocupada' : 'Libre'})
-                  </option>
-                ))}
-              </select>
+                <span>Elegir mesa...</span>
+              </button>
             </div>
           )}
 
@@ -170,13 +165,19 @@ export default function CartView({
             </div>
 
             {selectedTable && (
-              <span className={`font-bold px-2 py-0.5 rounded-md text-[11px] border ${
-                isTableOccupied
-                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                  : 'bg-zinc-800 text-zinc-200 border-zinc-700/70'
-              }`}>
-                {selectedTable.label} {isTableOccupied ? '(Abierta)' : '(Libre)'}
-              </span>
+              <button
+                type="button"
+                onClick={() => setIsTablePickerOpen(true)}
+                className={`font-bold px-2.5 py-0.5 rounded-md text-[11px] border cursor-pointer hover:border-zinc-500 transition-colors flex items-center gap-1.5 ${
+                  isTableOccupied
+                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                    : 'bg-zinc-800 text-zinc-200 border-zinc-700/70'
+                }`}
+                title="Clic para cambiar de mesa"
+              >
+                <span>{selectedTable.label} {isTableOccupied ? '(Abierta)' : '(Libre)'}</span>
+                <span className="text-[10px] text-zinc-400 underline font-normal">Cambiar</span>
+              </button>
             )}
           </div>
 
@@ -639,12 +640,18 @@ export default function CartView({
             /* EN MESA LIBRE, PARA LLEVAR O DELIVERY */
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <Button
-                onClick={onSendToKitchen}
+                onClick={() => {
+                  if (modality === 'MESA' && !selectedTable) {
+                    setIsTablePickerOpen(true);
+                  } else {
+                    onSendToKitchen();
+                  }
+                }}
                 disabled={items.length === 0}
                 variant="primary"
                 size="md"
                 icon={hasKitchenItems ? Flame : Plus}
-                className={`text-xs sm:text-sm font-black py-3 ${
+                className={`text-xs sm:text-sm font-black py-3 cursor-pointer ${
                   modality === 'MESA' && !selectedTable
                     ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
                     : 'bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20'
@@ -673,6 +680,80 @@ export default function CartView({
           )}
         </div>
       </div>
+
+      {/* Modal interactivo para seleccionar mesa */}
+      <Modal
+        isOpen={isTablePickerOpen}
+        onClose={() => setIsTablePickerOpen(false)}
+        title="Seleccionar Mesa"
+        subtitle="Elige la mesa del salón para esta orden"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[60vh] overflow-y-auto p-1">
+            {tables.map((t) => {
+              const isOccupied = t.status === 'OCCUPIED';
+              const isSelected = selectedTable?.id === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTable(t);
+                    setIsTablePickerOpen(false);
+                  }}
+                  className={`p-3 rounded-2xl border transition-all text-left flex flex-col justify-between gap-2.5 cursor-pointer active:scale-98 ${
+                    isSelected
+                      ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-lg shadow-orange-500/20 font-black'
+                      : isOccupied
+                      ? 'bg-amber-500/10 border-amber-500/30 hover:border-amber-500/60 text-white'
+                      : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700 text-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`font-bold text-sm ${isSelected ? 'text-black' : 'text-white'}`}>
+                      {t.label}
+                    </span>
+                    <Utensils className={`w-3.5 h-3.5 ${isSelected ? 'text-black' : isOccupied ? 'text-amber-400' : 'text-zinc-500'}`} />
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span
+                      className={`font-bold px-1.5 py-0.5 rounded ${
+                        isSelected
+                          ? 'bg-black/20 text-black'
+                          : isOccupied
+                          ? 'bg-amber-500/20 text-amber-300'
+                          : 'bg-emerald-500/20 text-emerald-400'
+                      }`}
+                    >
+                      {isOccupied ? 'Ocupada' : 'Libre'}
+                    </span>
+                    {t.capacity && (
+                      <span className={isSelected ? 'text-black/80 font-bold' : 'text-zinc-500'}>
+                        {t.capacity}p
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedTable && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedTable(null);
+                setIsTablePickerOpen(false);
+              }}
+              className="w-full text-center text-xs text-rose-400 hover:text-rose-300 py-1.5 font-bold cursor-pointer"
+            >
+              Quitar mesa seleccionada
+            </button>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
