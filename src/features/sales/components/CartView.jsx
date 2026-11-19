@@ -44,6 +44,7 @@ export default function CartView({
   isMarketMode = false,
   tables = [],
   onSaveEditedOrder,
+  onCancelEditing,
 }) {
   const {
     items,
@@ -115,20 +116,20 @@ export default function CartView({
         <div className="px-3.5 py-2.5 bg-black/40 border-b border-[var(--color-porkos-border)] space-y-2">
           {/* Banner de Edición de Comanda Activa */}
           {editingOrder && (
-            <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded-xl flex items-center justify-between text-xs animate-in fade-in">
+            <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl flex items-center justify-between text-xs animate-in fade-in">
               <div className="flex items-center gap-2 text-amber-300 font-bold">
                 <Edit3 className="w-4 h-4 text-amber-400 shrink-0" />
-                <div>
-                  <span>Editando Comanda: <strong>{editingOrder.orderNumber}</strong></span>
-                  <span className="block text-[10px] text-zinc-400 font-normal">Modifica los ítems y guarda los cambios</span>
-                </div>
+                <span>Editando Comanda: <strong>{editingOrder.orderNumber}</strong></span>
               </div>
               <button
                 type="button"
-                onClick={cancelEditingOrder}
-                className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-bold border border-zinc-700 cursor-pointer active:scale-95"
+                onClick={() => {
+                  cancelEditingOrder();
+                  if (onCancelEditing) onCancelEditing();
+                }}
+                className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold border border-zinc-700 cursor-pointer active:scale-95"
               >
-                Cancelar
+                Cancelar y Volver
               </button>
             </div>
           )}
@@ -604,12 +605,15 @@ export default function CartView({
                 Guardar Cambios Comanda {editingOrder.orderNumber} ({formatCurrency(total)})
               </Button>
               <Button
-                onClick={cancelEditingOrder}
+                onClick={() => {
+                  cancelEditingOrder();
+                  if (onCancelEditing) onCancelEditing();
+                }}
                 variant="secondary"
                 size="sm"
                 className="w-full text-xs font-bold py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 cursor-pointer"
               >
-                Cancelar Edición
+                Cancelar y Volver
               </Button>
             </div>
           ) : isMarketMode ? (

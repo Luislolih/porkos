@@ -13,7 +13,7 @@ import { formatCurrency } from '../../utils/formatters';
 import { getNextOrderNumber } from '../../utils/orderNumber';
 import { isProductBeverage, isProductMarket, isProductFood, isProductDessert } from '../../utils/productCategories';
 import { useAuth } from '../../context/useAuth';
-import { CheckCircle2, UtensilsCrossed } from 'lucide-react';
+import { CheckCircle2, UtensilsCrossed, Edit3 } from 'lucide-react';
 
 export default function SalesView({
   onOrderCreated,
@@ -21,6 +21,7 @@ export default function SalesView({
   orders = [],
   onSettleTableOrder,
   onOrderUpdated,
+  onReturnToOrders,
 }) {
   const { user } = useAuth();
   const [salesMode, setSalesMode] = useState(SALES_MODES.RESTAURANT);
@@ -378,7 +379,18 @@ export default function SalesView({
 
     cancelEditingOrder();
     setIsMobileCartOpen(false);
-    showToast(`Comanda ${updatedOrder.orderNumber} actualizada con éxito`);
+    showToast(`Comanda ${updatedOrder.orderNumber} actualizada`);
+    if (onReturnToOrders) {
+      onReturnToOrders();
+    }
+  };
+
+  const handleCancelEditing = () => {
+    cancelEditingOrder();
+    setIsMobileCartOpen(false);
+    if (onReturnToOrders) {
+      onReturnToOrders();
+    }
   };
 
   // Cobro directo (alimenta el histórico de ventas)
@@ -449,6 +461,32 @@ export default function SalesView({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Left Column: Products & Filters */}
         <div className="lg:col-span-7 xl:col-span-8 space-y-3.5">
+          {/* Banner superior si está editando comanda desde Pedidos */}
+          {editingOrder && (
+            <div className="bg-amber-500/15 border border-amber-500/40 p-3 rounded-2xl flex items-center justify-between gap-3 text-xs animate-in fade-in">
+              <div className="flex items-center gap-2.5 text-amber-300 font-bold">
+                <Edit3 className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Editando comanda <strong>{editingOrder.orderNumber}</strong></span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCancelEditing}
+                  className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold border border-zinc-700 cursor-pointer active:scale-95"
+                >
+                  Cancelar y Volver
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileCartOpen(true)}
+                  className="lg:hidden px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black cursor-pointer active:scale-95 shadow-md shadow-amber-500/20"
+                >
+                  Ver Comanda
+                </button>
+              </div>
+            </div>
+          )}
+
           <SalesHeader
             salesMode={salesMode}
             setSalesMode={(mode) => {
@@ -509,6 +547,7 @@ export default function SalesView({
             onEditItem={handleEditCartItem}
             tables={tables}
             onSaveEditedOrder={handleSaveEditedOrder}
+            onCancelEditing={handleCancelEditing}
           />
         </div>
       </div>
@@ -519,14 +558,22 @@ export default function SalesView({
           <button
             type="button"
             onClick={() => setIsMobileCartOpen(true)}
-            className="w-full bg-[var(--color-porkos-orange)] text-black p-3.5 rounded-2xl flex items-center justify-between font-black shadow-xl shadow-orange-500/30 active:scale-[0.98] transition-all cursor-pointer"
+            className={`w-full ${
+              editingOrder
+                ? 'bg-amber-500 text-black shadow-amber-500/30'
+                : 'bg-[var(--color-porkos-orange)] text-black shadow-orange-500/30'
+            } p-3.5 rounded-2xl flex items-center justify-between font-black shadow-xl active:scale-[0.98] transition-all cursor-pointer`}
           >
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-black text-white text-xs flex items-center justify-center font-extrabold">
                 {itemCount}
               </div>
               <span className="text-sm uppercase tracking-tight">
-                {salesMode === SALES_MODES.MARKET ? 'Ver Venta Market' : 'Ver Comanda'}
+                {editingOrder
+                  ? `Ver Comanda (${editingOrder.orderNumber})`
+                  : salesMode === SALES_MODES.MARKET
+                  ? 'Ver Venta Market'
+                  : 'Ver Comanda'}
               </span>
             </div>
             <span className="text-base font-black">{formatCurrency(total)}</span>
@@ -561,6 +608,7 @@ export default function SalesView({
                 onCloseMobileCart={() => setIsMobileCartOpen(false)}
                 tables={tables}
                 onSaveEditedOrder={handleSaveEditedOrder}
+                onCancelEditing={handleCancelEditing}
               />
             </div>
           </div>

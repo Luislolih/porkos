@@ -227,11 +227,8 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
           {beverageItems.length > 0 && (
             <div className="space-y-1.5 bg-zinc-900/90 p-2.5 rounded-xl border border-zinc-800">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>🥤</span> Bebidas a Entregar ({beverageItems.reduce((sum, b) => sum + (b.quantity || 1), 0)})
-                </span>
-                <span className="text-[10px] font-semibold text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700/60">
-                  Despacho
+                <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
+                  Bebidas
                 </span>
               </div>
 

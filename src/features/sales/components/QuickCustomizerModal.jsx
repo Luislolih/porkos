@@ -259,13 +259,13 @@ function CustomizerForm({
 
   return (
     <div className="space-y-3 pb-1 text-xs">
-      {/* 1. ENSALADA (ORDEN SOLICITADO: 1º ENSALADA) */}
+      {/* 1. ENSALADA */}
       {hasSalad && (
         <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
           <span className="text-xs font-black text-white uppercase tracking-wider block">
             1. Ensalada
           </span>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2.5">
             {[
               { mode: 'CON_ENSALADA', label: 'CON ENSALADA' },
               { mode: 'SIN_ENSALADA', label: 'SIN ENSALADA' },
@@ -277,7 +277,7 @@ function CustomizerForm({
                   type="button"
                   onClick={() => setSaladMode(sOpt.mode)}
                   className={`
-                    h-12 sm:h-14 rounded-xl font-black text-xs sm:text-sm border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
+                    min-h-[56px] sm:min-h-[60px] rounded-xl font-black text-sm sm:text-base border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
                     ${
                       isSelected
                         ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] shadow-md'
@@ -293,13 +293,13 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 2. PAPAS (ORDEN SOLICITADO: 2º PAPAS) */}
+      {/* 2. PAPAS */}
       {hasPapasModifier && (
         <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
           <span className="text-xs font-black text-white uppercase tracking-wider block">
             2. Papas
           </span>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-2.5">
             {[
               { id: 'fritas', label: 'FRITAS' },
               { id: 'al_hilo', label: 'AL HILO' },
@@ -315,7 +315,7 @@ function CustomizerForm({
                     setSelectedModifiers((prev) => ({ ...prev, mod_papas: pOpt.id }))
                   }
                   className={`
-                    h-12 sm:h-14 rounded-xl font-black text-xs sm:text-sm border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
+                    min-h-[56px] sm:min-h-[60px] rounded-xl font-black text-xs sm:text-sm border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
                     ${
                       isSelected
                         ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] shadow-md'
@@ -331,7 +331,7 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 3. CREMAS (ORDEN SOLICITADO: 3º CREMAS) */}
+      {/* 3. CREMAS */}
       {availableCreams.length > 0 && (
         <div className="space-y-2 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
           <div className="flex items-center justify-between">
@@ -342,21 +342,21 @@ function CustomizerForm({
               <button
                 type="button"
                 onClick={() => setSelectedCreams(availableCreams.map((c) => c.id))}
-                className="text-xs font-bold px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 cursor-pointer"
+                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 cursor-pointer"
               >
                 Todas
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedCreams([])}
-                className="text-xs font-bold px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-400 hover:text-rose-400 border border-zinc-700 cursor-pointer"
+                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-rose-400 border border-zinc-700 cursor-pointer"
               >
                 Ninguna
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
             {availableCreams.map((cream) => {
               const isSelected = selectedCreams.includes(cream.id);
               const short = cream.shortName || cream.name.slice(0, 4).toUpperCase();
@@ -366,7 +366,7 @@ function CustomizerForm({
                   type="button"
                   onClick={() => toggleCream(cream.id)}
                   className={`
-                    h-14 sm:h-16 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer relative
+                    min-h-[58px] sm:min-h-[66px] rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer relative
                     ${
                       isSelected
                         ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] shadow-md shadow-orange-500/20'
@@ -388,13 +388,13 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 4. EXTRAS (ORDEN SOLICITADO: 4º EXTRAS) */}
+      {/* 4. EXTRAS */}
       {compatibleExtras.length > 0 && (
         <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
           <span className="text-xs font-black text-white uppercase tracking-wider block">
             4. Extras
           </span>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {compatibleExtras.map((ext) => {
               const isSelected = selectedExtras.some((e) => e.id === ext.id);
               const cleanName = ext.name.replace(/^Extra\s+/i, '');
@@ -404,16 +404,16 @@ function CustomizerForm({
                   type="button"
                   onClick={() => toggleExtra(ext)}
                   className={`
-                    h-12 sm:h-14 px-3 rounded-xl border-2 flex items-center justify-between transition-all active:scale-95 cursor-pointer
+                    min-h-[56px] sm:min-h-[62px] px-3.5 py-2.5 rounded-xl border-2 flex items-center justify-between transition-all active:scale-95 cursor-pointer
                     ${
                       isSelected
                         ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md'
-                        : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                        : 'bg-zinc-900/90 text-zinc-200 border-zinc-800 hover:border-zinc-700'
                     }
                   `}
                 >
-                  <span className="text-xs font-bold truncate">{cleanName}</span>
-                  <span className={`text-xs font-black ml-1 shrink-0 ${isSelected ? 'text-black' : 'text-orange-400'}`}>
+                  <span className="text-sm sm:text-base font-extrabold truncate">{cleanName}</span>
+                  <span className={`text-xs sm:text-sm font-black ml-2 shrink-0 ${isSelected ? 'text-black' : 'text-orange-400'}`}>
                     +{formatCurrency(ext.price)}
                   </span>
                 </button>
@@ -426,12 +426,10 @@ function CustomizerForm({
       {/* 5. PACKAGING / EMPAQUE */}
       {hasPaidPackaging && (
         <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-white uppercase tracking-wider block">
-              5. Packaging / Empaque
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <span className="text-xs font-black text-white uppercase tracking-wider block">
+            5. Packaging / Empaque
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
             {availablePackagings.map((pkg) => {
               const isSelected = selectedPackaging?.id === pkg.id;
               return (
@@ -440,7 +438,7 @@ function CustomizerForm({
                   type="button"
                   onClick={() => setSelectedPackaging(pkg)}
                   className={`
-                    h-12 sm:h-14 p-2 rounded-xl border-2 flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer
+                    min-h-[54px] sm:min-h-[60px] p-2.5 rounded-xl border-2 flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer
                     ${
                       isSelected
                         ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md'
@@ -448,8 +446,8 @@ function CustomizerForm({
                     }
                   `}
                 >
-                  <span className="text-xs font-bold leading-tight truncate">{pkg.name}</span>
-                  <span className={`text-[10px] ${isSelected ? 'text-black font-extrabold' : 'text-zinc-500 font-semibold'}`}>
+                  <span className="text-xs sm:text-sm font-bold leading-tight truncate">{pkg.name}</span>
+                  <span className={`text-[11px] ${isSelected ? 'text-black font-extrabold' : 'text-zinc-500 font-semibold'}`}>
                     {pkg.price > 0 ? `+${formatCurrency(pkg.price)}` : 'Gratis'}
                   </span>
                 </button>
@@ -462,12 +460,10 @@ function CustomizerForm({
       {/* 6. TEMPERATURA */}
       {hasTemperature && (
         <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-white uppercase tracking-wider block">
-              6. Temperatura
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
+          <span className="text-xs font-black text-white uppercase tracking-wider block">
+            6. Temperatura
+          </span>
+          <div className="grid grid-cols-2 gap-2.5">
             {[
               { id: 'HELADA', label: '❄️ Helada' },
               { id: 'SIN_HELAR', label: '🌡️ Sin Helar' },
@@ -477,7 +473,7 @@ function CustomizerForm({
                 type="button"
                 onClick={() => setTemperature(tOpt.id)}
                 className={`
-                  h-12 rounded-xl font-black text-xs sm:text-sm border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
+                  min-h-[54px] sm:min-h-[58px] rounded-xl font-black text-sm sm:text-base border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
                   ${
                     temperature === tOpt.id
                       ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] shadow-md'
@@ -492,55 +488,53 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 7. NOTA RÁPIDA */}
+      {/* 7. NOTA RÁPIDA (En comida solo campo de escritura sin opciones por defecto) */}
       <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800 space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-black text-white uppercase tracking-wider block">
-            7. Nota rápida
-          </span>
-        </div>
+        <span className="text-xs font-black text-white uppercase tracking-wider block">
+          7. Nota rápida
+        </span>
 
-        {/* Chips de atajo rápido contextuales */}
-        <div className="flex flex-wrap gap-1.5">
-          {(isJuice
-            ? ['Sin azúcar', 'Bajo en azúcar', 'Poco azúcar', 'Normal de azúcar', 'Bien helado', 'Sin helar', 'Con hielo', 'Sin hielo']
-            : isBeverage
-            ? ['Bien helada', 'Sin helar', 'Con vaso', 'Sin vaso', 'Para llevar']
-            : ['Bien cocida', 'Término medio', 'Sin sal', 'Poco picante', 'Cebolla pochada', 'Para llevar']
-          ).map((chip) => {
-            const isChipSelected = notes.toLowerCase().includes(chip.toLowerCase());
-            return (
-              <button
-                key={chip}
-                type="button"
-                onClick={() => {
-                  if (isChipSelected) {
-                    const regex = new RegExp(`(^|,\\s*)${chip}`, 'i');
-                    const updated = notes.replace(regex, '').replace(/^,\s*/, '').trim();
-                    setNotes(updated);
-                  } else {
-                    const updated = notes.trim() ? `${notes.trim()}, ${chip}` : chip;
-                    setNotes(updated);
-                  }
-                }}
-                className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer active:scale-95 ${
-                  isChipSelected
-                    ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-sm'
-                    : 'bg-black/60 text-zinc-300 border-zinc-800 hover:border-zinc-700'
-                }`}
-              >
-                {chip}
-              </button>
-            );
-          })}
-        </div>
+        {/* Chips de atajo rápido únicamente para bebidas / jugos */}
+        {isBeverage && (
+          <div className="flex flex-wrap gap-1.5">
+            {(isJuice
+              ? ['Sin azúcar', 'Bajo azúcar', 'Con hielo', 'Sin hielo']
+              : ['Con vaso', 'Sin vaso']
+            ).map((chip) => {
+              const isChipSelected = notes.toLowerCase().includes(chip.toLowerCase());
+              return (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => {
+                    if (isChipSelected) {
+                      const regex = new RegExp(`(^|,\\s*)${chip}`, 'i');
+                      const updated = notes.replace(regex, '').replace(/^,\s*/, '').trim();
+                      setNotes(updated);
+                    } else {
+                      const updated = notes.trim() ? `${notes.trim()}, ${chip}` : chip;
+                      setNotes(updated);
+                    }
+                  }}
+                  className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer active:scale-95 ${
+                    isChipSelected
+                      ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-sm'
+                      : 'bg-black/60 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                  }`}
+                >
+                  {chip}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <input
           type="text"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder={isBeverage ? 'Ej. Fresco, sin azúcar, poco hielo...' : 'Ej: bien cocida, cebolla pochada...'}
-          className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
+          placeholder={isBeverage ? 'Indicación para despacho...' : 'Indicación para cocina...'}
+          className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3.5 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
         />
       </div>
 
@@ -549,7 +543,7 @@ function CustomizerForm({
         <button
           type="button"
           onClick={handleConfirm}
-          className="w-full bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black font-black text-sm sm:text-base py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-xl shadow-orange-500/20 active:scale-[0.98] transition-all cursor-pointer"
+          className="w-full bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black font-black text-sm sm:text-base py-3.5 sm:py-4 px-4 rounded-xl flex items-center justify-center gap-2 shadow-xl shadow-orange-500/20 active:scale-[0.98] transition-all cursor-pointer"
         >
           <span>{initialCustomization ? 'Guardar Cambios' : 'Añadir a la Comanda'}</span>
           <span>•</span>

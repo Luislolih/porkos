@@ -319,6 +319,7 @@ function MainApp() {
               }
             }}
             onOrderUpdated={handleUpdateOrder}
+            onReturnToOrders={() => setCurrentModule(MODULES.ORDERS)}
           />
         )}
 
@@ -332,10 +333,8 @@ function MainApp() {
         {activeModule === MODULES.ORDERS && (
           <OrdersView
             orders={orders}
-            onUpdateOrder={handleUpdateOrder}
             onEditOrderInSales={handleLoadOrderForEditing}
             onClearAllOrders={handleClearAllOrders}
-            tables={tables}
           />
         )}
 
