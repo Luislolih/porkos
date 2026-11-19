@@ -11,6 +11,8 @@ import {
   Camera,
   Loader2,
   AlertTriangle,
+  Search,
+  X,
 } from 'lucide-react';
 import { useCatalog } from '../../context/useCatalog';
 import { formatCurrency } from '../../utils/formatters';
@@ -64,6 +66,20 @@ export default function CatalogView() {
   const catalogStorageStats = useMemo(() => calculateCatalogStorageStats(products), [products]);
 
   const [activeTab, setActiveTab] = useState('products'); // 'products' | 'categories' | 'creams' | 'extras' | 'packagings'
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+
+  const filteredProducts = useMemo(() => {
+    if (!productSearchQuery.trim()) return products;
+    const q = productSearchQuery.toLowerCase().trim();
+    return products.filter((p) => {
+      const nameMatch = p.name?.toLowerCase().includes(q);
+      const descMatch = p.description?.toLowerCase().includes(q);
+      const typeMatch = p.type?.toLowerCase().includes(q);
+      const lineMatch = p.line?.toLowerCase().includes(q);
+      const subtypeMatch = p.marketSubtype?.toLowerCase().includes(q);
+      return Boolean(nameMatch || descMatch || typeMatch || lineMatch || subtypeMatch);
+    });
+  }, [products, productSearchQuery]);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
@@ -929,6 +945,39 @@ export default function CatalogView() {
               </Button>
             </div>
           </div>
+
+          {/* Barra de búsqueda de productos */}
+          {products.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-3 shadow-sm">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={productSearchQuery}
+                  onChange={(e) => setProductSearchQuery(e.target.value)}
+                  placeholder="Buscar producto por nombre, tipo o categoría..."
+                  className="w-full bg-zinc-900/90 border border-zinc-800 focus:border-[var(--color-porkos-orange)] rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-white placeholder-zinc-500 font-semibold focus:outline-none transition-colors"
+                />
+                {productSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setProductSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white p-0.5 rounded cursor-pointer"
+                    title="Limpiar búsqueda"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-zinc-400 shrink-0 self-end sm:self-center font-semibold">
+                <span>
+                  Mostrando <strong className="text-white">{filteredProducts.length}</strong> de {products.length} productos
+                </span>
+              </div>
+            </div>
+          )}
+
           {products.length === 0 ? (
             <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto space-y-3.5 my-6">
               <div className="w-14 h-14 rounded-2xl bg-orange-500/10 text-[var(--color-porkos-orange)] border border-orange-500/20 flex items-center justify-center">
@@ -944,9 +993,28 @@ export default function CatalogView() {
                 Crear Primer Producto
               </Button>
             </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-8 text-center flex flex-col items-center justify-center max-w-md mx-auto space-y-3 my-6">
+              <div className="w-12 h-12 rounded-2xl bg-zinc-800 text-zinc-400 flex items-center justify-center">
+                <Search className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-white">No se encontraron productos</h4>
+                <p className="text-xs text-zinc-400">
+                  No hay productos que coincidan con &ldquo;<strong className="text-zinc-200">{productSearchQuery}</strong>&rdquo;
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProductSearchQuery('')}
+                className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 cursor-pointer"
+              >
+                Limpiar búsqueda
+              </button>
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {products.map((p) => {
+              {filteredProducts.map((p) => {
                 const allowedPackagingsCount = p.availablePackagingIds?.length || 0;
 
             return (

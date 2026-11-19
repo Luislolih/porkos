@@ -137,12 +137,26 @@ function MainApp() {
     }
 
     const isTableModality = newOrder.modality === 'MESA' || Boolean(newOrder.tableId);
+    const isDelivery = newOrder.modality === 'DELIVERY';
     const hasKitchenItems = newOrder.items?.some((i) => i.requiresKitchen);
-    const isSoloMarket = (newOrder.modality === 'MARKET' || !hasKitchenItems) && !isTableModality;
+    const isSoloMarket = (newOrder.modality === 'MARKET' || !hasKitchenItems) && !isTableModality && !isDelivery;
+
+    let orderStatus = newOrder.status;
+    if (!orderStatus) {
+      if (hasKitchenItems) {
+        orderStatus = 'PENDIENTE';
+      } else if (isDelivery) {
+        orderStatus = 'LISTO';
+      } else if (isTableModality || isSoloMarket) {
+        orderStatus = 'ENTREGADO';
+      } else {
+        orderStatus = 'ENTREGADO';
+      }
+    }
 
     const cleanOrder = {
       ...newOrder,
-      status: isSoloMarket ? 'ENTREGADO' : (newOrder.status || (hasKitchenItems ? 'PENDIENTE' : 'ENTREGADO')),
+      status: orderStatus,
       paymentStatus: isTableModality ? (newOrder.paymentStatus || 'PENDING') : 'PAID',
       createdAt: newOrder.createdAt instanceof Date ? newOrder.createdAt : parseToDate(newOrder.createdAt) || new Date(),
     };
@@ -334,6 +348,7 @@ function MainApp() {
           <OrdersView
             orders={orders}
             onEditOrderInSales={handleLoadOrderForEditing}
+            onUpdateOrder={handleUpdateOrder}
             onClearAllOrders={handleClearAllOrders}
           />
         )}

@@ -15,6 +15,7 @@ import {
   Utensils,
   Edit3,
   Check,
+  X,
 } from 'lucide-react';
 import { useCart } from '../../../context/useCart';
 import { useCatalog } from '../../../context/useCatalog';
@@ -201,47 +202,40 @@ export default function CartView({
             </div>
           )}
 
-          {/* Nombre de cliente: indicador compacto si ya está definido en la barra superior o input estilizado */}
-          {(customerName || customer.name) ? (
-            <div className="flex items-center justify-between text-xs bg-zinc-900/60 px-2.5 py-1 rounded-lg border border-zinc-800/80">
-              <div className="flex items-center gap-1.5 text-zinc-400 min-w-0">
-                <User className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                <span className="text-[11px]">Cliente:</span>
-                <span className="text-white font-bold truncate">{customerName || customer.name}</span>
-              </div>
+          {/* Nombre de cliente: siempre editable directamente haciendo clic */}
+          <div className="relative flex items-center">
+            <User className="w-3.5 h-3.5 absolute left-2.5 text-zinc-400 pointer-events-none" />
+            <input
+              type="text"
+              value={customerName || customer.name || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCustomerName(val);
+                setCustomer((prev) => ({ ...prev, name: val }));
+              }}
+              placeholder={
+                isDelivery
+                  ? 'Nombre del cliente (Delivery) *'
+                  : isTakeout
+                  ? 'Nombre del cliente (Para llevar)...'
+                  : 'Nombre del cliente / comensal...'
+              }
+              className="w-full bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] rounded-xl pl-8 pr-7 py-2 text-xs text-white placeholder-zinc-500 font-semibold focus:outline-none transition-colors"
+            />
+            {(customerName || customer.name) && (
               <button
                 type="button"
                 onClick={() => {
                   setCustomerName('');
                   setCustomer((prev) => ({ ...prev, name: '' }));
                 }}
-                className="text-zinc-500 hover:text-zinc-300 text-[10px] font-bold shrink-0 ml-2"
+                className="absolute right-2 text-zinc-500 hover:text-zinc-300 p-0.5 rounded cursor-pointer"
+                title="Borrar nombre"
               >
-                Cambiar
+                <X className="w-3.5 h-3.5" />
               </button>
-            </div>
-          ) : (
-            <div className="relative">
-              <User className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-              <input
-                type="text"
-                value={customerName || customer.name || ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setCustomerName(val);
-                  setCustomer((prev) => ({ ...prev, name: val }));
-                }}
-                placeholder={
-                  isDelivery
-                    ? 'Nombre del cliente (Delivery) *'
-                    : isTakeout
-                    ? 'Nombre del cliente (Recojo) *'
-                    : 'Nombre del comensal (opcional)...'
-                }
-                className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 font-medium"
-              />
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Empaques agregados a nivel comanda */}
           {orderPackagings && orderPackagings.length > 0 && (

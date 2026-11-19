@@ -11,6 +11,7 @@ import {
   Store,
   Utensils,
   X,
+  Check,
   Package,
   Edit3,
   Trash2,
@@ -24,15 +25,35 @@ import Modal from '../../components/ui/Modal';
 export default function OrdersView({
   orders = [],
   onEditOrderInSales,
+  onUpdateOrder,
   onClearAllOrders,
 }) {
   const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'HISTORY'
   const [filterModality, setFilterModality] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [editingCustomerNameOrder, setEditingCustomerNameOrder] = useState(null);
+  const [tempCustomerName, setTempCustomerName] = useState('');
   const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [, setTick] = useState(0);
+
+  const handleSaveCustomerName = (order) => {
+    if (!order) return;
+    const newName = tempCustomerName.trim();
+    const updated = {
+      ...order,
+      customerName: newName || null,
+      customer: order.customer ? { ...order.customer, name: newName } : (newName ? { name: newName } : null),
+    };
+    if (onUpdateOrder) {
+      onUpdateOrder(updated);
+    }
+    if (selectedOrder && selectedOrder.orderNumber === order.orderNumber) {
+      setSelectedOrder(updated);
+    }
+    setEditingCustomerNameOrder(null);
+  };
 
   // Actualizar tiempos transcurridos en tiempo real cada 20 segundos
   useEffect(() => {
@@ -303,10 +324,51 @@ export default function OrdersView({
                       <span className="font-semibold text-zinc-300">
                         {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Para Llevar' : order.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : order.modality)}
                       </span>
-                      {order.customerName && (
-                        <span className="text-amber-400 font-bold truncate">
-                          • {order.customerName}
-                        </span>
+                      {editingCustomerNameOrder === order.orderNumber ? (
+                        <div
+                          className="flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="text"
+                            autoFocus
+                            value={tempCustomerName}
+                            onChange={(e) => setTempCustomerName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveCustomerName(order);
+                              if (e.key === 'Escape') setEditingCustomerNameOrder(null);
+                            }}
+                            className="bg-zinc-900 border border-zinc-700 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] font-bold w-28"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSaveCustomerName(order)}
+                            className="p-1 rounded bg-[var(--color-porkos-orange)] text-black cursor-pointer"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCustomerNameOrder(null)}
+                            className="p-1 rounded bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingCustomerNameOrder(order.orderNumber);
+                            setTempCustomerName(order.customerName || order.customer?.name || '');
+                          }}
+                          className="group/cust inline-flex items-center gap-1 cursor-pointer text-amber-400 hover:text-amber-300 font-bold truncate"
+                          title="Clic para editar nombre del cliente"
+                        >
+                          <span>• {order.customerName || 'Cliente'}</span>
+                          <Edit3 className="w-2.5 h-2.5 text-zinc-500 group-hover/cust:text-amber-300" />
+                        </button>
                       )}
                       <span className="text-zinc-500 text-[11px]">
                         ({order.items?.length || 0} items)
@@ -438,11 +500,54 @@ export default function OrdersView({
 
             {/* Datos del Cliente y Modalidad */}
             <div className="bg-black/40 p-3 rounded-xl border border-zinc-800/80 flex items-center justify-between text-xs">
-              <div>
+              <div className="flex-1 pr-3">
                 <span className="text-zinc-500 text-[10px] block">Cliente:</span>
-                <span className="font-bold text-white text-sm">
-                  {selectedOrder.customerName || selectedOrder.customer?.name || 'Cliente en Salón'}
-                </span>
+                {editingCustomerNameOrder === selectedOrder.orderNumber ? (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={tempCustomerName}
+                      onChange={(e) => setTempCustomerName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveCustomerName(selectedOrder);
+                        if (e.key === 'Escape') setEditingCustomerNameOrder(null);
+                      }}
+                      placeholder="Nombre del cliente..."
+                      className="bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] font-bold w-full max-w-[200px]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSaveCustomerName(selectedOrder)}
+                      className="p-1.5 rounded-lg bg-[var(--color-porkos-orange)] text-black font-bold hover:bg-orange-400 cursor-pointer"
+                      title="Guardar nombre"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingCustomerNameOrder(null)}
+                      className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                      title="Cancelar"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => {
+                      setEditingCustomerNameOrder(selectedOrder.orderNumber);
+                      setTempCustomerName(selectedOrder.customerName || selectedOrder.customer?.name || '');
+                    }}
+                    className="group/cust inline-flex items-center gap-1.5 cursor-pointer mt-0.5"
+                    title="Clic para editar el nombre del cliente"
+                  >
+                    <span className="font-bold text-white text-sm group-hover/cust:text-[var(--color-porkos-orange)] transition-colors">
+                      {selectedOrder.customerName || selectedOrder.customer?.name || 'Cliente en Salón'}
+                    </span>
+                    <Edit3 className="w-3 h-3 text-zinc-500 group-hover/cust:text-[var(--color-porkos-orange)] transition-colors" />
+                  </div>
+                )}
                 {selectedOrder.customer?.phone && (
                   <p className="text-[11px] text-zinc-400">Tel: {selectedOrder.customer.phone}</p>
                 )}

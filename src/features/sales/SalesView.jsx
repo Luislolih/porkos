@@ -240,28 +240,41 @@ export default function SalesView({
         showToast('⚠️ Ingresa el nombre del cliente para delivery');
         return;
       }
-      if (!customer.address?.trim()) {
-        showToast('⚠️ Ingresa la dirección de entrega');
-        return;
-      }
     }
 
     const hasKitchenItems = items.some((i) => i.requiresKitchen);
     const isTable = modality === 'MESA' || modality === ORDER_MODALITIES.MESA?.id;
-    const isMarketSale = salesMode === SALES_MODES.MARKET || (!hasKitchenItems && !isTable);
+    const isDelivery = modality === 'DELIVERY';
+    const isMarketSale = salesMode === SALES_MODES.MARKET || (!hasKitchenItems && !isTable && !isDelivery);
+
+    let orderStatus;
+    if (hasKitchenItems) {
+      orderStatus = 'PENDIENTE';
+    } else if (isDelivery) {
+      // Pedido de delivery que no requiere cocina (market, bebidas, snacks): queda LISTO para despacho
+      orderStatus = 'LISTO';
+    } else if (isTable) {
+      // Pedido a mesa sin preparación de cocina: entregado directo a mesa
+      orderStatus = 'ENTREGADO';
+    } else {
+      orderStatus = 'ENTREGADO';
+    }
 
     const operatorName = user?.displayName || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Cajero');
     const operatorEmail = user?.email || 'caja@porkos.pe';
 
+    const clientName = (customerName?.trim() || customer.name?.trim()) || (isDelivery ? 'Cliente Delivery' : null);
+    const deliveryAddress = customer.address?.trim() || (isDelivery ? 'Dirección por coordinar' : null);
+
     const orderData = {
       orderNumber: getNextOrderNumber(orders, isTable ? 'P' : (isMarketSale ? 'M' : 'P')),
       modality: isTable ? 'MESA' : (isMarketSale && salesMode === SALES_MODES.MARKET ? 'MARKET' : modality),
-      status: (!hasKitchenItems && !isTable) ? 'ENTREGADO' : (hasKitchenItems ? 'PENDIENTE' : 'ENTREGADO'),
+      status: orderStatus,
       paymentStatus: isTable ? 'PENDING' : 'PAID',
       tableId: isTable ? (selectedTable?.id || null) : null,
       tableName: isTable ? (selectedTable?.label || null) : null,
-      customerName: (customerName?.trim() || customer.name?.trim()) || null,
-      customer: modality === 'DELIVERY' ? { ...customer, name: customerName?.trim() || customer.name?.trim() || '' } : null,
+      customerName: clientName,
+      customer: isDelivery ? { ...customer, name: clientName || '', address: deliveryAddress } : null,
       items: [...items],
       packagings: [...packagings],
       generalNotes,
@@ -296,9 +309,15 @@ export default function SalesView({
             ? `Comanda ${orderData.orderNumber} enviada a Cocina (${selectedTable.label})`
             : `Comanda ${orderData.orderNumber} enviada a Cocina`
           : `Pedido ${orderData.orderNumber} sumado a ${selectedTable.label}`
+        : isDelivery
+        ? hasKitchenItems
+          ? `Pedido Delivery ${orderData.orderNumber} enviado a Cocina`
+          : `Pedido Delivery ${orderData.orderNumber} listo para despacho`
         : isMarketSale
         ? `Venta ${orderData.orderNumber} entregada`
-        : `Comanda ${orderData.orderNumber} enviada a Cocina`
+        : hasKitchenItems
+        ? `Comanda ${orderData.orderNumber} enviada a Cocina`
+        : `Pedido ${orderData.orderNumber} registrado (Listo)`
     );
   };
 
@@ -315,10 +334,6 @@ export default function SalesView({
       const clientName = customerName?.trim() || customer.name?.trim();
       if (!clientName) {
         showToast('⚠️ Ingresa el nombre del cliente para delivery');
-        return;
-      }
-      if (!customer.address?.trim()) {
-        showToast('⚠️ Ingresa la dirección de entrega');
         return;
       }
     }
@@ -350,10 +365,6 @@ export default function SalesView({
         showToast('⚠️ Ingresa el nombre del cliente para delivery');
         return;
       }
-      if (!customer.address?.trim()) {
-        showToast('⚠️ Ingresa la dirección de entrega');
-        return;
-      }
     }
 
     if (items.length === 0) {
@@ -361,13 +372,16 @@ export default function SalesView({
       return;
     }
 
+    const clientName = (customerName?.trim() || customer.name?.trim()) || (modality === 'DELIVERY' ? 'Cliente Delivery' : null);
+    const deliveryAddress = customer.address?.trim() || (modality === 'DELIVERY' ? 'Dirección por coordinar' : null);
+
     const updatedOrder = {
       ...editingOrder,
       modality,
       tableId: modality === 'MESA' ? (selectedTable?.id || null) : null,
       tableName: modality === 'MESA' ? (selectedTable?.label || null) : null,
-      customerName: (customerName?.trim() || customer.name?.trim()) || null,
-      customer: modality === 'DELIVERY' ? { ...customer, name: customerName?.trim() || customer.name?.trim() || '' } : null,
+      customerName: clientName,
+      customer: modality === 'DELIVERY' ? { ...customer, name: clientName || '', address: deliveryAddress } : null,
       items: [...items],
       packagings: [...packagings],
       generalNotes,
@@ -405,15 +419,26 @@ export default function SalesView({
     const operatorName = user?.displayName || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Cajero');
     const operatorEmail = user?.email || 'caja@porkos.pe';
 
+    const hasKitchenItems = items.some((i) => i.requiresKitchen);
+    const isDelivery = !isMarketSale && modality === 'DELIVERY';
+    const orderStatus = isMarketSale
+      ? 'ENTREGADO'
+      : (hasKitchenItems ? 'PENDIENTE' : (isDelivery ? 'LISTO' : 'ENTREGADO'));
+
+    const clientName = isMarketSale
+      ? 'Venta Mostrador'
+      : ((customerName?.trim() || customer.name?.trim()) || (isDelivery ? 'Cliente Delivery' : null));
+    const deliveryAddress = customer.address?.trim() || (isDelivery ? 'Dirección por coordinar' : null);
+
     const orderData = {
       orderNumber: getNextOrderNumber(orders, isMarketSale ? 'M' : 'P'),
       modality: isMarketSale ? 'MARKET' : modality,
-      status: isMarketSale ? 'ENTREGADO' : (items.some((i) => i.requiresKitchen) ? 'PENDIENTE' : 'ENTREGADO'),
+      status: orderStatus,
       paymentStatus: 'PAID',
       tableId: isMarketSale ? null : (selectedTable?.id || null),
       tableName: isMarketSale ? null : (selectedTable?.label || null),
-      customerName: isMarketSale ? 'Venta Mostrador' : ((customerName?.trim() || customer.name?.trim()) || null),
-      customer: !isMarketSale && modality === 'DELIVERY' ? { ...customer, name: customerName?.trim() || customer.name?.trim() || '' } : null,
+      customerName: clientName,
+      customer: isDelivery ? { ...customer, name: clientName || '', address: deliveryAddress } : null,
       items: [...items],
       packagings: isMarketSale ? [] : [...packagings],
       generalNotes: isMarketSale ? 'Venta directa en caja' : generalNotes,

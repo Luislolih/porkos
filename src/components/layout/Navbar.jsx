@@ -49,8 +49,15 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           {/* Logo & Brand */}
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[var(--color-porkos-orange)] flex items-center justify-center font-black text-black text-lg sm:text-xl tracking-tighter shadow-lg shadow-orange-500/20">
-              P
+            <div className="flex items-center gap-2">
+              <img
+                src="/favicon.png"
+                alt="Porkos Isotipo"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain shadow-md"
+              />
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[var(--color-porkos-orange)] flex items-center justify-center font-black text-black text-lg sm:text-xl tracking-tighter shadow-lg shadow-orange-500/20">
+                P
+              </div>
             </div>
             <div>
               <div className="flex items-center gap-1.5 sm:gap-2">
@@ -173,8 +180,15 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
               {/* Drawer Header */}
               <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[var(--color-porkos-orange)] flex items-center justify-center font-black text-black text-base shadow-sm">
-                    P
+                  <div className="flex items-center gap-1.5">
+                    <img
+                      src="/favicon.png"
+                      alt="Porkos Isotipo"
+                      className="w-8 h-8 rounded-xl object-contain shadow-sm"
+                    />
+                    <div className="w-8 h-8 rounded-xl bg-[var(--color-porkos-orange)] flex items-center justify-center font-black text-black text-base shadow-sm">
+                      P
+                    </div>
                   </div>
                   <div>
                     <h3 className="font-extrabold text-sm text-white leading-tight">
