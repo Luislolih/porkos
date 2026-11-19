@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Grid2X2, Clock, Plus, CheckCircle, ShoppingBag, Utensils, Edit3 } from 'lucide-react';
+import { Clock, Plus, CheckCircle, ShoppingBag, Utensils, Edit3 } from 'lucide-react';
 import { formatCurrency, formatElapsedTime } from '../../utils/formatters';
 import QuickPaymentModal from '../sales/components/QuickPaymentModal';
 
@@ -36,40 +36,9 @@ export default function TablesView({
     setClosingOrder(null);
   };
 
-  const freeCount = tables.filter((t) => t.status === 'AVAILABLE').length;
-  const occupiedCount = tables.filter((t) => t.status === 'OCCUPIED').length;
-
   return (
     <div className="space-y-3 pb-20 lg:pb-6">
-      {/* Header Compacto */}
-      <div className="bg-[var(--color-porkos-surface)] p-3 sm:p-4 rounded-2xl border border-[var(--color-porkos-border)] flex items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="p-2 rounded-xl bg-zinc-800 text-[var(--color-porkos-orange)] border border-zinc-700 shrink-0">
-            <Grid2X2 className="w-4 h-4 sm:w-5 sm:h-5" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-base sm:text-lg font-black text-white tracking-tight truncate">
-              Control de Mesas
-            </h2>
-            <p className="text-[11px] text-[var(--color-porkos-muted)] truncate">
-              {tables.length} mesas en salón
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-xs font-semibold shrink-0">
-          <span className="flex items-center gap-1 text-emerald-400 bg-emerald-950/40 px-2 py-1 rounded-lg border border-emerald-500/30 text-[11px] font-bold">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            {freeCount} libres
-          </span>
-          <span className="flex items-center gap-1 text-orange-400 bg-orange-950/40 px-2 py-1 rounded-lg border border-orange-500/30 text-[11px] font-bold">
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-porkos-orange)]" />
-            {occupiedCount} abiertas
-          </span>
-        </div>
-      </div>
-
-      {/* Grid de Mesas Compactas y Adaptadas a Móvil */}
+      {/* Grid de Mesas Puestas en Salón */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {tables.map((table) => {
           const tableOrders = orders.filter(

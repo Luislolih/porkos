@@ -503,7 +503,55 @@ export async function clearAllDemoCatalogFromFirestore() {
 }
 
 // =========================================================================
-// 8. USUARIOS Y CONTROL DE ACCESO (PROTECCIÓN BACKEND Y DB)
+// 8. MESAS / TABLES (SALÓN)
+// =========================================================================
+export function subscribeToTables(onUpdate, onError) {
+  try {
+    const colRef = collection(db, 'tables');
+    const q = query(colRef, orderBy('number', 'asc'));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const tables = snapshot.docs.map((docSnap) => ({
+          ...docSnap.data(),
+          id: docSnap.id,
+        }));
+        onUpdate(tables);
+      },
+      (err) => {
+        console.warn('Advertencia en Firestore tables:', err.message);
+        if (onError) onError(err);
+      }
+    );
+  } catch (err) {
+    console.warn('Error en suscripción de tables:', err);
+    if (onError) onError(err);
+  }
+}
+
+export async function saveTableToFirestore(table) {
+  try {
+    const docRef = doc(db, 'tables', table.id);
+    await setDoc(docRef, sanitizePayload(table), { merge: true });
+    return { success: true };
+  } catch (err) {
+    console.error('Error al guardar mesa en Firestore:', err);
+    return { success: false, error: err };
+  }
+}
+
+export async function deleteTableFromFirestore(tableId) {
+  try {
+    await deleteDoc(doc(db, 'tables', tableId));
+    return { success: true };
+  } catch (err) {
+    console.error('Error al eliminar mesa en Firestore:', err);
+    return { success: false, error: err };
+  }
+}
+
+// =========================================================================
+// 9. USUARIOS Y CONTROL DE ACCESO (PROTECCIÓN BACKEND Y DB)
 // =========================================================================
 export function subscribeToUsers(onUpdate, onError) {
   try {

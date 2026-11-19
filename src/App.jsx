@@ -22,6 +22,9 @@ import {
   updateOrderStatusInFirestore,
   settleOrderInFirestore,
   clearAllOrdersFromFirestore,
+  subscribeToTables,
+  saveTableToFirestore,
+  deleteTableFromFirestore,
 } from './services/firestoreService';
 import { parseToDate } from './utils/formatters';
 import { Flame } from 'lucide-react';
@@ -48,13 +51,11 @@ function MainApp() {
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.map((o) => {
-          const hasKitchenItems = o.items?.some((i) => i.requiresKitchen);
           const isTable = o.modality === 'MESA' || Boolean(o.tableId);
-          const isSoloMarket = (o.modality === 'MARKET' || !hasKitchenItems) && !isTable;
           return {
             ...o,
-            status: isSoloMarket ? 'ENTREGADO' : o.status,
-            paymentStatus: isTable ? (o.paymentStatus || 'PENDING') : 'PAID',
+            status: o.status || 'PENDIENTE',
+            paymentStatus: isTable ? (o.paymentStatus || 'PENDING') : (o.paymentStatus || 'PAID'),
             createdAt: parseToDate(o.createdAt) || new Date(),
           };
         });
@@ -66,29 +67,54 @@ function MainApp() {
   });
   const { setSelectedTable, setModality, setCustomerName, loadOrderForEditing } = useCart();
 
+  // Estado dinámico de mesas del salón (sincronizado con Firestore y fallback a DEFAULT_TABLES)
+  const [tablesList, setTablesList] = useState(() => {
+    try {
+      const saved = localStorage.getItem('porkos_tables');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error leyendo mesas en localStorage:', e);
+    }
+    return DEFAULT_TABLES;
+  });
+
+  // Sincronización en tiempo real de mesas con Firestore
+  useEffect(() => {
+    const unsub = subscribeToTables(
+      (remoteTables) => {
+        if (remoteTables && remoteTables.length > 0) {
+          setTablesList(remoteTables);
+          try {
+            localStorage.setItem('porkos_tables', JSON.stringify(remoteTables));
+          } catch (e) {
+            console.warn(e);
+          }
+        } else {
+          // Si no hay mesas en Firestore, sembrar las mesas por defecto
+          DEFAULT_TABLES.forEach((t) => saveTableToFirestore(t));
+        }
+      },
+      (err) => {
+        console.warn('Suscripción a tables en Firestore (modo local):', err?.message);
+      }
+    );
+    return () => unsub && unsub();
+  }, []);
+
   // 1. Sincronización en tiempo real de órdenes con Firestore
   useEffect(() => {
     const unsubscribe = subscribeToOrders(
       (remoteOrders) => {
         if (remoteOrders && remoteOrders.length > 0) {
           const normalized = remoteOrders.map((o) => {
-            const hasKitchenItems = o.items?.some((i) => i.requiresKitchen);
             const isTable = o.modality === 'MESA' || Boolean(o.tableId);
-            const isSoloMarket = (o.modality === 'MARKET' || !hasKitchenItems) && !isTable;
-            const correctedStatus = isSoloMarket && (o.status === 'PENDIENTE' || o.status === 'PREPARANDO')
-              ? 'ENTREGADO'
-              : o.status;
-            const correctedPayment = isTable ? (o.paymentStatus || 'PENDING') : 'PAID';
-
-            // Si cambió de estado porque era solo market (no mesa) en cocina, persistir corrección en Firestore
-            if (correctedStatus !== o.status && o.orderNumber) {
-              updateOrderStatusInFirestore(o.orderNumber, 'ENTREGADO');
-            }
-
             return {
               ...o,
-              status: correctedStatus,
-              paymentStatus: correctedPayment,
+              status: o.status || 'PENDIENTE',
+              paymentStatus: isTable ? (o.paymentStatus || 'PENDING') : (o.paymentStatus || 'PAID'),
               createdAt: parseToDate(o.createdAt) || (o.createdAt instanceof Date ? o.createdAt : new Date()),
             };
           });
@@ -114,7 +140,7 @@ function MainApp() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Estado reactivo de las 3 mesas según las comandas abiertas no pagadas
+  // 2. Estado reactivo de las mesas según las comandas abiertas no pagadas
   const activeTableIds = useMemo(() => {
     return orders
       .filter((o) => o.tableId && o.paymentStatus !== 'PAID' && o.status !== 'CANCELADO')
@@ -122,11 +148,57 @@ function MainApp() {
   }, [orders]);
 
   const tables = useMemo(() => {
-    return DEFAULT_TABLES.map((t) => ({
+    return tablesList.map((t) => ({
       ...t,
       status: activeTableIds.includes(t.id) ? 'OCCUPIED' : 'AVAILABLE',
     }));
-  }, [activeTableIds]);
+  }, [tablesList, activeTableIds]);
+
+  // Manejo de creación, edición y eliminación dinámica de mesas en DB
+  const handleAddTable = async (tableData) => {
+    const tableId = `mesa_${Date.now()}`;
+    const nextNum = tablesList.length > 0 ? Math.max(...tablesList.map((t) => Number(t.number) || 0)) + 1 : 1;
+    const newTable = {
+      id: tableId,
+      number: parseInt(tableData.number, 10) || nextNum,
+      label: tableData.label?.trim() || `Mesa ${tableData.number || nextNum}`,
+      capacity: parseInt(tableData.capacity, 10) || 4,
+      status: 'AVAILABLE',
+      active: true,
+      createdAt: new Date(),
+    };
+    const updated = [...tablesList, newTable].sort((a, b) => a.number - b.number);
+    setTablesList(updated);
+    try {
+      localStorage.setItem('porkos_tables', JSON.stringify(updated));
+    } catch (e) {
+      console.warn(e);
+    }
+    await saveTableToFirestore(newTable);
+    return newTable;
+  };
+
+  const handleUpdateTable = async (tableData) => {
+    const updated = tablesList.map((t) => (t.id === tableData.id ? { ...t, ...tableData } : t));
+    setTablesList(updated);
+    try {
+      localStorage.setItem('porkos_tables', JSON.stringify(updated));
+    } catch (e) {
+      console.warn(e);
+    }
+    await saveTableToFirestore(tableData);
+  };
+
+  const handleDeleteTable = async (tableId) => {
+    const updated = tablesList.filter((t) => t.id !== tableId);
+    setTablesList(updated);
+    try {
+      localStorage.setItem('porkos_tables', JSON.stringify(updated));
+    } catch (e) {
+      console.warn(e);
+    }
+    await deleteTableFromFirestore(tableId);
+  };
 
   // 3. Manejar creación de comanda: cada pedido es individual
   const handleOrderCreated = async (newOrder) => {
@@ -137,22 +209,7 @@ function MainApp() {
     }
 
     const isTableModality = newOrder.modality === 'MESA' || Boolean(newOrder.tableId);
-    const isDelivery = newOrder.modality === 'DELIVERY';
-    const hasKitchenItems = newOrder.items?.some((i) => i.requiresKitchen);
-    const isSoloMarket = (newOrder.modality === 'MARKET' || !hasKitchenItems) && !isTableModality && !isDelivery;
-
-    let orderStatus = newOrder.status;
-    if (!orderStatus) {
-      if (hasKitchenItems) {
-        orderStatus = 'PENDIENTE';
-      } else if (isDelivery) {
-        orderStatus = 'LISTO';
-      } else if (isTableModality || isSoloMarket) {
-        orderStatus = 'ENTREGADO';
-      } else {
-        orderStatus = 'ENTREGADO';
-      }
-    }
+    const orderStatus = newOrder.status || 'PENDIENTE';
 
     const cleanOrder = {
       ...newOrder,
@@ -301,10 +358,8 @@ function MainApp() {
     await clearAllOrdersFromFirestore();
   };
 
-  const activeKitchenCount = orders.filter(
-    (o) =>
-      (o.status === 'PENDIENTE' || o.status === 'PREPARANDO') &&
-      o.items?.some((i) => i.requiresKitchen)
+  const activeOrdersCount = orders.filter(
+    (o) => o.status !== 'ENTREGADO' && o.status !== 'CANCELADO'
   ).length;
 
   return (
@@ -312,7 +367,7 @@ function MainApp() {
       <Navbar
         currentModule={activeModule}
         onSelectModule={setCurrentModule}
-        activeOrdersCount={activeKitchenCount}
+        activeOrdersCount={activeOrdersCount}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5">
@@ -370,7 +425,13 @@ function MainApp() {
         {activeModule === MODULES.DASHBOARD && <DashboardView orders={orders} />}
 
         {activeModule === MODULES.SETTINGS && (
-          <SettingsView onClearAllOrders={handleClearAllOrders} />
+          <SettingsView
+            onClearAllOrders={handleClearAllOrders}
+            tablesList={tablesList}
+            onAddTable={handleAddTable}
+            onUpdateTable={handleUpdateTable}
+            onDeleteTable={handleDeleteTable}
+          />
         )}
       </main>
     </div>

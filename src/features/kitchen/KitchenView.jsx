@@ -17,7 +17,8 @@ import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import { isProductBeverage } from '../../utils/productCategories';
 
 export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
-  const [activeTab, setActiveTab] = useState('PENDIENTE');
+  const [mainMode, setMainMode] = useState('COCINA'); // 'COCINA' | 'ENTREGAS'
+  const [activeTab, setActiveTab] = useState('PENDIENTE'); // 'PENDIENTE' | 'PREPARANDO' | 'LISTO' | 'KANBAN'
   const [, setTick] = useState(0);
 
   // Actualizar tiempos transcurridos en tiempo real cada 15 segundos
@@ -29,13 +30,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
   // Identificador de bebidas / refrescos para entrega en cocina y despacho
   const isBeverageItem = (item) => isProductBeverage(item);
 
-  // Filtrar pedidos que tengan productos que requieran cocina y no estén cancelados ni entregados
-  const activeKitchenOrders = orders.filter((o) => {
-    const hasKitchenItems = o.items?.some((i) => i.requiresKitchen);
-    return hasKitchenItems && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO';
-  });
-
-  // Ordenar comandas de cocina por orden de llegada (FIFO: Primero en llegar, primero en atender)
+  // Ordenar comandas por orden de llegada (FIFO: Primero en llegar, primero en atender)
   const sortByArrival = (orderList) => {
     return [...orderList].sort((a, b) => {
       const timeA = a.createdAt?.getTime ? a.createdAt.getTime() : new Date(a.createdAt || 0).getTime();
@@ -46,6 +41,20 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
       return (a.orderNumber || '').localeCompare(b.orderNumber || '', undefined, { numeric: true });
     });
   };
+
+  // 1. Pedidos activos que tienen productos que requieren cocina
+  const activeKitchenOrders = orders.filter((o) => {
+    const hasKitchenItems = o.items?.some((i) => i.requiresKitchen);
+    return hasKitchenItems && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO';
+  });
+
+  // 2. Pedidos activos que NO requieren cocina (Solo Entrega: bebidas directas, postres market, snacks)
+  const pendingDeliveries = sortByArrival(
+    orders.filter((o) => {
+      const hasKitchenItems = o.items?.some((i) => i.requiresKitchen);
+      return !hasKitchenItems && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO';
+    })
+  );
 
   const pendientes = sortByArrival(activeKitchenOrders.filter((o) => o.status === 'PENDIENTE'));
   const preparando = sortByArrival(activeKitchenOrders.filter((o) => o.status === 'PREPARANDO'));
@@ -380,215 +389,367 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
     );
   };
 
+  // Renderizador de cada ticket de Entrega Directa (Market, Bebidas, Postres - Sin Cocina)
+  const renderDeliveryCard = (order, queueIndex) => {
+    const isDelayed = isOrderDelayed(order.createdAt, 10);
+    const items = order.items || [];
+
+    return (
+      <div
+        key={order.orderNumber}
+        className={`
+          bg-[#141414] border rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between gap-3 shadow-lg transition-all
+          ${isDelayed ? 'border-amber-500/50 ring-1 ring-amber-500/20' : 'border-blue-500/30 hover:border-blue-500/60'}
+        `}
+      >
+        {/* Cabecera del Ticket */}
+        <div className="space-y-2 pb-2.5 border-b border-zinc-800/80">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {queueIndex !== undefined && (
+                <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-zinc-800 text-zinc-300 border border-zinc-700/80 shrink-0">
+                  #{queueIndex}
+                </span>
+              )}
+              <span className="text-xl sm:text-2xl font-black text-white tracking-tight truncate">
+                {order.orderNumber}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 text-xs font-bold px-2 py-0.5 rounded-lg bg-zinc-900 text-zinc-300 border border-zinc-800 shrink-0">
+              <Clock className="w-3.5 h-3.5 text-zinc-400" />
+              <span>{formatElapsedTime(order.createdAt)}</span>
+            </div>
+          </div>
+
+          {/* Modalidad y Nombre */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs bg-blue-500/10 text-blue-300 px-2.5 py-1 rounded-lg font-black flex items-center gap-1.5 border border-blue-500/30">
+                <Package className="w-3.5 h-3.5 text-blue-400" />
+                <span>SOLO ENTREGA</span>
+              </span>
+              <span className="text-xs bg-zinc-800 text-zinc-300 px-2 py-1 rounded-lg font-bold border border-zinc-700">
+                {order.tableName || order.modality}
+              </span>
+            </div>
+
+            {(order.customerName || order.customer?.name) && (
+              <span className="text-xs font-bold text-zinc-300 truncate max-w-[150px]">
+                {order.customerName || order.customer?.name}
+              </span>
+            )}
+          </div>
+
+          {/* Dirección en caso de delivery */}
+          {order.modality === 'DELIVERY' && order.customer?.address && (
+            <div className="text-[11px] text-emerald-200 bg-emerald-950/20 px-2.5 py-1 rounded-lg border border-emerald-800/40">
+              <div className="font-semibold truncate">📍 {order.customer.address}</div>
+              {order.customer.phone && <div className="text-[10px] text-emerald-400/80">Tel: {order.customer.phone}</div>}
+            </div>
+          )}
+        </div>
+
+        {/* Productos a Entregar */}
+        <div className="space-y-2 flex-1 overflow-y-auto max-h-[300px] pr-0.5">
+          <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block">
+            Artículos para entregar al cliente:
+          </span>
+          <div className="space-y-1.5">
+            {items.map((item, idx) => (
+              <div
+                key={idx}
+                className="bg-black/50 p-2 rounded-xl border border-zinc-800 flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded font-black text-xs shrink-0">
+                    {item.quantity}×
+                  </span>
+                  <span className="font-bold text-white text-xs truncate">
+                    {item.name}
+                  </span>
+                </div>
+                {item.customization?.temperature && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 shrink-0">
+                    {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+          {order.generalNotes && (
+            <p className="text-[11px] text-amber-300 bg-amber-950/20 p-2 rounded-lg border border-amber-800/30 italic">
+              Nota: {order.generalNotes}
+            </p>
+          )}
+        </div>
+
+        {/* Botón Acción: Solo Entregar */}
+        <div className="pt-2 border-t border-zinc-800/80">
+          <button
+            type="button"
+            onClick={() => onUpdateOrderStatus(order.orderNumber, 'ENTREGADO')}
+            className="w-full py-2.5 px-3 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-emerald-500/20 active:scale-98"
+          >
+            <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+            <span>Marcar Entregado</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-3 pb-20 lg:pb-6 flex flex-col h-[calc(100vh-5rem)]">
-      {/* Barra Superior de Cocina: Pestañas de Estado con Contadores Discretos */}
-      <div className="bg-[var(--color-porkos-surface)] p-2 rounded-2xl border border-[var(--color-porkos-border)] flex flex-wrap items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto scrollbar-none">
-          {/* PENDIENTES */}
+      {/* Barra Superior de Despacho: Switcher Cocina / Entregas */}
+      <div className="bg-[var(--color-porkos-surface)] p-2.5 rounded-2xl border border-[var(--color-porkos-border)] flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+        {/* Selector de Modo Principal: Cocina como prioridad vs Entregas */}
+        <div className="flex items-center gap-1.5 bg-black/50 p-1 rounded-xl border border-zinc-800">
           <button
             type="button"
-            onClick={() => setActiveTab('PENDIENTE')}
-            className={`
-              flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap border
-              ${
-                activeTab === 'PENDIENTE'
-                  ? 'bg-zinc-800 text-white border-zinc-600 shadow-sm'
-                  : 'bg-zinc-900/60 text-zinc-400 hover:text-white border-zinc-800'
-              }
-            `}
+            onClick={() => setMainMode('COCINA')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              mainMode === 'COCINA'
+                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
           >
-            <Clock className="w-3.5 h-3.5 text-zinc-400" />
-            <span>PENDIENTES</span>
+            <Flame className="w-3.5 h-3.5" />
+            <span>Cocina</span>
             <span
               className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                activeTab === 'PENDIENTE' ? 'bg-zinc-700 text-white' : 'bg-zinc-800 text-zinc-400'
+                mainMode === 'COCINA' ? 'bg-black text-white' : 'bg-zinc-800 text-zinc-300'
               }`}
             >
-              {pendientes.length}
+              {activeKitchenOrders.length}
             </span>
           </button>
 
-          {/* PREPARANDO */}
           <button
             type="button"
-            onClick={() => setActiveTab('PREPARANDO')}
-            className={`
-              flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap border
-              ${
-                activeTab === 'PREPARANDO'
-                  ? 'bg-zinc-800 text-white border-[var(--color-porkos-orange)] shadow-sm'
-                  : 'bg-zinc-900/60 text-zinc-400 hover:text-white border-zinc-800'
-              }
-            `}
+            onClick={() => setMainMode('ENTREGAS')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              mainMode === 'ENTREGAS'
+                ? 'bg-blue-500 text-black font-black shadow-sm'
+                : pendingDeliveries.length > 0
+                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 animate-pulse'
+                : 'text-zinc-400 hover:text-white'
+            }`}
           >
-            <Flame className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
-            <span>EN PREPARACIÓN</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                activeTab === 'PREPARANDO'
-                  ? 'bg-[var(--color-porkos-orange)] text-black'
-                  : 'bg-zinc-800 text-zinc-400'
-              }`}
-            >
-              {preparando.length}
-            </span>
-          </button>
-
-          {/* LISTOS */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('LISTO')}
-            className={`
-              flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap border
-              ${
-                activeTab === 'LISTO'
-                  ? 'bg-zinc-800 text-white border-emerald-500/60 shadow-sm'
-                  : 'bg-zinc-900/60 text-zinc-400 hover:text-white border-zinc-800'
-              }
-            `}
-          >
-            <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
-            <span>LISTOS PARA DESPACHO</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                activeTab === 'LISTO' ? 'bg-emerald-500/30 text-emerald-300' : 'bg-zinc-800 text-zinc-400'
-              }`}
-            >
-              {listos.length}
-            </span>
-          </button>
-
-          {/* VISTA KANBAN */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('KANBAN')}
-            className={`
-              hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer whitespace-nowrap border
-              ${
-                activeTab === 'KANBAN'
-                  ? 'bg-zinc-800 text-white border-zinc-600'
-                  : 'bg-zinc-900/60 text-zinc-400 hover:text-white border-zinc-800'
-              }
-            `}
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-            <span>Ver Tablero 3 Columnas</span>
+            <Package className="w-3.5 h-3.5" />
+            <span>Entregas</span>
+            {pendingDeliveries.length > 0 && (
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                  mainMode === 'ENTREGAS' ? 'bg-black text-white' : 'bg-blue-500 text-black'
+                }`}
+              >
+                {pendingDeliveries.length}
+              </span>
+            )}
           </button>
         </div>
 
-        {/* Resumen */}
+        {/* Si está en Cocina: Tags simplificados "Pendientes", "Preparando", "Listos" y Kanban */}
+        {mainMode === 'COCINA' && (
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+            <button
+              type="button"
+              onClick={() => setActiveTab('PENDIENTE')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap border ${
+                activeTab === 'PENDIENTE'
+                  ? 'bg-zinc-800 text-white border-zinc-600 shadow-sm'
+                  : 'bg-zinc-900/60 text-zinc-400 hover:text-white border-zinc-800'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Pendientes</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-black bg-zinc-700 text-white">
+                {pendientes.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('PREPARANDO')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap border ${
+                activeTab === 'PREPARANDO'
+                  ? 'bg-zinc-800 text-white border-[var(--color-porkos-orange)] shadow-sm'
+                  : 'bg-zinc-900/60 text-zinc-400 hover:text-white border-zinc-800'
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
+              <span>Preparando</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-black bg-[var(--color-porkos-orange)] text-black">
+                {preparando.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('LISTO')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap border ${
+                activeTab === 'LISTO'
+                  ? 'bg-zinc-800 text-white border-emerald-500/60 shadow-sm'
+                  : 'bg-zinc-900/60 text-zinc-400 hover:text-white border-zinc-800'
+              }`}
+            >
+              <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+              <span>Listos</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-black bg-emerald-500/30 text-emerald-300">
+                {listos.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('KANBAN')}
+              className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap border ${
+                activeTab === 'KANBAN'
+                  ? 'bg-zinc-800 text-white border-zinc-600'
+                  : 'bg-zinc-900/60 text-zinc-400 hover:text-white border-zinc-800'
+              }`}
+              title="Vista en 3 columnas"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Tablero</span>
+            </button>
+          </div>
+        )}
+
+        {/* Resumen Total */}
         <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-400">
-          <span>En cocina:</span>
+          <span>Total activas:</span>
           <strong className="text-white bg-zinc-800 px-2 py-0.5 rounded font-bold">
-            {activeKitchenOrders.length} pedidos
+            {activeKitchenOrders.length + pendingDeliveries.length}
           </strong>
         </div>
       </div>
 
-      {/* Contenido Principal con Máximo Espacio Vertical */}
+      {/* Contenido Principal */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        {/* VISTA POR PESTAÑA: PENDIENTES */}
-        {activeTab === 'PENDIENTE' && (
-          <div className="h-full">
-            {pendientes.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 py-16">
-                <Clock className="w-10 h-10 mb-2 opacity-30 text-zinc-400" />
-                <h4 className="font-bold text-sm text-zinc-300">No hay comandas pendientes</h4>
-                <p className="text-xs text-zinc-500 mt-0.5">Los nuevos pedidos de comida aparecerán aquí</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
-                {pendientes.map((order, idx) => renderOrderCard(order, 'PENDIENTE', idx + 1))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* VISTA POR PESTAÑA: EN PREPARACIÓN */}
-        {activeTab === 'PREPARANDO' && (
-          <div className="h-full">
-            {preparando.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 py-16">
-                <Flame className="w-10 h-10 mb-2 opacity-30 text-zinc-400" />
-                <h4 className="font-bold text-sm text-zinc-300">No hay pedidos en preparación</h4>
-                <p className="text-xs text-zinc-500 mt-0.5">Selecciona una comanda de &quot;Pendientes&quot; para iniciarla</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
-                {preparando.map((order, idx) => renderOrderCard(order, 'PREPARANDO', idx + 1))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* VISTA POR PESTAÑA: LISTOS */}
-        {activeTab === 'LISTO' && (
-          <div className="h-full">
-            {listos.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 py-16">
-                <Check className="w-10 h-10 mb-2 opacity-30 text-zinc-400 stroke-[3]" />
-                <h4 className="font-bold text-sm text-zinc-300">No hay platos listos esperando despacho</h4>
-                <p className="text-xs text-zinc-500 mt-0.5">Al marcar una comanda como lista, se mostrará aquí</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
-                {listos.map((order, idx) => renderOrderCard(order, 'LISTO', idx + 1))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* VISTA TABLERO COMPLETO (3 COLUMNAS SIMULTÁNEAS) */}
-        {activeTab === 'KANBAN' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 h-full items-start">
-            {/* Columna Pendientes */}
-            <div className="bg-[var(--color-porkos-surface)] border border-zinc-800 rounded-2xl flex flex-col max-h-full">
-              <div className="p-3 border-b border-zinc-800 flex items-center justify-between bg-black/40 rounded-t-2xl">
-                <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-zinc-400" /> Pendientes ({pendientes.length})
-                </span>
-              </div>
-              <div className="p-2.5 overflow-y-auto space-y-3 flex-1">
+        {/* MODO 1: COCINA */}
+        {mainMode === 'COCINA' && (
+          <>
+            {/* PENDIENTES */}
+            {activeTab === 'PENDIENTE' && (
+              <div className="h-full">
                 {pendientes.length === 0 ? (
-                  <p className="text-xs text-zinc-600 text-center py-8">Sin comandas</p>
+                  <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 py-16">
+                    <Clock className="w-10 h-10 mb-2 opacity-30 text-zinc-400" />
+                    <h4 className="font-bold text-sm text-zinc-300">No hay comandas pendientes</h4>
+                    <p className="text-xs text-zinc-500 mt-0.5">Los nuevos pedidos de comida aparecerán aquí</p>
+                  </div>
                 ) : (
-                  pendientes.map((order, idx) => renderOrderCard(order, 'PENDIENTE', idx + 1))
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
+                    {pendientes.map((order, idx) => renderOrderCard(order, 'PENDIENTE', idx + 1))}
+                  </div>
                 )}
               </div>
-            </div>
+            )}
 
-            {/* Columna Preparando */}
-            <div className="bg-[var(--color-porkos-surface)] border border-zinc-800 rounded-2xl flex flex-col max-h-full">
-              <div className="p-3 border-b border-zinc-800 flex items-center justify-between bg-black/40 rounded-t-2xl">
-                <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                  <Flame className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" /> Preparando ({preparando.length})
-                </span>
-              </div>
-              <div className="p-2.5 overflow-y-auto space-y-3 flex-1">
+            {/* PREPARANDO */}
+            {activeTab === 'PREPARANDO' && (
+              <div className="h-full">
                 {preparando.length === 0 ? (
-                  <p className="text-xs text-zinc-600 text-center py-8">Sin comandas</p>
+                  <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 py-16">
+                    <Flame className="w-10 h-10 mb-2 opacity-30 text-zinc-400" />
+                    <h4 className="font-bold text-sm text-zinc-300">No hay pedidos en preparación</h4>
+                    <p className="text-xs text-zinc-500 mt-0.5">Selecciona una comanda de &quot;Pendientes&quot; para iniciarla</p>
+                  </div>
                 ) : (
-                  preparando.map((order, idx) => renderOrderCard(order, 'PREPARANDO', idx + 1))
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
+                    {preparando.map((order, idx) => renderOrderCard(order, 'PREPARANDO', idx + 1))}
+                  </div>
                 )}
               </div>
-            </div>
+            )}
 
-            {/* Columna Listos */}
-            <div className="bg-[var(--color-porkos-surface)] border border-zinc-800 rounded-2xl flex flex-col max-h-full">
-              <div className="p-3 border-b border-zinc-800 flex items-center justify-between bg-black/40 rounded-t-2xl">
-                <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" /> Listos ({listos.length})
-                </span>
-              </div>
-              <div className="p-2.5 overflow-y-auto space-y-3 flex-1">
+            {/* LISTOS */}
+            {activeTab === 'LISTO' && (
+              <div className="h-full">
                 {listos.length === 0 ? (
-                  <p className="text-xs text-zinc-600 text-center py-8">Sin comandas</p>
+                  <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 py-16">
+                    <Check className="w-10 h-10 mb-2 opacity-30 text-zinc-400 stroke-[3]" />
+                    <h4 className="font-bold text-sm text-zinc-300">No hay platos listos esperando despacho</h4>
+                    <p className="text-xs text-zinc-500 mt-0.5">Al marcar una comanda como lista, se mostrará aquí</p>
+                  </div>
                 ) : (
-                  listos.map((order, idx) => renderOrderCard(order, 'LISTO', idx + 1))
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
+                    {listos.map((order, idx) => renderOrderCard(order, 'LISTO', idx + 1))}
+                  </div>
                 )}
               </div>
-            </div>
+            )}
+
+            {/* TABLERO KANBAN */}
+            {activeTab === 'KANBAN' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 h-full items-start">
+                <div className="bg-[var(--color-porkos-surface)] border border-zinc-800 rounded-2xl flex flex-col max-h-full">
+                  <div className="p-3 border-b border-zinc-800 flex items-center justify-between bg-black/40 rounded-t-2xl">
+                    <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-zinc-400" /> Pendientes ({pendientes.length})
+                    </span>
+                  </div>
+                  <div className="p-2.5 overflow-y-auto space-y-3 flex-1">
+                    {pendientes.length === 0 ? (
+                      <p className="text-xs text-zinc-600 text-center py-8">Sin comandas</p>
+                    ) : (
+                      pendientes.map((order, idx) => renderOrderCard(order, 'PENDIENTE', idx + 1))
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-[var(--color-porkos-surface)] border border-zinc-800 rounded-2xl flex flex-col max-h-full">
+                  <div className="p-3 border-b border-zinc-800 flex items-center justify-between bg-black/40 rounded-t-2xl">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <Flame className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" /> Preparando ({preparando.length})
+                    </span>
+                  </div>
+                  <div className="p-2.5 overflow-y-auto space-y-3 flex-1">
+                    {preparando.length === 0 ? (
+                      <p className="text-xs text-zinc-600 text-center py-8">Sin comandas</p>
+                    ) : (
+                      preparando.map((order, idx) => renderOrderCard(order, 'PREPARANDO', idx + 1))
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-[var(--color-porkos-surface)] border border-zinc-800 rounded-2xl flex flex-col max-h-full">
+                  <div className="p-3 border-b border-zinc-800 flex items-center justify-between bg-black/40 rounded-t-2xl">
+                    <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" /> Listos ({listos.length})
+                    </span>
+                  </div>
+                  <div className="p-2.5 overflow-y-auto space-y-3 flex-1">
+                    {listos.length === 0 ? (
+                      <p className="text-xs text-zinc-600 text-center py-8">Sin comandas</p>
+                    ) : (
+                      listos.map((order, idx) => renderOrderCard(order, 'LISTO', idx + 1))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* MODO 2: ENTREGAS (Productos sin preparación: Market, Bebidas solas, etc.) */}
+        {mainMode === 'ENTREGAS' && (
+          <div className="h-full">
+            {pendingDeliveries.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 py-16">
+                <Package className="w-10 h-10 mb-2 opacity-30 text-blue-400" />
+                <h4 className="font-bold text-sm text-zinc-300">No hay entregas pendientes</h4>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Los pedidos directos de bebidas, postres y snacks que no requieren cocina aparecerán aquí
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
+                {pendingDeliveries.map((order, idx) => renderDeliveryCard(order, idx + 1))}
+              </div>
+            )}
           </div>
         )}
       </div>

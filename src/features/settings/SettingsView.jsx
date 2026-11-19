@@ -12,6 +12,9 @@ import {
   Check,
   Lock,
   Bike,
+  Grid2X2,
+  Plus,
+  Users,
 } from 'lucide-react';
 import CatalogView from '../catalog/CatalogView';
 import { useAuth } from '../../context/useAuth';
@@ -138,8 +141,247 @@ function DeliverySettingsTab({ initialFee, onSave }) {
   );
 }
 
-export default function SettingsView({ onClearAllOrders }) {
-  const [activeTab, setActiveTab] = useState('catalog'); // 'catalog' | 'delivery' | 'users' | 'system'
+function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDeleteTable }) {
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingTable, setEditingTable] = useState(null);
+  const [numberInput, setNumberInput] = useState('');
+  const [labelInput, setLabelInput] = useState('');
+  const [capacityInput, setCapacityInput] = useState('4');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const openAddModal = () => {
+    const nextNum = tablesList.length > 0 ? Math.max(...tablesList.map((t) => Number(t.number) || 0)) + 1 : 1;
+    setEditingTable(null);
+    setNumberInput(nextNum.toString());
+    setLabelInput(`Mesa ${nextNum}`);
+    setCapacityInput('4');
+    setIsAddModalOpen(true);
+  };
+
+  const openEditModal = (table) => {
+    setEditingTable(table);
+    setNumberInput((table.number || '').toString());
+    setLabelInput(table.label || '');
+    setCapacityInput((table.capacity || 4).toString());
+    setIsAddModalOpen(true);
+  };
+
+  const handleSave = async (e) => {
+    if (e) e.preventDefault();
+    setIsSaving(true);
+    try {
+      if (editingTable) {
+        if (onUpdateTable) {
+          await onUpdateTable({
+            ...editingTable,
+            number: parseInt(numberInput, 10) || editingTable.number,
+            label: labelInput.trim() || `Mesa ${numberInput}`,
+            capacity: parseInt(capacityInput, 10) || 4,
+          });
+        }
+      } else {
+        if (onAddTable) {
+          await onAddTable({
+            number: parseInt(numberInput, 10),
+            label: labelInput.trim(),
+            capacity: parseInt(capacityInput, 10),
+          });
+        }
+      }
+      setIsAddModalOpen(false);
+    } catch (err) {
+      console.error('Error guardando mesa:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (table) => {
+    if (confirm(`¿Estás seguro de eliminar ${table.label}? Esta acción afectará el salón y la asignación de comandas.`)) {
+      if (onDeleteTable) {
+        await onDeleteTable(table.id);
+      }
+    }
+  };
+
+  const sortedTables = [...tablesList].sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
+
+  return (
+    <div className="space-y-4 max-w-4xl">
+      {/* Header de Mesas */}
+      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-3 rounded-2xl bg-orange-500/20 text-[var(--color-porkos-orange)] border border-orange-500/30">
+            <Grid2X2 className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-extrabold text-white">
+              Gestión de Mesas del Salón ({tablesList.length})
+            </h3>
+            <p className="text-xs text-zinc-400">
+              Añade, edita o retira mesas en tiempo real en la base de datos de PorkoApp.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={openAddModal}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20 cursor-pointer active:scale-95 transition-all"
+        >
+          <Plus className="w-4 h-4 stroke-[3]" />
+          <span>Agregar Mesa</span>
+        </button>
+      </div>
+
+      {/* Lista de Mesas en DB */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {sortedTables.map((table) => (
+          <div
+            key={table.id}
+            className="bg-[#141414] border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-md hover:border-zinc-700 transition-all"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center font-black text-white text-base">
+                  {table.number}
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-white">{table.label}</h4>
+                  <span className="text-[11px] text-zinc-400 flex items-center gap-1 font-medium">
+                    <Users className="w-3 h-3 text-zinc-500" />
+                    Capacidad: {table.capacity || 4} personas
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => openEditModal(table)}
+                  className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 cursor-pointer transition-colors"
+                  title="Editar mesa"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(table)}
+                  className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-950/40 text-zinc-400 hover:text-rose-400 border border-zinc-700 hover:border-rose-500/40 cursor-pointer transition-colors"
+                  title="Eliminar mesa de la base de datos"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[11px]">
+              <span className="text-zinc-500">ID en base de datos:</span>
+              <span className="font-mono text-zinc-400">{table.id}</span>
+            </div>
+          </div>
+        ))}
+
+        {sortedTables.length === 0 && (
+          <div className="col-span-full py-12 text-center text-zinc-500 bg-zinc-900/40 rounded-2xl border border-zinc-800">
+            <Grid2X2 className="w-8 h-8 mx-auto mb-2 opacity-40 text-zinc-400" />
+            <p className="font-bold text-sm text-zinc-300">No hay mesas configuradas</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Haz clic en &quot;Agregar Mesa&quot; para registrar la primera mesa del salón.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Modal Agregar / Editar Mesa */}
+      {isAddModalOpen && (
+        <Modal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          title={editingTable ? 'Editar Mesa de Salón' : 'Nueva Mesa de Salón'}
+          maxWidth="max-w-md"
+        >
+          <form onSubmit={handleSave} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-zinc-300 mb-1.5">
+                Número de Mesa
+              </label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={numberInput}
+                onChange={(e) => {
+                  setNumberInput(e.target.value);
+                  if (!editingTable) {
+                    setLabelInput(`Mesa ${e.target.value}`);
+                  }
+                }}
+                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
+                placeholder="Ej: 4"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-zinc-300 mb-1.5">
+                Nombre / Identificador
+              </label>
+              <input
+                type="text"
+                required
+                value={labelInput}
+                onChange={(e) => setLabelInput(e.target.value)}
+                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
+                placeholder="Ej: Mesa 4 o Terraza 1"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-zinc-300 mb-1.5">
+                Capacidad Máxima (personas)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="30"
+                required
+                value={capacityInput}
+                onChange={(e) => setCapacityInput(e.target.value)}
+                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
+                placeholder="4"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsAddModalOpen(false)}
+                className="text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSaving}
+                className="text-xs font-bold bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black px-4"
+              >
+                {isSaving ? 'Guardando...' : editingTable ? 'Guardar Cambios' : 'Crear Mesa'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+export default function SettingsView({
+  onClearAllOrders,
+  tablesList = [],
+  onAddTable,
+  onUpdateTable,
+  onDeleteTable,
+}) {
+  const [activeTab, setActiveTab] = useState('catalog'); // 'catalog' | 'tables' | 'delivery' | 'users' | 'system'
   const [isConfirmOrdersClearOpen, setIsConfirmOrdersClearOpen] = useState(false);
   const [isClearingOrders, setIsClearingOrders] = useState(false);
 
@@ -429,6 +671,19 @@ service cloud.firestore {
 
           <button
             type="button"
+            onClick={() => setActiveTab('tables')}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'tables'
+                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Grid2X2 className="w-3.5 h-3.5" />
+            <span>Mesas Salón ({tablesList.length})</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('delivery')}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'delivery'
@@ -471,7 +726,17 @@ service cloud.firestore {
       {/* 1. Vista de Catálogo */}
       {activeTab === 'catalog' && <CatalogView />}
 
-      {/* 2. Vista de Tarifas & Configuración de Delivery */}
+      {/* 2. Vista de Mesas de Salón (Base de Datos) */}
+      {activeTab === 'tables' && (
+        <TablesSettingsTab
+          tablesList={tablesList}
+          onAddTable={onAddTable}
+          onUpdateTable={onUpdateTable}
+          onDeleteTable={onDeleteTable}
+        />
+      )}
+
+      {/* 3. Vista de Tarifas & Configuración de Delivery */}
       {activeTab === 'delivery' && (
         <DeliverySettingsTab
           key={defaultDeliveryFee}

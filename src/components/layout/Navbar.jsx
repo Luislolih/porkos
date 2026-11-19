@@ -23,9 +23,9 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
 
   const allNavItems = [
     { id: MODULES.SALES, label: 'Ventas', desc: 'Caja y comandas', icon: ShoppingBag },
+    { id: MODULES.KITCHEN, label: 'Comandas', desc: 'Cocina y entregas activas', icon: Flame, badge: activeOrdersCount },
     { id: MODULES.TABLES, label: 'Mesas', desc: 'Control de salón', icon: Grid2X2 },
-    { id: MODULES.KITCHEN, label: 'Cocina', desc: 'Comandas en preparación', icon: Flame, badge: activeOrdersCount },
-    { id: MODULES.ORDERS, label: 'Pedidos', desc: 'Seguimiento de órdenes', icon: ClipboardList },
+    { id: MODULES.ORDERS, label: 'Historial', desc: 'Registro y seguimiento de ventas', icon: ClipboardList },
     { id: MODULES.CATALOG, label: 'Productos', desc: 'Catálogo de carta y market', icon: UtensilsCrossed },
     { id: MODULES.EXPENSES, label: 'Gastos', desc: 'Compras y egresos diarios', icon: Wallet },
     { id: MODULES.DASHBOARD, label: 'Dashboard', desc: 'Finanzas, rentabilidad y métricas', icon: LayoutDashboard },
@@ -37,29 +37,29 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
 
   const mobileQuickItems = [
     { id: MODULES.SALES, label: 'Ventas', icon: ShoppingBag },
+    { id: MODULES.KITCHEN, label: 'Comandas', icon: Flame, badge: activeOrdersCount },
     { id: MODULES.TABLES, label: 'Mesas', icon: Grid2X2 },
-    { id: MODULES.KITCHEN, label: 'Cocina', icon: Flame, badge: activeOrdersCount },
-    { id: MODULES.ORDERS, label: 'Pedidos', icon: ClipboardList },
+    { id: MODULES.ORDERS, label: 'Historial', icon: ClipboardList },
   ].filter((item) => canAccessModule(item.id));
 
   return (
     <>
       {/* Top Bar for Desktop & Mobile */}
-      <header className="sticky top-0 z-30 bg-[var(--color-porkos-bg)]/95 backdrop-blur-md border-b border-[var(--color-porkos-border)] px-3 sm:px-4 py-2.5">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+      <header className="sticky top-0 z-30 bg-[var(--color-porkos-bg)]/95 backdrop-blur-md border-b border-[var(--color-porkos-border)] px-3 sm:px-4 py-2">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 xl:gap-4">
           {/* Logo & Brand */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 shrink-0 whitespace-nowrap">
             <img
               src="/favicon.png"
               alt="Porkos Isotipo"
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain shadow-md"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain shadow-md shrink-0"
             />
-            <div>
+            <div className="shrink-0 whitespace-nowrap">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <span className="font-extrabold text-lg sm:text-xl text-white tracking-wider">
+                <span className="font-extrabold text-lg sm:text-xl text-white tracking-wider whitespace-nowrap">
                   PORKO<span className="text-[var(--color-porkos-orange)]">APP</span>
                 </span>
-                <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 uppercase">
+                <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 uppercase shrink-0 inline-block">
                   POS
                 </span>
               </div>
@@ -67,7 +67,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
           </div>
 
           {/* Desktop Navigation Items */}
-          <nav className="hidden lg:flex items-center gap-1 bg-[var(--color-porkos-surface)] p-1 rounded-2xl border border-[var(--color-porkos-border)]">
+          <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1 bg-[var(--color-porkos-surface)] p-1 rounded-2xl border border-[var(--color-porkos-border)] shrink-0">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentModule === item.id;
@@ -77,7 +77,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
                   type="button"
                   onClick={() => onSelectModule(item.id)}
                   className={`
-                    flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all relative cursor-pointer
+                    flex items-center gap-1.5 xl:gap-2 px-2.5 xl:px-3 py-1.5 rounded-xl text-xs font-bold transition-all relative cursor-pointer whitespace-nowrap shrink-0
                     ${
                       isActive
                         ? 'bg-[var(--color-porkos-orange)] text-black shadow-md'
@@ -85,12 +85,12 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
                     }
                   `}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-3.5 h-3.5 xl:w-4 xl:h-4 shrink-0" />
                   <span>{item.label}</span>
                   {item.badge > 0 && (
                     <span
                       className={`
-                        text-[10px] font-black px-1.5 py-0.2 rounded-full
+                        text-[10px] font-black px-1.5 py-0.2 rounded-full shrink-0
                         ${isActive ? 'bg-black text-white' : 'bg-[var(--color-porkos-orange)] text-black'}
                       `}
                     >
