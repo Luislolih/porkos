@@ -14,7 +14,7 @@ import {
 import { formatTime, formatElapsedTime, isOrderDelayed } from '../../utils/formatters';
 import { getItemTicketDetails } from '../../utils/ticketFormatter';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
-import { isProductBeverage } from '../../utils/productCategories';
+import { isProductBeverage, isProductMarket } from '../../utils/productCategories';
 
 export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
   const [mainMode, setMainMode] = useState('COCINA'); // 'COCINA' | 'ENTREGAS'
@@ -42,17 +42,20 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
     });
   };
 
+  // Helper: Verifica si una orden tiene platos calientes o elaborados en cocina
+  const orderRequiresKitchen = (o) => {
+    return o.items?.some((i) => Boolean(i.requiresKitchen) && !isProductMarket(i));
+  };
+
   // 1. Pedidos activos que tienen productos que requieren cocina
   const activeKitchenOrders = orders.filter((o) => {
-    const hasKitchenItems = o.items?.some((i) => i.requiresKitchen);
-    return hasKitchenItems && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO';
+    return orderRequiresKitchen(o) && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO';
   });
 
-  // 2. Pedidos activos que NO requieren cocina (Solo Entrega: bebidas directas, postres market, snacks)
+  // 2. Pedidos activos que NO requieren cocina (Solo Entrega: productos de market, bebidas directas, postres, snacks)
   const pendingDeliveries = sortByArrival(
     orders.filter((o) => {
-      const hasKitchenItems = o.items?.some((i) => i.requiresKitchen);
-      return !hasKitchenItems && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO';
+      return !orderRequiresKitchen(o) && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO';
     })
   );
 
@@ -79,9 +82,9 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
   const renderOrderCard = (order, currentStatus, queueIndex) => {
     const ModalityIcon = getModalityIcon(order.modality);
     const isDelayed = isOrderDelayed(order.createdAt, 12);
-    const kitchenItems = order.items?.filter((item) => item.requiresKitchen) || [];
-    const beverageItems = order.items?.filter((item) => !item.requiresKitchen && isBeverageItem(item)) || [];
-    const otherItems = order.items?.filter((item) => !item.requiresKitchen && !isBeverageItem(item)) || [];
+    const kitchenItems = order.items?.filter((item) => Boolean(item.requiresKitchen) && !isProductMarket(item)) || [];
+    const beverageItems = order.items?.filter((item) => !kitchenItems.includes(item) && isBeverageItem(item)) || [];
+    const otherItems = order.items?.filter((item) => !kitchenItems.includes(item) && !beverageItems.includes(item)) || [];
 
     return (
       <div

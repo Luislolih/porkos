@@ -6,6 +6,11 @@ import {
   subscribeToDeliveryConfig,
   saveDeliveryConfigToFirestore,
 } from '../services/firestoreService';
+import {
+  isProductMarket,
+  isProductBeverage,
+  isProductDessert,
+} from '../utils/productCategories';
 
 export function CartProvider({ children }) {
   const { products = [], packagings: catalogPackagings = [] } = useCatalog();
@@ -243,6 +248,18 @@ export function CartProvider({ children }) {
       const unitPrice = product.price + extrasTotal + packagingPrice;
       const itemId = `${product.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
 
+      const isMarket = isProductMarket(product);
+      const isBeverage = isProductBeverage(product);
+      const isDessert = isProductDessert(product);
+
+      // Los productos de market o bebidas directas nunca requieren preparación de cocina
+      let itemRequiresKitchen = product.requiresKitchen;
+      if (isMarket) {
+        itemRequiresKitchen = false;
+      } else if (itemRequiresKitchen === undefined) {
+        itemRequiresKitchen = !isBeverage && !isDessert;
+      }
+
       const newItem = {
         itemId,
         productId: product.id,
@@ -251,7 +268,8 @@ export function CartProvider({ children }) {
         availablePackagingIds: product.availablePackagingIds || [],
         unitPrice,
         quantity: 1,
-        requiresKitchen: product.type === 'MARKET' ? false : (product.requiresKitchen ?? true),
+        requiresKitchen: Boolean(itemRequiresKitchen),
+        isMarket: Boolean(isMarket),
         image: product.image,
         thumbnailUrl: product.thumbnailUrl || product.image,
         customization: custom,

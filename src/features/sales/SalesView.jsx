@@ -242,23 +242,16 @@ export default function SalesView({
       }
     }
 
-    const hasKitchenItems = items.some((i) => i.requiresKitchen);
+    const hasKitchenItems = items.some((i) => Boolean(i.requiresKitchen) && !isProductMarket(i));
     const isTable = modality === 'MESA' || modality === ORDER_MODALITIES.MESA?.id;
     const isDelivery = modality === 'DELIVERY';
-    const isMarketSale = salesMode === SALES_MODES.MARKET || (!hasKitchenItems && !isTable && !isDelivery);
+    const isMarketSale = salesMode === SALES_MODES.MARKET;
 
-    let orderStatus;
-    if (hasKitchenItems) {
-      orderStatus = 'PENDIENTE';
-    } else if (isDelivery) {
-      // Pedido de delivery que no requiere cocina (market, bebidas, snacks): queda LISTO para despacho
-      orderStatus = 'LISTO';
-    } else if (isTable) {
-      // Pedido a mesa sin preparación de cocina: entregado directo a mesa
-      orderStatus = 'ENTREGADO';
-    } else {
-      orderStatus = 'ENTREGADO';
-    }
+    // En modo Restaurante:
+    // - Si tiene productos de cocina: PENDIENTE (Cocina)
+    // - Si NO tiene cocina (ej. productos de market, bebidas, postres): PENDIENTE (va a Pendientes de Entrega)
+    // En modo Market (caja rápida de mostrador): entregado
+    const orderStatus = isMarketSale ? 'ENTREGADO' : 'PENDIENTE';
 
     const operatorName = user?.displayName || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Cajero');
     const operatorEmail = user?.email || 'caja@porkos.pe';
@@ -267,8 +260,8 @@ export default function SalesView({
     const deliveryAddress = customer.address?.trim() || (isDelivery ? 'Dirección por coordinar' : null);
 
     const orderData = {
-      orderNumber: getNextOrderNumber(orders, isTable ? 'P' : (isMarketSale ? 'M' : 'P')),
-      modality: isTable ? 'MESA' : (isMarketSale && salesMode === SALES_MODES.MARKET ? 'MARKET' : modality),
+      orderNumber: getNextOrderNumber(orders, isMarketSale ? 'M' : 'P'),
+      modality: isMarketSale ? 'MARKET' : (isTable ? 'MESA' : modality),
       status: orderStatus,
       paymentStatus: isTable ? 'PENDING' : 'PAID',
       tableId: isTable ? (selectedTable?.id || null) : null,
@@ -308,16 +301,16 @@ export default function SalesView({
           ? isAddingToOpenTable
             ? `Comanda ${orderData.orderNumber} enviada a Cocina (${selectedTable.label})`
             : `Comanda ${orderData.orderNumber} enviada a Cocina`
-          : `Pedido ${orderData.orderNumber} sumado a ${selectedTable.label}`
+          : `Pedido ${orderData.orderNumber} en Pendientes de Entrega (${selectedTable.label})`
         : isDelivery
         ? hasKitchenItems
           ? `Pedido Delivery ${orderData.orderNumber} enviado a Cocina`
-          : `Pedido Delivery ${orderData.orderNumber} listo para despacho`
+          : `Pedido Delivery ${orderData.orderNumber} en Pendientes de Entrega`
         : isMarketSale
         ? `Venta ${orderData.orderNumber} entregada`
         : hasKitchenItems
         ? `Comanda ${orderData.orderNumber} enviada a Cocina`
-        : `Pedido ${orderData.orderNumber} registrado (Listo)`
+        : `Pedido ${orderData.orderNumber} en Pendientes de Entrega`
     );
   };
 
@@ -421,11 +414,9 @@ export default function SalesView({
     const operatorName = user?.displayName || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Cajero');
     const operatorEmail = user?.email || 'caja@porkos.pe';
 
-    const hasKitchenItems = items.some((i) => i.requiresKitchen);
+    const hasKitchenItems = items.some((i) => Boolean(i.requiresKitchen) && !isProductMarket(i));
     const isDelivery = !isMarketSale && modality === 'DELIVERY';
-    const orderStatus = isMarketSale
-      ? 'ENTREGADO'
-      : (hasKitchenItems ? 'PENDIENTE' : (isDelivery ? 'LISTO' : 'ENTREGADO'));
+    const orderStatus = isMarketSale ? 'ENTREGADO' : 'PENDIENTE';
 
     const clientName = isMarketSale
       ? 'Venta Mostrador'
@@ -476,7 +467,9 @@ export default function SalesView({
     showToast(
       isMarketSale
         ? `Venta Market ${orderData.orderNumber} cobrada con éxito`
-        : `Pedido ${orderData.orderNumber} cobrado con éxito`
+        : hasKitchenItems
+        ? `Comanda ${orderData.orderNumber} cobrada y enviada a Cocina`
+        : `Pedido ${orderData.orderNumber} cobrado y enviado a Pendientes de Entrega`
     );
   };
 

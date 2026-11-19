@@ -21,6 +21,7 @@ import {
 import { useCart } from '../../../context/useCart';
 import { useCatalog } from '../../../context/useCatalog';
 import { formatCurrency } from '../../../utils/formatters';
+import { isProductMarket } from '../../../utils/productCategories';
 import Button from '../../../components/ui/Button';
 import ProductThumbnail from '../../../components/ui/ProductThumbnail';
 import Modal from '../../../components/ui/Modal';
@@ -78,7 +79,7 @@ export default function CartView({
   const [isTablePickerOpen, setIsTablePickerOpen] = useState(false);
 
   const availablePackagings = (catalogPackagings || []).filter((p) => p.active && p.id !== 'pkg_ninguno');
-  const hasKitchenItems = items.some((item) => item.requiresKitchen);
+  const hasKitchenItems = items.some((item) => Boolean(item.requiresKitchen) && !isProductMarket(item));
   const isTableOccupied = selectedTable?.status === 'OCCUPIED';
   const isTakeout = modality === 'PARA_LLEVAR';
   const isDelivery = modality === 'DELIVERY';
@@ -629,12 +630,12 @@ export default function CartView({
               disabled={items.length === 0}
               variant="primary"
               size="lg"
-              icon={hasKitchenItems ? Flame : Plus}
+              icon={hasKitchenItems ? Flame : Package}
               className="w-full text-xs sm:text-sm font-black py-3.5 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20 cursor-pointer active:scale-98"
             >
               {hasKitchenItems
                 ? `Mandar a Cocina (${selectedTable.label}) • ${formatCurrency(total)}`
-                : `Añadir a ${selectedTable.label} • ${formatCurrency(total)}`}
+                : `Enviar a Entregas (${selectedTable.label}) • ${formatCurrency(total)}`}
             </Button>
           ) : (
             /* EN MESA LIBRE, PARA LLEVAR O DELIVERY */
@@ -650,7 +651,7 @@ export default function CartView({
                 disabled={items.length === 0}
                 variant="primary"
                 size="md"
-                icon={hasKitchenItems ? Flame : Plus}
+                icon={hasKitchenItems ? Flame : Package}
                 className={`text-xs sm:text-sm font-black py-3 cursor-pointer ${
                   modality === 'MESA' && !selectedTable
                     ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
@@ -660,10 +661,10 @@ export default function CartView({
                 {modality === 'MESA' && !selectedTable
                   ? 'Elegir mesa para enviar'
                   : selectedTable
-                  ? (hasKitchenItems ? `Abrir comanda (${selectedTable.label})` : `Añadir a ${selectedTable.label}`)
+                  ? (hasKitchenItems ? `Abrir comanda (${selectedTable.label})` : `Enviar a ${selectedTable.label} (Entregas)`)
                   : hasKitchenItems
                   ? 'Mandar a Cocina'
-                  : 'Enviar Pedido'}
+                  : 'Enviar a Entregas'}
               </Button>
 
               <Button
