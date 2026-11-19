@@ -35,18 +35,19 @@ function normalizeProductCategory(prod) {
   let categoryId;
   let type;
 
-  if (isProductMarket(prod)) {
-    line = 'MARKET';
-    categoryId = 'cat_market';
-    type = 'MARKET';
+  // 1. Postres prioritarios (evita que se clasifiquen erróneamente en Market o Comida)
+  if (isProductDessert(prod)) {
+    line = 'POSTRES';
+    categoryId = 'cat_postres';
+    type = prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
   } else if (isProductBeverage(prod)) {
     line = 'BEBIDAS';
     categoryId = 'cat_bebidas';
-    type = 'RESTAURANTE';
-  } else if (isProductDessert(prod)) {
-    line = 'POSTRES';
-    categoryId = 'cat_postres';
-    type = 'RESTAURANTE';
+    type = prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
+  } else if (isProductMarket(prod)) {
+    line = 'MARKET';
+    categoryId = 'cat_market';
+    type = 'MARKET';
   } else {
     line = 'COMIDA';
     categoryId = 'cat_comida';
@@ -57,7 +58,7 @@ function normalizeProductCategory(prod) {
     ...prod,
     line,
     categoryId,
-    type,
+    type: prod.type || type,
     subcategory: null,
   };
 }

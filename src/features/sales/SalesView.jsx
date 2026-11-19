@@ -32,7 +32,7 @@ export default function SalesView({
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [successToast, setSuccessToast] = useState(null);
 
-  const { products, packagings: catalogPackagings, recordProductSales } = useCatalog();
+  const { products, categories = [], packagings: catalogPackagings, recordProductSales } = useCatalog();
 
   const {
     items,
@@ -86,16 +86,16 @@ export default function SalesView({
         // En modo RESTAURANTE: filtrar por categoría (TODO, COMIDA, BEBIDAS, POSTRES, MARKET)
         if (selectedLine === 'COMIDA') {
           // Comida: Todo producto gastronómico que NO sea bebida, no sea postre y no sea exclusivo de Market
-          if (!isProductFood(prod) || isProductMarket(prod) || isProductDessert(prod)) return false;
+          if (!isProductFood(prod, categories) || isProductMarket(prod, categories) || isProductDessert(prod, categories)) return false;
         } else if (selectedLine === 'BEBIDAS') {
           // Bebidas: TODAS las bebidas, sean de Market (gaseosas, cervezas, aguas) o de Restaurante (jugos, refrescos)
           if (!isProductBeverage(prod)) return false;
         } else if (selectedLine === 'POSTRES') {
-          // Postres: Todo producto gastronómico o dulce de la línea de postres
-          if (!isProductDessert(prod)) return false;
+          // Postres: TODOS los postres (sean de restaurante o postres/dulces de market)
+          if (!isProductDessert(prod, categories)) return false;
         } else if (selectedLine === 'MARKET') {
           // Market: Todo producto registrado en Market (bebidas, snacks, golosinas)
-          if (!isProductMarket(prod)) return false;
+          if (!isProductMarket(prod, categories)) return false;
         }
       }
 
@@ -113,7 +113,7 @@ export default function SalesView({
 
     // Ordenar de mayor salida a menor salida
     return list.sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0));
-  }, [products, salesMode, selectedLine, searchQuery]);
+  }, [products, categories, salesMode, selectedLine, searchQuery]);
 
   // Añadir rápido (Por defecto SIN cremas marcadas, el usuario las personaliza o pide directo)
   const handleQuickAdd = (product) => {

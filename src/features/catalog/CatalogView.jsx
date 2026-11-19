@@ -25,7 +25,7 @@ import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
-import { isProductBeverage, isProductDessert } from '../../utils/productCategories';
+import { isProductBeverage, isProductDessert, isProductMarket } from '../../utils/productCategories';
 
 export default function CatalogView() {
   const {
@@ -257,9 +257,28 @@ export default function CatalogView() {
   const handleOpenEditProduct = (prod) => {
     setEditingProduct(prod);
     setProdName(prod.name);
-    const cat = prod.categoryId || (prod.line === 'MARKET' ? 'cat_market' : prod.line === 'BEBIDAS' ? 'cat_bebidas' : prod.line === 'POSTRES' || isProductDessert(prod) ? 'cat_postres' : 'cat_comida');
-    const line = prod.line || (cat === 'cat_market' ? 'MARKET' : cat === 'cat_bebidas' ? 'BEBIDAS' : cat === 'cat_postres' ? 'POSTRES' : 'COMIDA');
-    const type = line === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
+
+    let cat;
+    let line;
+    let type;
+
+    if (isProductDessert(prod, categories)) {
+      cat = 'cat_postres';
+      line = 'POSTRES';
+      type = prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
+    } else if (isProductBeverage(prod)) {
+      cat = 'cat_bebidas';
+      line = 'BEBIDAS';
+      type = prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
+    } else if (isProductMarket(prod, categories)) {
+      cat = 'cat_market';
+      line = 'MARKET';
+      type = 'MARKET';
+    } else {
+      cat = prod.categoryId || 'cat_comida';
+      line = prod.line || 'COMIDA';
+      type = prod.type || 'RESTAURANTE';
+    }
 
     setProdCategory(cat);
     setProdLine(line);
@@ -890,6 +909,7 @@ export default function CatalogView() {
                     thumbnailUrl={p.thumbnailUrl}
                     name={p.name}
                     isBeverage={isProductBeverage(p)}
+                    isDessert={isProductDessert(p, categories)}
                     className="w-16 h-16"
                     iconSize="w-7 h-7"
                   />
@@ -912,6 +932,11 @@ export default function CatalogView() {
                       <span className="bg-zinc-800 text-zinc-300 px-1.5 py-0.2 rounded font-bold uppercase">
                         {p.type}
                       </span>
+                      {isProductDessert(p, categories) && (
+                        <span className="bg-pink-500/10 text-pink-400 border border-pink-500/20 px-1.5 py-0.2 rounded font-bold">
+                          🍰 Postre
+                        </span>
+                      )}
                       {p.type === 'MARKET' && (
                         <span className={`px-1.5 py-0.2 rounded font-bold ${p.marketSubtype === 'BEBIDA' || p.temperatureConfig?.enabled ? 'bg-cyan-950/60 text-cyan-300 border border-cyan-500/30' : 'bg-purple-950/60 text-purple-300 border border-purple-500/30'}`}>
                           {p.marketSubtype === 'BEBIDA' || p.temperatureConfig?.enabled ? '🥤 Bebida (Helar)' : '🍪 Comida / Snack'}
@@ -1479,7 +1504,7 @@ export default function CatalogView() {
                 { id: 'cat_postres', line: 'POSTRES', type: 'RESTAURANTE', label: 'POSTRES', desc: 'Tortas, Helados...' },
                 { id: 'cat_market', line: 'MARKET', type: 'MARKET', label: 'MARKET', desc: 'Snacks, Golosinas...' },
               ].map((opt) => {
-                const isSelected = prodCategory === opt.id || prodLine === opt.line;
+                const isSelected = prodCategory === opt.id;
                 return (
                   <button
                     key={opt.id}
@@ -1503,6 +1528,7 @@ export default function CatalogView() {
                       } else {
                         setProdKitchen(true);
                         setProdHasTemperature(false);
+                        setProdMarketSubtype('COMIDA');
                       }
                     }}
                     className={`py-2.5 px-2 rounded-xl text-xs font-black border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 text-center ${
