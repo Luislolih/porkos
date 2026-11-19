@@ -624,16 +624,18 @@ export default function CartView({
               Cobrar {formatCurrency(total)}
             </Button>
           ) : isTableOccupied && selectedTable ? (
-            /* EN MESA ABIERTA: Cada pedido se envía individual a cocina */
+            /* EN MESA ABIERTA: Cada pedido se envía individual a cocina o se suma a la mesa */
             <Button
               onClick={onSendToKitchen}
               disabled={items.length === 0}
               variant="primary"
               size="lg"
-              icon={Flame}
+              icon={hasKitchenItems ? Flame : Plus}
               className="w-full text-xs sm:text-sm font-black py-3.5 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20 cursor-pointer active:scale-98"
             >
-              Mandar a Cocina ({selectedTable.label}) • {formatCurrency(total)}
+              {hasKitchenItems
+                ? `Mandar a Cocina (${selectedTable.label}) • ${formatCurrency(total)}`
+                : `Añadir a ${selectedTable.label} • ${formatCurrency(total)}`}
             </Button>
           ) : (
             /* EN MESA LIBRE, PARA LLEVAR O DELIVERY */
@@ -643,7 +645,7 @@ export default function CartView({
                 disabled={items.length === 0}
                 variant="primary"
                 size="md"
-                icon={Flame}
+                icon={hasKitchenItems ? Flame : Plus}
                 className={`text-xs sm:text-sm font-black py-3 ${
                   modality === 'MESA' && !selectedTable
                     ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
@@ -653,7 +655,7 @@ export default function CartView({
                 {modality === 'MESA' && !selectedTable
                   ? 'Elegir mesa para enviar'
                   : selectedTable
-                  ? `Abrir comanda (${selectedTable.label})`
+                  ? (hasKitchenItems ? `Abrir comanda (${selectedTable.label})` : `Añadir a ${selectedTable.label}`)
                   : hasKitchenItems
                   ? 'Mandar a Cocina'
                   : 'Enviar Pedido'}

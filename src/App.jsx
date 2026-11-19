@@ -49,8 +49,8 @@ function MainApp() {
         const parsed = JSON.parse(saved);
         return parsed.map((o) => {
           const hasKitchenItems = o.items?.some((i) => i.requiresKitchen);
-          const isSoloMarket = o.modality === 'MARKET' || !hasKitchenItems;
           const isTable = o.modality === 'MESA' || Boolean(o.tableId);
+          const isSoloMarket = (o.modality === 'MARKET' || !hasKitchenItems) && !isTable;
           return {
             ...o,
             status: isSoloMarket ? 'ENTREGADO' : o.status,
@@ -73,14 +73,14 @@ function MainApp() {
         if (remoteOrders && remoteOrders.length > 0) {
           const normalized = remoteOrders.map((o) => {
             const hasKitchenItems = o.items?.some((i) => i.requiresKitchen);
-            const isSoloMarket = o.modality === 'MARKET' || !hasKitchenItems;
             const isTable = o.modality === 'MESA' || Boolean(o.tableId);
+            const isSoloMarket = (o.modality === 'MARKET' || !hasKitchenItems) && !isTable;
             const correctedStatus = isSoloMarket && (o.status === 'PENDIENTE' || o.status === 'PREPARANDO')
               ? 'ENTREGADO'
               : o.status;
             const correctedPayment = isTable ? (o.paymentStatus || 'PENDING') : 'PAID';
 
-            // Si cambió de estado porque era solo market en cocina, persistir corrección en Firestore
+            // Si cambió de estado porque era solo market (no mesa) en cocina, persistir corrección en Firestore
             if (correctedStatus !== o.status && o.orderNumber) {
               updateOrderStatusInFirestore(o.orderNumber, 'ENTREGADO');
             }
@@ -114,10 +114,10 @@ function MainApp() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Estado reactivo de las 3 mesas según las comandas abiertas
+  // 2. Estado reactivo de las 3 mesas según las comandas abiertas no pagadas
   const activeTableIds = useMemo(() => {
     return orders
-      .filter((o) => o.tableId && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO')
+      .filter((o) => o.tableId && o.paymentStatus !== 'PAID' && o.status !== 'CANCELADO')
       .map((o) => o.tableId);
   }, [orders]);
 
@@ -138,11 +138,11 @@ function MainApp() {
 
     const isTableModality = newOrder.modality === 'MESA' || Boolean(newOrder.tableId);
     const hasKitchenItems = newOrder.items?.some((i) => i.requiresKitchen);
-    const isSoloMarket = newOrder.modality === 'MARKET' || !hasKitchenItems;
+    const isSoloMarket = (newOrder.modality === 'MARKET' || !hasKitchenItems) && !isTableModality;
 
     const cleanOrder = {
       ...newOrder,
-      status: isSoloMarket ? 'ENTREGADO' : (newOrder.status || 'PENDIENTE'),
+      status: isSoloMarket ? 'ENTREGADO' : (newOrder.status || (hasKitchenItems ? 'PENDIENTE' : 'ENTREGADO')),
       paymentStatus: isTableModality ? (newOrder.paymentStatus || 'PENDING') : 'PAID',
       createdAt: newOrder.createdAt instanceof Date ? newOrder.createdAt : parseToDate(newOrder.createdAt) || new Date(),
     };
@@ -160,14 +160,23 @@ function MainApp() {
 
   // 4. Manejar el cierre y cobro de mesa (cierra todos los pedidos activos de la mesa)
   const handleCloseTable = async (tableId, orderNumberOrNumbers, paymentDetail) => {
-    const targetNumbers = Array.isArray(orderNumberOrNumbers)
+    const inputNumbers = Array.isArray(orderNumberOrNumbers)
       ? orderNumberOrNumbers
       : [orderNumberOrNumbers];
+
+    // Buscar todas las órdenes activas no pagadas de la mesa para liquidar el saldo total
+    const activeTableNumbers = tableId
+      ? orders
+          .filter((o) => o.tableId === tableId && o.paymentStatus !== 'PAID' && o.status !== 'CANCELADO')
+          .map((o) => o.orderNumber)
+      : [];
+
+    const targetNumbers = Array.from(new Set([...inputNumbers, ...activeTableNumbers]));
 
     // Optimista local
     setOrders((prev) => {
       const updated = prev.map((o) => {
-        const matchesTable = tableId && o.tableId === tableId && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO';
+        const matchesTable = tableId && o.tableId === tableId && o.paymentStatus !== 'PAID' && o.status !== 'CANCELADO';
         const matchesNumber = targetNumbers.includes(o.orderNumber);
         if (matchesTable || matchesNumber) {
           return {
@@ -258,7 +267,7 @@ function MainApp() {
 
     // Si la mesa ya tiene comanda abierta, cargar el nombre del cliente si existe
     const existingOrder = orders.find(
-      (o) => o.tableId === table.id && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO'
+      (o) => o.tableId === table.id && o.paymentStatus !== 'PAID' && o.status !== 'CANCELADO'
     );
     if (existingOrder?.customerName) {
       setCustomerName(existingOrder.customerName);

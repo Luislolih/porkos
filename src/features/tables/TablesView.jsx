@@ -73,7 +73,7 @@ export default function TablesView({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {tables.map((table) => {
           const tableOrders = orders.filter(
-            (o) => o.tableId === table.id && o.status !== 'ENTREGADO' && o.status !== 'CANCELADO'
+            (o) => o.tableId === table.id && o.paymentStatus !== 'PAID' && o.status !== 'CANCELADO'
           );
           const isOccupied = table.status === 'OCCUPIED' || tableOrders.length > 0;
           const tableTotal = tableOrders.reduce((sum, o) => sum + (o.total || 0), 0);
