@@ -1,17 +1,19 @@
 export const PRODUCT_LINES = {
-  ALL: { id: 'ALL', label: 'TODAS' },
+  ALL: { id: 'ALL', label: 'TODO' },
   COMIDA: { id: 'COMIDA', label: 'COMIDA' },
   BEBIDAS: { id: 'BEBIDAS', label: 'BEBIDAS' },
+  POSTRES: { id: 'POSTRES', label: 'POSTRES' },
   MARKET: { id: 'MARKET', label: 'MARKET' },
 };
 
-// Categorías oficiales de la carta: COMIDA, BEBIDAS y MARKET
+// Categorías oficiales de la carta: COMIDA, BEBIDAS, POSTRES y MARKET
 export const SUBCATEGORIES = [];
 
 export const DEFAULT_CATEGORIES = [
   { id: 'cat_comida', name: 'Comida', line: 'COMIDA', type: 'RESTAURANTE', icon: 'Utensils', order: 1, active: true },
   { id: 'cat_bebidas', name: 'Bebidas', line: 'BEBIDAS', type: 'RESTAURANTE', icon: 'CupSoda', order: 2, active: true },
-  { id: 'cat_market', name: 'Market', line: 'MARKET', type: 'MARKET', icon: 'Store', order: 3, active: true },
+  { id: 'cat_postres', name: 'Postres', line: 'POSTRES', type: 'RESTAURANTE', icon: 'Cake', order: 3, active: true },
+  { id: 'cat_market', name: 'Market', line: 'MARKET', type: 'MARKET', icon: 'Store', order: 4, active: true },
 ];
 
 // Catálogos vacíos por defecto: todo se gestiona directamente en Cloud Firestore

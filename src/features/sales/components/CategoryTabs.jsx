@@ -1,10 +1,11 @@
-import { Utensils, UtensilsCrossed, CupSoda, Store, Cookie } from 'lucide-react';
+import { Utensils, UtensilsCrossed, CupSoda, Cake, Store, Cookie } from 'lucide-react';
 import { SALES_MODES } from '../../../types/constants';
 
 const RESTAURANT_TABS = [
-  { id: 'ALL', label: 'TODAS', icon: Utensils },
+  { id: 'ALL', label: 'TODO', icon: Utensils },
   { id: 'COMIDA', label: 'COMIDA', icon: UtensilsCrossed },
   { id: 'BEBIDAS', label: 'BEBIDAS', icon: CupSoda },
+  { id: 'POSTRES', label: 'POSTRES', icon: Cake },
   { id: 'MARKET', label: 'MARKET', icon: Store },
 ];
 

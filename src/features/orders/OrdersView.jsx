@@ -18,6 +18,7 @@ import {
   Trash2,
   Lock,
   Check,
+  UserCheck,
 } from 'lucide-react';
 import { formatCurrency, formatTime, formatElapsedTime } from '../../utils/formatters';
 import { ORDER_STATUS, PAYMENT_STATUS } from '../../types/constants';
@@ -694,6 +695,11 @@ export default function OrdersView({
                       <span className="text-zinc-500 text-[11px]">
                         ({order.items?.length || 0} items)
                       </span>
+                      {order.createdBy?.name && (
+                        <span className="text-zinc-400 text-[11px] font-medium">
+                          • Por: <strong className="text-zinc-300 font-semibold">{order.createdBy.name}</strong>
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -838,6 +844,24 @@ export default function OrdersView({
                   {formatElapsedTime(selectedOrder.createdAt)}
                 </span>
               </div>
+            </div>
+
+            {/* Historial sutil: Responsable que ingresó la comanda */}
+            <div className="bg-zinc-900/60 px-3 py-2 rounded-xl border border-zinc-800/80 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-zinc-400">
+                <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="text-[11px]">
+                  Ingresado por:{' '}
+                  <strong className="text-zinc-200 font-bold">
+                    {selectedOrder.createdBy?.name || selectedOrder.createdBy?.email?.split('@')[0] || 'Caja / Mostrador'}
+                  </strong>
+                </span>
+              </div>
+              {selectedOrder.createdBy?.email && (
+                <span className="text-[10px] text-zinc-500 font-mono">
+                  {selectedOrder.createdBy.email}
+                </span>
+              )}
             </div>
 
             {/* Detalle de Productos y Opciones */}

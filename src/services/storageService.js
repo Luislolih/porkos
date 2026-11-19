@@ -19,17 +19,38 @@ let activeStorageInstance = null;
 let discoveredBucketName = null;
 
 /**
+ * Función auxiliar para evitar cuelgues infinitos de red con Firebase Storage
+ */
+function withTimeout(promise, timeoutMs = 8000, errorMsg = 'Tiempo de espera agotado al conectar con Storage') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      const timer = setTimeout(() => {
+        clearTimeout(timer);
+        reject(new Error(errorMsg));
+      }, timeoutMs);
+    }),
+  ]);
+}
+
+/**
  * Obtiene lista de instancias de Storage a probar en orden
+ * Prioriza el bucket configurado explícitamente (.firebasestorage.app)
  */
 function getStorageCandidates() {
   const projectId = firebaseConfig.projectId || 'porkos-ac37d';
-  const bucketNames = [
-    `${projectId}.appspot.com`,
-    `${projectId}.firebasestorage.app`,
-  ];
-  if (firebaseConfig.storageBucket && !bucketNames.includes(firebaseConfig.storageBucket)) {
-    bucketNames.unshift(firebaseConfig.storageBucket);
+  const bucketNames = [];
+
+  // 1º Prioridad: Bucket configurado en firebase.js
+  if (firebaseConfig.storageBucket) {
+    bucketNames.push(firebaseConfig.storageBucket);
   }
+
+  // 2º Prioridad: Formatos estándar de Firebase
+  const standardFb = `${projectId}.firebasestorage.app`;
+  const legacyAppspot = `${projectId}.appspot.com`;
+  if (!bucketNames.includes(standardFb)) bucketNames.push(standardFb);
+  if (!bucketNames.includes(legacyAppspot)) bucketNames.push(legacyAppspot);
 
   // Si ya descubrimos cuál funciona, ponerlo al inicio
   if (discoveredBucketName && bucketNames.includes(discoveredBucketName)) {
@@ -48,7 +69,6 @@ function getStorageCandidates() {
 export async function testStorageConnection() {
   const candidates = getStorageCandidates();
   const testBlob = new Blob(['porkos_test'], { type: 'text/plain' });
-  // Usar ruta products/ para coincidir tanto con reglas globales como con match /products/...
   const testPath = `products/_test_connection_${Date.now()}.txt`;
 
   let lastError = null;
@@ -57,10 +77,13 @@ export async function testStorageConnection() {
   for (const candidate of candidates) {
     try {
       const testRef = ref(candidate.instance, testPath);
-      await uploadBytes(testRef, testBlob, { contentType: 'text/plain' });
+      await withTimeout(
+        uploadBytes(testRef, testBlob, { contentType: 'text/plain' }),
+        6000,
+        `Timeout en bucket ${candidate.name}`
+      );
       await deleteObject(testRef).catch(() => {});
 
-      // Si funcionó, registrar este bucket como el activo permanente
       activeStorageInstance = candidate.instance;
       discoveredBucketName = candidate.name;
 
@@ -72,15 +95,14 @@ export async function testStorageConnection() {
       };
     } catch (err) {
       lastError = err;
-      attempts.push({ bucket: candidate.name, code: err.code, message: err.message });
-      // Continuar con el siguiente candidato (por si el otro bucket tiene las reglas activas)
+      attempts.push({ bucket: candidate.name, code: err.code || 'TIMEOUT', message: err.message });
       continue;
     }
   }
 
   let friendlyMessage = 'No se pudo conectar a Firebase Storage.';
   if (lastError?.code === 'storage/unauthorized') {
-    friendlyMessage = 'Permiso denegado (storage/unauthorized). En Firebase Console, asegúrate de haber hecho clic en el botón azul "Publicar" (Publish).';
+    friendlyMessage = 'Permiso denegado (storage/unauthorized). En Firebase Console, haz clic en el botón azul "Publicar" (Publish).';
   } else if (lastError?.code === 'storage/bucket-not-found') {
     friendlyMessage = 'El bucket no existe. Haz clic en "Comenzar" (Get Started) en la pestaña Storage de Firebase Console.';
   } else if (lastError?.message?.toLowerCase().includes('cors') || lastError?.name === 'TypeError') {
@@ -98,7 +120,8 @@ export async function testStorageConnection() {
 }
 
 /**
- * Sube tanto la versión principal optimizada (640px) como la miniatura (240px)
+ * Sube una ÚNICA versión optimizada en formato WebP por producto (máx 640px, ~40-60 KB)
+ * Previene cuelgues infinitos y evita la creación de archivos innecesarios.
  */
 export async function uploadProductImage(file, productId = null) {
   const validation = validateImageFile(file);
@@ -108,23 +131,14 @@ export async function uploadProductImage(file, productId = null) {
 
   // 1. Optimizar en el navegador (WebP + Reducción de dimensiones + EXIF limpio)
   const optimized = await optimizeProductImage(file);
-  const timestamp = Date.now();
   const safeId = (productId || 'prod_' + Math.random().toString(36).substring(2, 9)).replace(/[^a-zA-Z0-9_-]/g, '_');
 
-  const mainExt = optimized.main.format;
-  const thumbExt = optimized.thumb.format;
-
-  const mainPath = `products/${safeId}/main_${timestamp}.${mainExt}`;
-  const thumbPath = `products/${safeId}/thumb_${timestamp}.${thumbExt}`;
+  // Guardar únicamente una sola fotografía persistente por producto
+  const mainPath = `products/${safeId}.webp`;
 
   const metadata = {
-    contentType: `image/${mainExt}`,
+    contentType: 'image/webp',
     cacheControl: 'public,max-age=31536000,immutable', // 1 año de caché
-  };
-
-  const thumbMetadata = {
-    contentType: `image/${thumbExt}`,
-    cacheControl: 'public,max-age=31536000,immutable',
   };
 
   const candidates = getStorageCandidates();
@@ -133,36 +147,34 @@ export async function uploadProductImage(file, productId = null) {
   for (const candidate of candidates) {
     try {
       const mainRef = ref(candidate.instance, mainPath);
-      const thumbRef = ref(candidate.instance, thumbPath);
 
-      const [mainSnap, thumbSnap] = await Promise.all([
+      // Con timeout de 8 segundos para evitar estados infinitos de carga
+      const mainSnap = await withTimeout(
         uploadBytes(mainRef, optimized.main.blob, metadata),
-        uploadBytes(thumbRef, optimized.thumb.blob, thumbMetadata),
-      ]);
+        8000,
+        `Tiempo de espera agotado al subir a ${candidate.name}`
+      );
 
-      const [mainDownloadUrl, thumbDownloadUrl] = await Promise.all([
+      const mainDownloadUrl = await withTimeout(
         getDownloadURL(mainSnap.ref),
-        getDownloadURL(thumbSnap.ref),
-      ]);
+        5000,
+        `Tiempo de espera agotado al obtener URL en ${candidate.name}`
+      );
 
-      // Guardar el bucket que funcionó exitosamente
       activeStorageInstance = candidate.instance;
       discoveredBucketName = candidate.name;
 
       return {
         success: true,
         url: mainDownloadUrl,
-        thumbnailUrl: thumbDownloadUrl,
+        thumbnailUrl: mainDownloadUrl,
         bucketUsed: candidate.name,
         imageMetadata: {
           sizeBytes: optimized.main.sizeBytes,
-          thumbSizeBytes: optimized.thumb.sizeBytes,
-          totalSizeBytes: optimized.main.sizeBytes + optimized.thumb.sizeBytes,
           width: optimized.main.width,
           height: optimized.main.height,
-          format: mainExt,
+          format: 'webp',
           storagePath: mainPath,
-          thumbStoragePath: thumbPath,
           uploadedAt: new Date().toISOString(),
         },
         originalSize: optimized.original.sizeBytes,
@@ -173,15 +185,14 @@ export async function uploadProductImage(file, productId = null) {
       };
     } catch (err) {
       lastError = err;
-      // Probar el siguiente bucket por si las reglas están en .appspot.com o .firebasestorage.app
       continue;
     }
   }
 
-  console.warn('Firebase Storage no disponible actualmente:', lastError);
+  console.warn('Firebase Storage no respondió a tiempo. Activando respaldo optimizado:', lastError?.message);
 
-  // FALLBACK SEGURO: Retornamos la versión WebP optimizada (~35 KB)
-  // para que el producto SIEMPRE se vea en la app y no se pierda la foto
+  // FALLBACK INSTANTÁNEO: Retornamos la versión WebP optimizada (~35 KB)
+  // para que el producto NUNCA se quede cargando y SIEMPRE se vea en la app
   return {
     success: false,
     url: null,
@@ -192,8 +203,8 @@ export async function uploadProductImage(file, productId = null) {
     reductionPercent: optimized.reductionPercent,
     localPreviewUrl: optimized.main.dataUrl,
     error: lastError,
-    errorCode: lastError?.code || 'unknown',
-    errorMessage: lastError?.message || 'Error al conectar con Firebase Storage',
+    errorCode: lastError?.code || 'TIMEOUT_OR_NETWORK',
+    errorMessage: lastError?.message || 'Conexión lenta con Storage. Se guardará la versión optimizada en la app.',
   };
 }
 

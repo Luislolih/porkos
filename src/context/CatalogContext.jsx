@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CatalogContext } from './catalog-context';
 import { DEFAULT_CATEGORIES } from '../types/defaultCatalog';
-import { isProductBeverage, isProductMarket } from '../utils/productCategories';
+import { isProductBeverage, isProductMarket, isProductDessert } from '../utils/productCategories';
 import {
   subscribeToProducts,
   saveProductToFirestore,
@@ -29,7 +29,7 @@ const STORAGE_KEYS = {
   PACKAGINGS: 'porkos_catalog_packagings',
 };
 
-// Normalizar producto a las 3 categorías oficiales: COMIDA, BEBIDAS, MARKET (sin subcategorías)
+// Normalizar producto a las categorías oficiales: COMIDA, BEBIDAS, POSTRES, MARKET (sin subcategorías)
 function normalizeProductCategory(prod) {
   let line;
   let categoryId;
@@ -42,6 +42,10 @@ function normalizeProductCategory(prod) {
   } else if (isProductBeverage(prod)) {
     line = 'BEBIDAS';
     categoryId = 'cat_bebidas';
+    type = 'RESTAURANTE';
+  } else if (isProductDessert(prod)) {
+    line = 'POSTRES';
+    categoryId = 'cat_postres';
     type = 'RESTAURANTE';
   } else {
     line = 'COMIDA';
@@ -376,12 +380,12 @@ export function CatalogProvider({ children }) {
   const addProduct = async (newProduct) => {
     const id = `prod_${Date.now()}`;
     let cleanImage = typeof newProduct.image === 'string' ? newProduct.image.trim() : '';
-    if (!cleanImage.startsWith('http://') && !cleanImage.startsWith('https://')) {
+    if (!cleanImage.startsWith('http://') && !cleanImage.startsWith('https://') && !cleanImage.startsWith('data:image/')) {
       cleanImage = '';
     }
 
-    const line = newProduct.line || (isProductMarket(newProduct) ? 'MARKET' : isProductBeverage(newProduct) ? 'BEBIDAS' : 'COMIDA');
-    const categoryId = newProduct.categoryId || (line === 'MARKET' ? 'cat_market' : line === 'BEBIDAS' ? 'cat_bebidas' : 'cat_comida');
+    const line = newProduct.line || (isProductMarket(newProduct) ? 'MARKET' : isProductBeverage(newProduct) ? 'BEBIDAS' : isProductDessert(newProduct) ? 'POSTRES' : 'COMIDA');
+    const categoryId = newProduct.categoryId || (line === 'MARKET' ? 'cat_market' : line === 'BEBIDAS' ? 'cat_bebidas' : line === 'POSTRES' ? 'cat_postres' : 'cat_comida');
     const type = line === 'MARKET' ? 'MARKET' : (newProduct.type || 'RESTAURANTE');
 
     const productWithDefaults = {

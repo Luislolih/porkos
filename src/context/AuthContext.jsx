@@ -111,9 +111,12 @@ export function AuthProvider({ children }) {
     }
 
     const roleInfo = APP_ROLES[role] || APP_ROLES.CAJERO;
+    const resolvedDisplayName = matching?.displayName || firebaseUser.displayName || (email ? email.split('@')[0] : 'Usuario');
 
     return {
       ...firebaseUser,
+      displayName: resolvedDisplayName,
+      fullName: resolvedDisplayName,
       role,
       roleName: roleInfo.name,
       roleBadgeClass: roleInfo.badgeClass,
@@ -201,17 +204,18 @@ export function AuthProvider({ children }) {
   const addAuthorizedUser = async (userRecord) => {
     const email = userRecord.email?.toLowerCase().trim();
     if (!email) return false;
+    const displayName = userRecord.displayName?.trim() || email.split('@')[0];
 
     const updated = [
       ...authorizedUsers.filter((u) => u.email?.toLowerCase() !== email),
-      { ...userRecord, email },
+      { ...userRecord, email, displayName },
     ];
     setAuthorizedUsers(updated);
     localStorage.setItem('porkos_authorized_users', JSON.stringify(updated));
 
     await saveUserToFirestore({
       email,
-      displayName: userRecord.displayName || email.split('@')[0],
+      displayName,
       role: userRecord.role || 'CAJERO',
     });
     return true;

@@ -1,5 +1,5 @@
 /**
- * Helpers universales para clasificación de productos: Comida, Bebidas y Market
+ * Helpers universales para clasificación de productos: Comida, Bebidas, Postres y Market
  */
 
 export function isProductBeverage(prod) {
@@ -12,7 +12,8 @@ export function isProductBeverage(prod) {
     prod.marketSubtype === 'POSTRE' ||
     prod.categoryId === 'cat_postres' ||
     prod.categoryId === 'cat_snacks' ||
-    prod.categoryId === 'cat_comida'
+    prod.categoryId === 'cat_comida' ||
+    prod.line === 'POSTRES'
   ) {
     return false;
   }
@@ -45,15 +46,30 @@ export function isProductBeverage(prod) {
   return isolatedTerms.some((term) => words.includes(term));
 }
 
+export function isProductDessert(prod) {
+  if (!prod) return false;
+  if (prod.line === 'POSTRES' || prod.categoryId === 'cat_postres') return true;
+  if (prod.marketSubtype === 'POSTRE') return true;
+
+  const n = (prod.name || '').toLowerCase();
+  const dessertKeywords = [
+    'postre', 'torta', 'pie', 'queque', 'chocoteja', 'alfajor', 'muffin',
+    'brownie', 'helado', 'flan', 'cheesecake', 'crepe', 'crepas', 'waffle', 'pudín', 'pudin'
+  ];
+  return dessertKeywords.some((kw) => n.includes(kw));
+}
+
 export function isProductMarket(prod) {
   if (!prod) return false;
+  // Si es un postre registrado para Restaurante, no forzarlo a Market
+  if (prod.line === 'POSTRES' && prod.type !== 'MARKET') return false;
+
   return (
     prod.type === 'MARKET' ||
     prod.line === 'MARKET' ||
     prod.line === 'BEBIDAS_MARKET' ||
     prod.categoryId === 'cat_market' ||
     prod.categoryId === 'cat_bebidas_market' ||
-    prod.categoryId === 'cat_postres' ||
     prod.categoryId === 'cat_snacks' ||
     (typeof prod.id === 'string' && prod.id.startsWith('mkt_'))
   );
@@ -61,24 +77,24 @@ export function isProductMarket(prod) {
 
 export function isProductFood(prod) {
   if (!prod) return false;
-  // Si es bebida, no es comida
+  // Si es bebida o postre, no es comida
   if (isProductBeverage(prod)) return false;
+  if (isProductDessert(prod)) return false;
   return true;
 }
 
 export function isProductSnackOrDessert(prod) {
   if (!prod) return false;
   if (isProductBeverage(prod)) return false;
+  if (isProductDessert(prod)) return true;
   if (
     prod.marketSubtype === 'COMIDA' ||
     prod.marketSubtype === 'SNACK' ||
-    prod.marketSubtype === 'POSTRE' ||
-    prod.categoryId === 'cat_postres' ||
     prod.categoryId === 'cat_snacks'
   ) {
     return true;
   }
   const n = (prod.name || '').toLowerCase();
-  const snackKeywords = ['snack', 'galleta', 'chocolate', 'lays', 'doritos', 'piqueo', 'postre', 'torta', 'pie', 'queque', 'chocoteja', 'caramelo', 'gomita', 'alfajor', 'muffin', 'brownie', 'helado'];
+  const snackKeywords = ['snack', 'galleta', 'chocolate', 'lays', 'doritos', 'piqueo', 'caramelo', 'gomita'];
   return snackKeywords.some((kw) => n.includes(kw));
 }

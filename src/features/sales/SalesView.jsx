@@ -11,7 +11,8 @@ import QuickPaymentModal from './components/QuickPaymentModal';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
 import { formatCurrency } from '../../utils/formatters';
 import { getNextOrderNumber } from '../../utils/orderNumber';
-import { isProductBeverage, isProductMarket, isProductFood } from '../../utils/productCategories';
+import { isProductBeverage, isProductMarket, isProductFood, isProductDessert } from '../../utils/productCategories';
+import { useAuth } from '../../context/useAuth';
 import { CheckCircle2, UtensilsCrossed } from 'lucide-react';
 
 export default function SalesView({
@@ -21,6 +22,7 @@ export default function SalesView({
   onSettleTableOrder,
   onOrderUpdated,
 }) {
+  const { user } = useAuth();
   const [salesMode, setSalesMode] = useState(SALES_MODES.RESTAURANT);
   const [selectedLine, setSelectedLine] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -81,15 +83,18 @@ export default function SalesView({
           if (isProductBeverage(prod)) return false;
         }
       } else {
-        // En modo RESTAURANTE: filtrar por categoría (TODAS, COMIDA, BEBIDAS, MARKET)
+        // En modo RESTAURANTE: filtrar por categoría (TODO, COMIDA, BEBIDAS, POSTRES, MARKET)
         if (selectedLine === 'COMIDA') {
-          // Comida: Todo producto gastronómico que NO sea bebida y no sea exclusivo de Market
-          if (!isProductFood(prod) || isProductMarket(prod)) return false;
+          // Comida: Todo producto gastronómico que NO sea bebida, no sea postre y no sea exclusivo de Market
+          if (!isProductFood(prod) || isProductMarket(prod) || isProductDessert(prod)) return false;
         } else if (selectedLine === 'BEBIDAS') {
           // Bebidas: TODAS las bebidas, sean de Market (gaseosas, cervezas, aguas) o de Restaurante (jugos, refrescos)
           if (!isProductBeverage(prod)) return false;
+        } else if (selectedLine === 'POSTRES') {
+          // Postres: Todo producto gastronómico o dulce de la línea de postres
+          if (!isProductDessert(prod)) return false;
         } else if (selectedLine === 'MARKET') {
-          // Market: Todo producto registrado en Market (bebidas, snacks, golosinas, postres)
+          // Market: Todo producto registrado en Market (bebidas, snacks, golosinas)
           if (!isProductMarket(prod)) return false;
         }
       }
@@ -238,6 +243,9 @@ export default function SalesView({
     const isTable = modality === 'MESA' || modality === ORDER_MODALITIES.MESA?.id;
     const isMarketSale = salesMode === SALES_MODES.MARKET || (!hasKitchenItems && !isTable);
 
+    const operatorName = user?.displayName || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Cajero');
+    const operatorEmail = user?.email || 'caja@porkos.pe';
+
     const orderData = {
       orderNumber: getNextOrderNumber(orders, isTable ? 'P' : (isMarketSale ? 'M' : 'P')),
       modality: isTable ? 'MESA' : (isMarketSale && salesMode === SALES_MODES.MARKET ? 'MARKET' : modality),
@@ -255,6 +263,11 @@ export default function SalesView({
       deliveryFee,
       discount: discount || 0,
       total,
+      createdBy: {
+        uid: user?.uid || null,
+        email: operatorEmail,
+        name: operatorName,
+      },
       createdAt: new Date(),
     };
 
@@ -371,6 +384,9 @@ export default function SalesView({
   // Cobro directo (alimenta el histórico de ventas)
   const handleConfirmPayment = (paymentDetail) => {
     const isMarketSale = salesMode === SALES_MODES.MARKET;
+    const operatorName = user?.displayName || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Cajero');
+    const operatorEmail = user?.email || 'caja@porkos.pe';
+
     const orderData = {
       orderNumber: getNextOrderNumber(orders, isMarketSale ? 'M' : 'P'),
       modality: isMarketSale ? 'MARKET' : modality,
@@ -388,6 +404,11 @@ export default function SalesView({
       deliveryFee: isMarketSale ? 0 : deliveryFee,
       discount: 0,
       total,
+      createdBy: {
+        uid: user?.uid || null,
+        email: operatorEmail,
+        name: operatorName,
+      },
       payments: [
         {
           ...paymentDetail,

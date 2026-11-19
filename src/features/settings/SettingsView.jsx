@@ -7,6 +7,7 @@ import {
   UserCheck,
   UserPlus,
   Trash2,
+  Pencil,
   Copy,
   Check,
   Lock,
@@ -158,10 +159,12 @@ export default function SettingsView({ onClearAllOrders }) {
     showToast(`Tarifa base de delivery actualizada a S/ ${parsedFee.toFixed(2)}`);
   };
 
-  // Formulario nuevo usuario
+  // Formulario nuevo usuario y edición
   const [newEmail, setNewEmail] = useState('');
+  const [newDisplayName, setNewDisplayName] = useState('');
   const [newRole, setNewRole] = useState('COORDINADOR');
   const [isAddingUser, setIsAddingUser] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
 
   // Copiado de reglas
   const [copiedRules, setCopiedRules] = useState(false);
@@ -180,18 +183,29 @@ export default function SettingsView({ onClearAllOrders }) {
 
   const handleAddUserSubmit = async (e) => {
     e.preventDefault();
-    if (!newEmail.trim()) return;
+    const targetEmail = (editingUser ? editingUser.email : newEmail).trim().toLowerCase();
+    if (!targetEmail) return;
 
     setIsAddingUser(true);
+    const targetName = (editingUser ? editingUser.displayName : newDisplayName).trim();
+    const targetRole = editingUser ? editingUser.role : newRole;
+
     await addAuthorizedUser({
-      email: newEmail.trim().toLowerCase(),
-      role: newRole,
+      email: targetEmail,
+      displayName: targetName || targetEmail.split('@')[0],
+      role: targetRole,
       createdAt: new Date().toISOString(),
     });
 
-    setNewEmail('');
+    if (editingUser) {
+      setEditingUser(null);
+      showToast(`Usuario ${targetEmail} actualizado con éxito`);
+    } else {
+      setNewEmail('');
+      setNewDisplayName('');
+      showToast(`Usuario ${targetEmail} registrado con éxito`);
+    }
     setIsAddingUser(false);
-    showToast(`Acceso asignado con éxito a ${newEmail}`);
   };
 
   const handleRemoveUser = async (email) => {
@@ -439,41 +453,88 @@ service cloud.firestore {
       {/* 3. Vista de Usuarios & Roles Blindados */}
       {activeTab === 'users' && (
         <div className="space-y-4">
-          {/* Card: Registrar Nuevo Usuario por Email */}
+          {/* Card: Registrar o Editar Usuario por Email */}
           <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-bold text-white">
-              <UserPlus className="w-4 h-4 text-[var(--color-porkos-orange)]" />
-              <span>Registrar Usuario y Asignar Rol por Email</span>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 text-sm font-bold text-white">
+                {editingUser ? (
+                  <>
+                    <Pencil className="w-4 h-4 text-[var(--color-porkos-orange)]" />
+                    <span>Editar Usuario: <strong className="text-[var(--color-porkos-orange)]">{editingUser.email}</strong></span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4 text-[var(--color-porkos-orange)]" />
+                    <span>Registrar Usuario y Asignar Nombre y Rol</span>
+                  </>
+                )}
+              </div>
+              {editingUser && (
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="text-xs text-zinc-400 hover:text-white px-2.5 py-1 rounded-lg bg-zinc-800 border border-zinc-700 cursor-pointer"
+                >
+                  Cancelar Edición
+                </button>
+              )}
             </div>
 
             <form onSubmit={handleAddUserSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-              <div className="sm:col-span-6 space-y-1">
+              <div className="sm:col-span-4 space-y-1">
                 <label className="text-xs font-bold text-zinc-300 block">
                   Email de acceso (Google / Gmail) *
                 </label>
                 <input
                   type="email"
                   required
-                  value={newEmail}
+                  disabled={Boolean(editingUser)}
+                  value={editingUser ? editingUser.email : newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="ejemplo@porkos.pe"
-                  className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                  className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] disabled:opacity-50"
                 />
               </div>
 
               <div className="sm:col-span-4 space-y-1">
                 <label className="text-xs font-bold text-zinc-300 block">
+                  Nombre y Apellido *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingUser ? editingUser.displayName : newDisplayName}
+                  onChange={(e) => {
+                    if (editingUser) {
+                      setEditingUser({ ...editingUser, displayName: e.target.value });
+                    } else {
+                      setNewDisplayName(e.target.value);
+                    }
+                  }}
+                  placeholder="Ej. Juan Pérez"
+                  className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                />
+              </div>
+
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-bold text-zinc-300 block">
                   Rol Asignado *
                 </label>
                 <select
-                  value={newRole}
-                  onChange={(e) => setNewRole(e.target.value)}
+                  value={editingUser ? editingUser.role : newRole}
+                  onChange={(e) => {
+                    if (editingUser) {
+                      setEditingUser({ ...editingUser, role: e.target.value });
+                    } else {
+                      setNewRole(e.target.value);
+                    }
+                  }}
                   className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)]"
                 >
                   <option value="ADMIN">ADMIN (Acceso Total)</option>
-                  <option value="COORDINADOR">COORDINADOR(A) (Todo menos Ajustes)</option>
-                  <option value="COCINA">COCINA (Solo KDS Cocina)</option>
-                  <option value="CAJERO">CAJERO (Ventas, Pedidos y Mesas)</option>
+                  <option value="COORDINADOR">COORDINADOR(A)</option>
+                  <option value="COCINA">COCINA</option>
+                  <option value="CAJERO">CAJERO</option>
                 </select>
               </div>
 
@@ -481,12 +542,12 @@ service cloud.firestore {
                 <Button
                   type="submit"
                   disabled={isAddingUser}
-                  icon={UserPlus}
+                  icon={editingUser ? Check : UserPlus}
                   size="md"
                   fullWidth
                   className="text-xs font-black py-2.5"
                 >
-                  {isAddingUser ? 'Guardando...' : 'Asignar'}
+                  {isAddingUser ? 'Guardando...' : (editingUser ? 'Guardar' : 'Asignar')}
                 </Button>
               </div>
             </form>
@@ -500,7 +561,7 @@ service cloud.firestore {
                 <span>Usuarios con Acceso Autorizado ({authorizedUsers.length})</span>
               </div>
               <span className="text-xs text-zinc-500">
-                Sesión actual: <strong className="text-white">{currentUser?.email}</strong> ({currentUser?.role})
+                Sesión actual: <strong className="text-white">{currentUser?.displayName || currentUser?.email}</strong> ({currentUser?.role})
               </span>
             </div>
 
@@ -516,7 +577,8 @@ service cloud.firestore {
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="text-zinc-500 text-[10px] uppercase font-black">
-                      <th className="py-2 pr-4">Email</th>
+                      <th className="py-2 pr-4">Nombre y Apellido</th>
+                      <th className="py-2 px-4">Email</th>
                       <th className="py-2 px-4">Rol Asignado</th>
                       <th className="py-2 px-4">Vistas Permitidas</th>
                       <th className="py-2 pl-4 text-right">Acción</th>
@@ -529,10 +591,17 @@ service cloud.firestore {
 
                       return (
                         <tr key={u.email} className="hover:bg-black/30 transition-colors">
-                          <td className="py-2.5 pr-4 font-mono font-bold text-white">
+                          <td className="py-2.5 pr-4 font-bold text-white whitespace-nowrap">
+                            {u.displayName ? (
+                              <span>{u.displayName}</span>
+                            ) : (
+                              <span className="text-zinc-500 italic font-normal text-[11px]">Sin nombre configurado</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-4 font-mono text-zinc-300">
                             {u.email}
                             {currentUser?.email === u.email && (
-                              <span className="ml-2 text-[10px] text-emerald-400 bg-emerald-950/40 px-1.5 py-0.2 rounded font-sans">
+                              <span className="ml-2 text-[10px] text-emerald-400 bg-emerald-950/40 px-1.5 py-0.2 rounded font-sans font-bold">
                                 Tú
                               </span>
                             )}
@@ -551,7 +620,21 @@ service cloud.firestore {
                               ))}
                             </div>
                           </td>
-                          <td className="py-2.5 pl-4 text-right">
+                          <td className="py-2.5 pl-4 text-right whitespace-nowrap space-x-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingUser({
+                                  email: u.email,
+                                  displayName: u.displayName || '',
+                                  role: u.role,
+                                });
+                              }}
+                              className="text-zinc-400 hover:text-[var(--color-porkos-orange)] p-1.5 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+                              title="Editar nombre y rol"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleRemoveUser(u.email)}

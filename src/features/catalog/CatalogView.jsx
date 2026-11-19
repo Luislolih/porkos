@@ -25,7 +25,7 @@ import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
-import { isProductBeverage } from '../../utils/productCategories';
+import { isProductBeverage, isProductDessert } from '../../utils/productCategories';
 
 export default function CatalogView() {
   const {
@@ -257,8 +257,8 @@ export default function CatalogView() {
   const handleOpenEditProduct = (prod) => {
     setEditingProduct(prod);
     setProdName(prod.name);
-    const cat = prod.categoryId || (prod.line === 'MARKET' ? 'cat_market' : prod.line === 'BEBIDAS' ? 'cat_bebidas' : 'cat_comida');
-    const line = prod.line || (cat === 'cat_market' ? 'MARKET' : cat === 'cat_bebidas' ? 'BEBIDAS' : 'COMIDA');
+    const cat = prod.categoryId || (prod.line === 'MARKET' ? 'cat_market' : prod.line === 'BEBIDAS' ? 'cat_bebidas' : prod.line === 'POSTRES' || isProductDessert(prod) ? 'cat_postres' : 'cat_comida');
+    const line = prod.line || (cat === 'cat_market' ? 'MARKET' : cat === 'cat_bebidas' ? 'BEBIDAS' : cat === 'cat_postres' ? 'POSTRES' : 'COMIDA');
     const type = line === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
 
     setProdCategory(cat);
@@ -1472,10 +1472,11 @@ export default function CatalogView() {
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { id: 'cat_comida', line: 'COMIDA', type: 'RESTAURANTE', label: 'COMIDA', desc: 'Hamburguesas, Papas...' },
                 { id: 'cat_bebidas', line: 'BEBIDAS', type: 'RESTAURANTE', label: 'BEBIDAS', desc: 'Jugos, Refrescos...' },
+                { id: 'cat_postres', line: 'POSTRES', type: 'RESTAURANTE', label: 'POSTRES', desc: 'Tortas, Helados...' },
                 { id: 'cat_market', line: 'MARKET', type: 'MARKET', label: 'MARKET', desc: 'Snacks, Golosinas...' },
               ].map((opt) => {
                 const isSelected = prodCategory === opt.id || prodLine === opt.line;
@@ -1490,6 +1491,10 @@ export default function CatalogView() {
                       if (opt.id === 'cat_bebidas') {
                         setProdHasTemperature(true);
                         setProdMarketSubtype('BEBIDA');
+                        setProdKitchen(true);
+                      } else if (opt.id === 'cat_postres') {
+                        setProdHasTemperature(false);
+                        setProdMarketSubtype('POSTRE');
                         setProdKitchen(true);
                       } else if (opt.type === 'MARKET') {
                         setProdKitchen(false);
