@@ -10,9 +10,10 @@ const RESTAURANT_TABS = [
 ];
 
 const MARKET_TABS = [
-  { id: 'MARKET_ALL', label: 'TODO EL MARKET', icon: Store },
-  { id: 'MARKET_BEBIDAS', label: 'BEBIDAS / SODAS', icon: CupSoda },
-  { id: 'MARKET_SNACKS', label: 'POSTRES & SNACKS', icon: Cookie },
+  { id: 'MARKET_ALL', label: 'TODO', icon: Store },
+  { id: 'MARKET_BEBIDAS', label: 'BEBIDAS', icon: CupSoda },
+  { id: 'MARKET_SNACKS', label: 'SNACKS', icon: Cookie },
+  { id: 'MARKET_POSTRES', label: 'POSTRES', icon: Cake },
 ];
 
 export default function CategoryTabs({

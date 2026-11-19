@@ -11,7 +11,7 @@ import QuickPaymentModal from './components/QuickPaymentModal';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
 import { formatCurrency } from '../../utils/formatters';
 import { getNextOrderNumber } from '../../utils/orderNumber';
-import { isProductBeverage, isProductMarket, isProductFood, isProductDessert } from '../../utils/productCategories';
+import { isProductBeverage, isProductMarket, isProductFood, isProductDessert, isProductSnack } from '../../utils/productCategories';
 import { useAuth } from '../../context/useAuth';
 import { CheckCircle2, UtensilsCrossed, Edit3 } from 'lucide-react';
 
@@ -75,27 +75,33 @@ export default function SalesView({
   // Ordenados POR DEFECTO de mayor a menor salida según el histórico (salesCount)
   const filteredAndSortedProducts = useMemo(() => {
     const list = products.filter((prod) => {
-      // 1. En modo MARKET (Caja Rápida), mostrar exclusivamente productos de Market con sus subcategorías
+      // 1. En modo MARKET (Caja Rápida): mostrar productos de Market filtrados por sus categorías
       if (salesMode === SALES_MODES.MARKET) {
-        if (!isProductMarket(prod)) return false;
+        if (!isProductMarket(prod, categories)) return false;
+
         if (selectedLine === 'MARKET_BEBIDAS') {
-          if (!isProductBeverage(prod)) return false;
-        } else if (selectedLine === 'MARKET_SNACKS') {
-          if (isProductBeverage(prod)) return false;
+          return isProductBeverage(prod);
         }
+        if (selectedLine === 'MARKET_SNACKS') {
+          return isProductSnack(prod);
+        }
+        if (selectedLine === 'MARKET_POSTRES') {
+          return isProductDessert(prod, categories);
+        }
+        return true; // MARKET_ALL
       } else {
-        // En modo RESTAURANTE: filtrar por categoría (TODO, COMIDA, BEBIDAS, POSTRES, MARKET)
+        // 2. En modo RESTAURANTE: filtrar por categoría (TODO, COMIDA, BEBIDAS, POSTRES, MARKET)
         if (selectedLine === 'COMIDA') {
-          // Comida: Todo producto gastronómico que NO sea bebida, no sea postre y no sea exclusivo de Market
-          if (!isProductFood(prod, categories) || isProductMarket(prod, categories) || isProductDessert(prod, categories)) return false;
+          // Comida: Todo producto gastronómico que NO sea bebida, no sea postre y no sea de Market
+          if (!isProductFood(prod, categories) || isProductMarket(prod, categories) || isProductDessert(prod, categories) || isProductBeverage(prod)) return false;
         } else if (selectedLine === 'BEBIDAS') {
-          // Bebidas: TODAS las bebidas, sean de Market (gaseosas, cervezas, aguas) o de Restaurante (jugos, refrescos)
+          // Bebidas: TODAS las bebidas (tanto de restaurante como de market: gaseosas, cervezas, aguas, jugos)
           if (!isProductBeverage(prod)) return false;
         } else if (selectedLine === 'POSTRES') {
-          // Postres: TODOS los postres (sean de restaurante o postres/dulces de market)
+          // Postres: TODOS los postres (tanto de restaurante como postres de market: helados, chocotejas, tortas)
           if (!isProductDessert(prod, categories)) return false;
         } else if (selectedLine === 'MARKET') {
-          // Market: Todo producto registrado en Market (bebidas, snacks, golosinas)
+          // Market: Todo producto registrado en Market (bebidas, snacks, postres de market)
           if (!isProductMarket(prod, categories)) return false;
         }
       }

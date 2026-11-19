@@ -33,48 +33,70 @@ const STORAGE_KEYS = {
 function normalizeProductCategory(prod) {
   if (!prod) return prod;
 
-  // 1. Si el producto ya tiene una categoría oficial explícita, respetarla estrictamente
+  // 1. Productos de Market (mantienen su tipo MARKET, línea MARKET y subtipo BEBIDA, POSTRE o SNACK)
+  if (
+    prod.type === 'MARKET' ||
+    prod.line === 'MARKET' ||
+    prod.line === 'BEBIDAS_MARKET' ||
+    prod.categoryId === 'cat_market' ||
+    prod.categoryId === 'cat_bebidas_market' ||
+    prod.categoryId === 'cat_snacks'
+  ) {
+    let subType = prod.marketSubtype;
+    if (!subType || subType === 'COMIDA') {
+      if (prod.isJuice || prod.juiceConfig?.enabled) subType = 'JUGO';
+      else if (prod.temperatureConfig?.enabled) subType = 'BEBIDA';
+      else if (isProductDessert(prod)) subType = 'POSTRE';
+      else if (isProductBeverage(prod)) subType = 'BEBIDA';
+      else subType = 'SNACK';
+    }
+    return {
+      ...prod,
+      line: 'MARKET',
+      categoryId: 'cat_market',
+      type: 'MARKET',
+      marketSubtype: subType,
+      subcategory: null,
+    };
+  }
+
+  // 2. Productos de Restaurante: Comida
   if (prod.categoryId === 'cat_comida' || prod.line === 'COMIDA') {
     return {
       ...prod,
       line: 'COMIDA',
       categoryId: 'cat_comida',
       type: 'RESTAURANTE',
+      marketSubtype: 'COMIDA',
       subcategory: null,
     };
   }
 
+  // 3. Productos de Restaurante: Bebidas
   if (prod.categoryId === 'cat_bebidas' || prod.line === 'BEBIDAS') {
     return {
       ...prod,
       line: 'BEBIDAS',
       categoryId: 'cat_bebidas',
-      type: prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE',
+      type: 'RESTAURANTE',
+      marketSubtype: prod.isJuice ? 'JUGO' : 'BEBIDA',
       subcategory: null,
     };
   }
 
-  if (prod.categoryId === 'cat_postres' || prod.line === 'POSTRES' || prod.marketSubtype === 'POSTRE') {
+  // 4. Productos de Restaurante: Postres
+  if (prod.categoryId === 'cat_postres' || prod.line === 'POSTRES') {
     return {
       ...prod,
       line: 'POSTRES',
       categoryId: 'cat_postres',
-      type: prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE',
+      type: 'RESTAURANTE',
+      marketSubtype: 'POSTRE',
       subcategory: null,
     };
   }
 
-  if (prod.categoryId === 'cat_market' || prod.line === 'MARKET' || prod.type === 'MARKET') {
-    return {
-      ...prod,
-      line: 'MARKET',
-      categoryId: 'cat_market',
-      type: 'MARKET',
-      subcategory: null,
-    };
-  }
-
-  // 2. Mapear categorías heredadas (legacy)
+  // 5. Mapear categorías heredadas (legacy)
   if (
     prod.categoryId === 'cat_burgers' ||
     prod.categoryId === 'cat_salchipapas' ||
@@ -87,44 +109,33 @@ function normalizeProductCategory(prod) {
       line: 'COMIDA',
       categoryId: 'cat_comida',
       type: 'RESTAURANTE',
+      marketSubtype: 'COMIDA',
       subcategory: null,
     };
   }
 
-  if (prod.categoryId === 'cat_bebidas_market') {
-    return {
-      ...prod,
-      line: 'MARKET',
-      categoryId: 'cat_market',
-      type: 'MARKET',
-      subcategory: null,
-    };
-  }
-
-  // 3. Fallback solo para productos sin categoría ni línea definida
+  // 6. Fallback para productos sin categoría ni línea definida
   let line = 'COMIDA';
   let categoryId = 'cat_comida';
   let type = 'RESTAURANTE';
+  let marketSubtype = 'COMIDA';
 
   if (isProductDessert(prod)) {
     line = 'POSTRES';
     categoryId = 'cat_postres';
-    type = prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
+    marketSubtype = 'POSTRE';
   } else if (isProductBeverage(prod)) {
     line = 'BEBIDAS';
     categoryId = 'cat_bebidas';
-    type = prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
-  } else if (isProductMarket(prod)) {
-    line = 'MARKET';
-    categoryId = 'cat_market';
-    type = 'MARKET';
+    marketSubtype = 'BEBIDA';
   }
 
   return {
     ...prod,
     line,
     categoryId,
-    type: prod.type || type,
+    type,
+    marketSubtype,
     subcategory: null,
   };
 }

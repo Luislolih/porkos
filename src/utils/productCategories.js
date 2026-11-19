@@ -1,5 +1,5 @@
 /**
- * Helpers universales para clasificación de productos: Comida, Bebidas, Postres y Market
+ * Helpers universales para clasificación de productos: Comida, Bebidas, Postres, Snacks y Market
  */
 
 export function isProductBeverage(prod) {
@@ -9,31 +9,32 @@ export function isProductBeverage(prod) {
   const catId = (prod.categoryId || '').toLowerCase().trim();
   const subType = (prod.marketSubtype || '').toUpperCase().trim();
 
-  // 1. Exclusión estricta: Si es comida, snack o postre marcado, NUNCA es bebida
+  // Exclusiones: Si es comida de restaurante, snack confirmado o postre exclusivo
   if (
     line === 'COMIDA' ||
-    line === 'POSTRES' ||
     catId === 'cat_comida' ||
-    catId === 'cat_postres' ||
     catId === 'cat_snacks' ||
     subType === 'COMIDA' ||
     subType === 'SNACK' ||
+    (line === 'POSTRES' && subType !== 'BEBIDA') ||
+    (catId === 'cat_postres' && subType !== 'BEBIDA') ||
     subType === 'POSTRE'
   ) {
     return false;
   }
 
-  // 2. Flags explícitos de bebida
+  // 1. Flags explícitos de bebida (aplica tanto a Restaurante como a Market)
+  if (subType === 'BEBIDA' || subType === 'JUGO') return true;
   if (line === 'BEBIDAS' || line === 'BEBIDAS_MARKET') return true;
   if (catId === 'cat_bebidas' || catId === 'cat_bebidas_market' || catId === 'bebidas') return true;
-  if (subType === 'BEBIDA' || subType === 'JUGO') return true;
   if (prod.isJuice || prod.juiceConfig?.enabled) return true;
-  if (prod.temperatureConfig?.enabled && prod.type !== 'MARKET' && line !== 'COMIDA') return true;
+  if (prod.temperatureConfig?.enabled && subType !== 'COMIDA' && subType !== 'SNACK' && line !== 'COMIDA') return true;
 
   // Si ya tiene asignada otra categoría o línea, respetarla
-  if (prod.categoryId || prod.line) return false;
+  if (prod.categoryId && prod.categoryId !== 'cat_market' && prod.categoryId !== 'cat_bebidas_market') return false;
+  if (prod.line && prod.line !== 'MARKET' && prod.line !== 'BEBIDAS_MARKET') return false;
 
-  // 3. Chequeo semántico seguro ÚNICAMENTE por nombre (solo para productos sin categoría)
+  // 2. Chequeo semántico seguro por nombre (para items sin categoría o items de market sin subtipo)
   const n = (prod.name || '').toLowerCase().trim();
   if (!n) return false;
 
@@ -50,7 +51,6 @@ export function isProductBeverage(prod) {
     return true;
   }
 
-  // Términos como palabras aisladas seguras
   const isolatedTerms = ['chicha', 'cola', 'cafe', 'café', 'té', 'infusion', 'infusión', 'soda', 'beer'];
   const words = n.split(/[\s,.-]+/);
   return isolatedTerms.some((term) => words.includes(term));
@@ -63,48 +63,48 @@ export function isProductDessert(prod, allCategories = []) {
   const catId = (prod.categoryId || '').toLowerCase().trim();
   const subType = (prod.marketSubtype || '').toUpperCase().trim();
 
-  // 1. Verificación directa por línea oficial o ID de categoría (Postre explícito)
+  // 1. Postre explícito (aplica tanto a Restaurante como a Market)
+  if (subType === 'POSTRE' || subType === 'POSTRES') return true;
   if (line === 'POSTRES' || line === 'POSTRE') return true;
   if (catId === 'cat_postres' || catId === 'postres') return true;
-  if (subType === 'POSTRE' || subType === 'POSTRES') return true;
 
-  // 2. Exclusión estricta: Si el producto está explícitamente configurado como Comida, Bebida o Market
+  // 2. Exclusiones: Si está marcado como Comida, Bebida o Snack (sin ser postre)
   if (
     line === 'COMIDA' ||
     catId === 'cat_comida' ||
     catId === 'comida' ||
+    subType === 'COMIDA' ||
     line === 'BEBIDAS' ||
     catId === 'cat_bebidas' ||
     catId === 'bebidas' ||
     subType === 'BEBIDA' ||
     subType === 'JUGO' ||
-    (line === 'MARKET' && catId !== 'cat_postres') ||
-    (catId === 'cat_market' && line !== 'POSTRES')
+    subType === 'SNACK' ||
+    catId === 'cat_snacks'
   ) {
     return false;
   }
 
-  // 3. Si el producto tiene una categoría asignada en allCategories
+  // 3. Verificación por categorías de Firestore si se proporcionan
   if (Array.isArray(allCategories) && allCategories.length > 0 && prod.categoryId) {
     const matchingCat = allCategories.find((c) => c.id === prod.categoryId);
     if (matchingCat) {
       const catName = (matchingCat.name || '').toLowerCase();
       const catLine = (matchingCat.line || '').toUpperCase();
       if (catLine === 'POSTRES' || catName.includes('postre')) return true;
-      if (catLine === 'COMIDA' || catLine === 'BEBIDAS' || catLine === 'MARKET') return false;
+      if (catLine === 'COMIDA' || catLine === 'BEBIDAS') return false;
     }
   }
 
-  // 4. Si el producto ya tiene definida su categoría o línea (aunque sea diferente), respetarla
-  if (prod.categoryId || prod.line) {
+  // 4. Si el producto ya tiene definida su categoría o línea en restaurante, respetarla
+  if ((prod.categoryId && prod.categoryId !== 'cat_market') || (prod.line && prod.line !== 'MARKET')) {
     return false;
   }
 
-  // 5. Chequeo semántico seguro ÚNICAMENTE por nombre del producto para productos sin categoría
+  // 5. Chequeo semántico seguro por nombre (para items sin categoría o items de market sin subtipo)
   const n = (prod.name || '').toLowerCase().trim();
   if (!n) return false;
 
-  // Frases compuestas exactas de postres peruanos e internacionales
   const dessertPhrases = [
     'arroz con leche', 'arroz zambito', 'crema volteada', 'leche asada',
     'tres leches', '3 leches', 'suspiro a la limeña', 'suspiro limeño',
@@ -115,7 +115,6 @@ export function isProductDessert(prod, allCategories = []) {
     return true;
   }
 
-  // Palabras completas seguras de postre
   const dessertTokens = [
     'postre', 'postres',
     'torta', 'tortas',
@@ -152,7 +151,7 @@ export function isProductDessert(prod, allCategories = []) {
     return true;
   }
 
-  // Palabras exactas con delimitación de palabra completa
+  // Palabras con delimitación exacta
   if (words.includes('pie') || words.includes('pies') || words.includes('pay') || words.includes('pays')) {
     return true;
   }
@@ -172,11 +171,15 @@ export function isProductDessert(prod, allCategories = []) {
 
 export function isProductMarket(prod, allCategories = []) {
   if (!prod) return false;
-  // Si está marcado como comida o postre de restaurante, no es market
-  if (prod.categoryId === 'cat_comida' || prod.line === 'COMIDA') return false;
-  if (prod.categoryId === 'cat_postres' || prod.line === 'POSTRES') return false;
-  if (prod.categoryId === 'cat_bebidas' || prod.line === 'BEBIDAS') {
-    if (prod.type !== 'MARKET') return false;
+
+  // Si explícitamente es de tipo RESTAURANTE y no tiene ningún flag de market
+  if (
+    prod.type === 'RESTAURANTE' &&
+    prod.line !== 'MARKET' &&
+    prod.categoryId !== 'cat_market' &&
+    prod.categoryId !== 'cat_snacks'
+  ) {
+    return false;
   }
 
   if (Array.isArray(allCategories) && allCategories.length > 0 && prod.categoryId) {
@@ -184,7 +187,7 @@ export function isProductMarket(prod, allCategories = []) {
     if (matchingCat) {
       const catLine = (matchingCat.line || '').toUpperCase();
       if (catLine === 'MARKET') return true;
-      if (catLine === 'COMIDA' || catLine === 'POSTRES') return false;
+      if (catLine === 'COMIDA') return false;
     }
   }
 
@@ -199,9 +202,31 @@ export function isProductMarket(prod, allCategories = []) {
   );
 }
 
+export function isProductSnack(prod) {
+  if (!prod) return false;
+
+  const subType = (prod.marketSubtype || '').toUpperCase().trim();
+  const catId = (prod.categoryId || '').toLowerCase().trim();
+
+  // Si explícitamente es snack
+  if (subType === 'SNACK' || subType === 'SNACKS' || catId === 'cat_snacks') return true;
+
+  // Si es bebida o postre, NO es snack
+  if (isProductBeverage(prod)) return false;
+  if (isProductDessert(prod)) return false;
+
+  // Si es de Market y no es bebida ni postre, por descarte es snack
+  if (isProductMarket(prod)) return true;
+
+  const n = (prod.name || '').toLowerCase();
+  const words = n.split(/[\s,.-]+/);
+  const snackKeywords = ['snack', 'galleta', 'chocolate', 'lays', 'doritos', 'piqueo', 'caramelo', 'gomita', 'mani', 'maní', 'chifle', 'chifles'];
+  return snackKeywords.some((kw) => words.includes(kw));
+}
+
 export function isProductFood(prod, allCategories = []) {
   if (!prod) return false;
-  // Si está explícitamente configurado como COMIDA
+  // Si está explícitamente configurado como COMIDA de restaurante
   if (prod.categoryId === 'cat_comida' || prod.line === 'COMIDA') return true;
   // Si es bebida, postre o market, no es comida
   if (isProductBeverage(prod)) return false;
@@ -213,16 +238,5 @@ export function isProductFood(prod, allCategories = []) {
 export function isProductSnackOrDessert(prod) {
   if (!prod) return false;
   if (isProductBeverage(prod)) return false;
-  if (isProductDessert(prod)) return true;
-  if (
-    prod.marketSubtype === 'COMIDA' ||
-    prod.marketSubtype === 'SNACK' ||
-    prod.categoryId === 'cat_snacks'
-  ) {
-    return true;
-  }
-  const n = (prod.name || '').toLowerCase();
-  const words = n.split(/[\s,.-]+/);
-  const snackKeywords = ['snack', 'galleta', 'chocolate', 'lays', 'doritos', 'piqueo', 'caramelo', 'gomita'];
-  return snackKeywords.some((kw) => words.includes(kw));
+  return isProductDessert(prod) || isProductSnack(prod);
 }
