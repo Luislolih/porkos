@@ -25,7 +25,7 @@ import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
-import { isProductBeverage, isProductDessert, isProductMarket } from '../../utils/productCategories';
+import { isProductBeverage, isProductDessert } from '../../utils/productCategories';
 
 export default function CatalogView() {
   const {
@@ -258,26 +258,41 @@ export default function CatalogView() {
     setEditingProduct(prod);
     setProdName(prod.name);
 
-    let cat;
-    let line;
-    let type;
+    // 1. Respetar estrictamente la categoría y línea guardadas del producto
+    let cat = prod.categoryId || 'cat_comida';
+    let line = prod.line || 'COMIDA';
+    let type = prod.type || (line === 'MARKET' ? 'MARKET' : 'RESTAURANTE');
 
-    if (isProductDessert(prod, categories)) {
-      cat = 'cat_postres';
-      line = 'POSTRES';
-      type = prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
-    } else if (isProductBeverage(prod)) {
-      cat = 'cat_bebidas';
-      line = 'BEBIDAS';
-      type = prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
-    } else if (isProductMarket(prod, categories)) {
+    if (
+      cat === 'cat_burgers' ||
+      cat === 'cat_salchipapas' ||
+      cat === 'cat_choripanes' ||
+      cat === 'cat_clasico' ||
+      cat === 'cat_artesanal'
+    ) {
+      cat = 'cat_comida';
+      line = 'COMIDA';
+      type = 'RESTAURANTE';
+    } else if (cat === 'cat_bebidas_market') {
       cat = 'cat_market';
       line = 'MARKET';
       type = 'MARKET';
-    } else {
-      cat = prod.categoryId || 'cat_comida';
-      line = prod.line || 'COMIDA';
-      type = prod.type || 'RESTAURANTE';
+    } else if (cat === 'cat_postres' || line === 'POSTRES' || prod.marketSubtype === 'POSTRE') {
+      cat = 'cat_postres';
+      line = 'POSTRES';
+      type = prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
+    } else if (cat === 'cat_bebidas' || line === 'BEBIDAS') {
+      cat = 'cat_bebidas';
+      line = 'BEBIDAS';
+      type = prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE';
+    } else if (cat === 'cat_market' || line === 'MARKET' || prod.type === 'MARKET') {
+      cat = 'cat_market';
+      line = 'MARKET';
+      type = 'MARKET';
+    } else if (cat === 'cat_comida' || line === 'COMIDA') {
+      cat = 'cat_comida';
+      line = 'COMIDA';
+      type = 'RESTAURANTE';
     }
 
     setProdCategory(cat);
@@ -367,6 +382,7 @@ export default function CatalogView() {
       const isDrink = isMarket
         ? (prodMarketSubtype === 'BEBIDA' || prodMarketSubtype === 'JUGO')
         : (prodCategory === 'cat_bebidas' || prodIsJuice || prodHasTemperature);
+      const isDessert = prodCategory === 'cat_postres' || prodLine === 'POSTRES';
 
       const productPayload = {
         name: prodName.trim(),
@@ -375,7 +391,7 @@ export default function CatalogView() {
         type: prodType,
         isJuice: Boolean(isDrink && prodIsJuice),
         juiceConfig: isDrink && prodIsJuice ? { enabled: true } : null,
-        marketSubtype: isMarket ? (prodIsJuice ? 'JUGO' : prodMarketSubtype || 'COMIDA') : null,
+        marketSubtype: isMarket ? (prodIsJuice ? 'JUGO' : prodMarketSubtype || 'COMIDA') : (isDessert ? 'POSTRE' : null),
         price: parseFloat(prodPrice) || 0,
         cost: parseFloat(prodCost) || 0,
         image: cleanImage,
@@ -385,8 +401,8 @@ export default function CatalogView() {
         requiresKitchen: prodType === 'MARKET' ? false : prodKitchen,
         modifiers,
         availablePackagingIds: prodAvailablePackagingIds,
-        hasSalad: Boolean(!isMarket && !isDrink && prodHasSalad && prodType === 'RESTAURANTE'),
-        saladConfig: !isMarket && !isDrink && prodHasSalad && prodType === 'RESTAURANTE'
+        hasSalad: Boolean(!isMarket && !isDrink && !isDessert && prodHasSalad && prodType === 'RESTAURANTE'),
+        saladConfig: !isMarket && !isDrink && !isDessert && prodHasSalad && prodType === 'RESTAURANTE'
           ? {
               enabled: true,
               defaultMode: 'CON_ENSALADA',
@@ -400,19 +416,26 @@ export default function CatalogView() {
             }
           : null,
         creamsConfig: {
-          enabled: !isMarket && !isDrink && prodType === 'RESTAURANTE' && prodSelectedCreams.length > 0,
-          availableCreamIds: !isMarket && !isDrink && prodType === 'RESTAURANTE' ? prodSelectedCreams : [],
+          enabled: !isMarket && !isDrink && !isDessert && prodType === 'RESTAURANTE' && prodSelectedCreams.length > 0,
+          availableCreamIds: !isMarket && !isDrink && !isDessert && prodType === 'RESTAURANTE' ? prodSelectedCreams : [],
           defaultCreamIds: [],
           defaultMode: 'CUSTOM',
         },
       };
 
       if (editingProduct) {
-        await updateProduct(editingProduct.id, productPayload);
-        setStatusToast({
-          type: 'success',
-          msg: `Producto "${prodName}" actualizado con éxito`,
-        });
+        const updateResult = await updateProduct(editingProduct.id, productPayload);
+        if (updateResult?.firestoreResult && !updateResult.firestoreResult.success) {
+          setStatusToast({
+            type: 'warning',
+            msg: `Producto actualizado en tu navegador. (Aviso: Firebase rechazó con ${updateResult.firestoreResult.error?.code || 'error'})`,
+          });
+        } else {
+          setStatusToast({
+            type: 'success',
+            msg: `Producto "${prodName}" actualizado con éxito`,
+          });
+        }
       } else {
         const result = await addProduct(productPayload);
         if (result?.firestoreResult && !result.firestoreResult.success) {

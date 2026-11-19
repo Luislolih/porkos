@@ -29,13 +29,83 @@ const STORAGE_KEYS = {
   PACKAGINGS: 'porkos_catalog_packagings',
 };
 
-// Normalizar producto a las categorías oficiales: COMIDA, BEBIDAS, POSTRES, MARKET (sin subcategorías)
+// Normalizar producto a las categorías oficiales: COMIDA, BEBIDAS, POSTRES, MARKET
 function normalizeProductCategory(prod) {
-  let line;
-  let categoryId;
-  let type;
+  if (!prod) return prod;
 
-  // 1. Postres prioritarios (evita que se clasifiquen erróneamente en Market o Comida)
+  // 1. Si el producto ya tiene una categoría oficial explícita, respetarla estrictamente
+  if (prod.categoryId === 'cat_comida' || prod.line === 'COMIDA') {
+    return {
+      ...prod,
+      line: 'COMIDA',
+      categoryId: 'cat_comida',
+      type: 'RESTAURANTE',
+      subcategory: null,
+    };
+  }
+
+  if (prod.categoryId === 'cat_bebidas' || prod.line === 'BEBIDAS') {
+    return {
+      ...prod,
+      line: 'BEBIDAS',
+      categoryId: 'cat_bebidas',
+      type: prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE',
+      subcategory: null,
+    };
+  }
+
+  if (prod.categoryId === 'cat_postres' || prod.line === 'POSTRES' || prod.marketSubtype === 'POSTRE') {
+    return {
+      ...prod,
+      line: 'POSTRES',
+      categoryId: 'cat_postres',
+      type: prod.type === 'MARKET' ? 'MARKET' : 'RESTAURANTE',
+      subcategory: null,
+    };
+  }
+
+  if (prod.categoryId === 'cat_market' || prod.line === 'MARKET' || prod.type === 'MARKET') {
+    return {
+      ...prod,
+      line: 'MARKET',
+      categoryId: 'cat_market',
+      type: 'MARKET',
+      subcategory: null,
+    };
+  }
+
+  // 2. Mapear categorías heredadas (legacy)
+  if (
+    prod.categoryId === 'cat_burgers' ||
+    prod.categoryId === 'cat_salchipapas' ||
+    prod.categoryId === 'cat_choripanes' ||
+    prod.categoryId === 'cat_clasico' ||
+    prod.categoryId === 'cat_artesanal'
+  ) {
+    return {
+      ...prod,
+      line: 'COMIDA',
+      categoryId: 'cat_comida',
+      type: 'RESTAURANTE',
+      subcategory: null,
+    };
+  }
+
+  if (prod.categoryId === 'cat_bebidas_market') {
+    return {
+      ...prod,
+      line: 'MARKET',
+      categoryId: 'cat_market',
+      type: 'MARKET',
+      subcategory: null,
+    };
+  }
+
+  // 3. Fallback solo para productos sin categoría ni línea definida
+  let line = 'COMIDA';
+  let categoryId = 'cat_comida';
+  let type = 'RESTAURANTE';
+
   if (isProductDessert(prod)) {
     line = 'POSTRES';
     categoryId = 'cat_postres';
@@ -48,10 +118,6 @@ function normalizeProductCategory(prod) {
     line = 'MARKET';
     categoryId = 'cat_market';
     type = 'MARKET';
-  } else {
-    line = 'COMIDA';
-    categoryId = 'cat_comida';
-    type = 'RESTAURANTE';
   }
 
   return {
@@ -466,12 +532,12 @@ export function CatalogProvider({ children }) {
     setProducts((prev) => {
       const updated = prev.map((p) => {
         if (p.id === productId) {
-          updatedProdObj = {
+          updatedProdObj = normalizeProductCategory({
             ...p,
             ...cleanFields,
             price: typeof cleanFields.price !== 'undefined' ? parseFloat(cleanFields.price) : p.price,
             cost: typeof cleanFields.cost !== 'undefined' ? parseFloat(cleanFields.cost) : p.cost,
-          };
+          });
           return updatedProdObj;
         }
         return p;
@@ -480,12 +546,13 @@ export function CatalogProvider({ children }) {
       return updated;
     });
 
+    let firestoreResult = { success: true };
     if (updatedProdObj) {
-      const res = await saveProductToFirestore(updatedProdObj);
-      if (!res.success) {
+      firestoreResult = await saveProductToFirestore(updatedProdObj);
+      if (!firestoreResult.success) {
         setFirestoreError({
-          code: res.error?.code || 'update-error',
-          message: res.error?.message,
+          code: firestoreResult.error?.code || 'update-error',
+          message: firestoreResult.error?.message,
           colName: 'products',
         });
       }
@@ -512,6 +579,8 @@ export function CatalogProvider({ children }) {
         return updated;
       });
     }
+
+    return { product: updatedProdObj, firestoreResult };
   };
 
   const deleteProduct = async (productId) => {
