@@ -205,20 +205,47 @@ export function AuthProvider({ children }) {
     const email = userRecord.email?.toLowerCase().trim();
     if (!email) return false;
     const displayName = userRecord.displayName?.trim() || email.split('@')[0];
+    const role = userRecord.role || 'CAJERO';
 
     const updated = [
       ...authorizedUsers.filter((u) => u.email?.toLowerCase() !== email),
-      { ...userRecord, email, displayName },
+      { ...userRecord, email, displayName, role },
     ];
     setAuthorizedUsers(updated);
     localStorage.setItem('porkos_authorized_users', JSON.stringify(updated));
 
+    // Si el usuario editado es el mismo usuario en sesión, actualizar de inmediato firebaseUser
+    if (firebaseUser?.email?.toLowerCase() === email) {
+      setFirebaseUser((prev) => (prev ? { ...prev, displayName } : prev));
+      const savedDemo = localStorage.getItem('porkos_demo_user');
+      if (savedDemo) {
+        try {
+          const parsed = JSON.parse(savedDemo);
+          localStorage.setItem('porkos_demo_user', JSON.stringify({ ...parsed, displayName }));
+        } catch {
+          // ignore parsing error
+        }
+      }
+    }
+
     await saveUserToFirestore({
       email,
       displayName,
-      role: userRecord.role || 'CAJERO',
+      role,
     });
     return true;
+  };
+
+  // Actualizar directamente el nombre del usuario actual en sesión
+  const updateCurrentUserProfile = async ({ displayName }) => {
+    const cleanName = displayName?.trim();
+    if (!cleanName || !user?.email) return false;
+
+    return addAuthorizedUser({
+      email: user.email,
+      displayName: cleanName,
+      role: user.role || 'ADMIN',
+    });
   };
 
   // Eliminar usuario autorizado
@@ -253,6 +280,7 @@ export function AuthProvider({ children }) {
     authorizedUsers,
     customRolePermissions,
     addAuthorizedUser,
+    updateCurrentUserProfile,
     removeAuthorizedUser,
     updateRolePermissions,
   };

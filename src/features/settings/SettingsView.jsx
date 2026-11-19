@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Settings,
   UtensilsCrossed,
@@ -18,6 +18,7 @@ import { useAuth } from '../../context/useAuth';
 import { useCart } from '../../context/useCart';
 import { APP_ROLES, ALL_MODULE_DEFINITIONS } from '../../types/roles';
 import Button from '../../components/ui/Button';
+import Modal from '../../components/ui/Modal';
 
 function DeliverySettingsTab({ initialFee, onSave }) {
   const [deliveryFeeInput, setDeliveryFeeInput] = useState(initialFee);
@@ -159,12 +160,26 @@ export default function SettingsView({ onClearAllOrders }) {
     showToast(`Tarifa base de delivery actualizada a S/ ${parsedFee.toFixed(2)}`);
   };
 
-  // Formulario nuevo usuario y edición
+  // Formulario nuevo usuario y modal de edición
   const [newEmail, setNewEmail] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newRole, setNewRole] = useState('COORDINADOR');
   const [isAddingUser, setIsAddingUser] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
+  const [editingUser, setEditingUser] = useState(null); // { email, displayName, role }
+  const [isSavingEditUser, setIsSavingEditUser] = useState(false);
+
+  // Lista unificada garantizando que el usuario en sesión actual siempre aparezca
+  const displayUsers = useMemo(() => {
+    const list = [...authorizedUsers];
+    if (currentUser?.email && !list.some((u) => u.email?.toLowerCase() === currentUser.email?.toLowerCase())) {
+      list.unshift({
+        email: currentUser.email,
+        displayName: currentUser.displayName || currentUser.email.split('@')[0],
+        role: currentUser.role || 'ADMIN',
+      });
+    }
+    return list;
+  }, [authorizedUsers, currentUser]);
 
   // Copiado de reglas
   const [copiedRules, setCopiedRules] = useState(false);
@@ -183,29 +198,45 @@ export default function SettingsView({ onClearAllOrders }) {
 
   const handleAddUserSubmit = async (e) => {
     e.preventDefault();
-    const targetEmail = (editingUser ? editingUser.email : newEmail).trim().toLowerCase();
-    if (!targetEmail) return;
+    const cleanEmail = newEmail.trim().toLowerCase();
+    if (!cleanEmail) return;
 
     setIsAddingUser(true);
-    const targetName = (editingUser ? editingUser.displayName : newDisplayName).trim();
-    const targetRole = editingUser ? editingUser.role : newRole;
+    const cleanName = newDisplayName.trim();
 
     await addAuthorizedUser({
-      email: targetEmail,
-      displayName: targetName || targetEmail.split('@')[0],
-      role: targetRole,
+      email: cleanEmail,
+      displayName: cleanName || cleanEmail.split('@')[0],
+      role: newRole,
       createdAt: new Date().toISOString(),
     });
 
-    if (editingUser) {
-      setEditingUser(null);
-      showToast(`Usuario ${targetEmail} actualizado con éxito`);
-    } else {
-      setNewEmail('');
-      setNewDisplayName('');
-      showToast(`Usuario ${targetEmail} registrado con éxito`);
-    }
+    setNewEmail('');
+    setNewDisplayName('');
+    showToast(`Usuario ${cleanEmail} registrado con éxito`);
     setIsAddingUser(false);
+  };
+
+  const handleSaveEditUser = async (e) => {
+    if (e) e.preventDefault();
+    if (!editingUser || !editingUser.email) return;
+
+    const cleanName = editingUser.displayName?.trim();
+    if (!cleanName) {
+      showToast('⚠️ Ingresa un Nombre y Apellido');
+      return;
+    }
+
+    setIsSavingEditUser(true);
+    await addAuthorizedUser({
+      email: editingUser.email.toLowerCase().trim(),
+      displayName: cleanName,
+      role: editingUser.role || 'CAJERO',
+    });
+
+    showToast(`Usuario ${editingUser.email} actualizado a "${cleanName}"`);
+    setEditingUser(null);
+    setIsSavingEditUser(false);
   };
 
   const handleRemoveUser = async (email) => {
@@ -297,8 +328,7 @@ service cloud.firestore {
       allow read: if isAuthorizedUser();
       allow write: if isAdmin() || (
         isAuthenticated() &&
-        request.auth.token.email.lower() == userEmail.lower() &&
-        !exists(/databases/$(database)/documents/users/$(userEmail.lower()))
+        request.auth.token.email.lower() == userEmail.lower()
       );
     }
 
@@ -453,31 +483,52 @@ service cloud.firestore {
       {/* 3. Vista de Usuarios & Roles Blindados */}
       {activeTab === 'users' && (
         <div className="space-y-4">
-          {/* Card: Registrar o Editar Usuario por Email */}
-          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2 text-sm font-bold text-white">
-                {editingUser ? (
-                  <>
-                    <Pencil className="w-4 h-4 text-[var(--color-porkos-orange)]" />
-                    <span>Editar Usuario: <strong className="text-[var(--color-porkos-orange)]">{editingUser.email}</strong></span>
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="w-4 h-4 text-[var(--color-porkos-orange)]" />
-                    <span>Registrar Usuario y Asignar Nombre y Rol</span>
-                  </>
-                )}
+          {/* Card 1: Perfil del Operador en Turno (Sesión Actual) */}
+          <div className="bg-gradient-to-r from-zinc-900 via-[#18181b] to-black border border-zinc-800 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-orange-500/20 text-[var(--color-porkos-orange)] border border-orange-500/40 flex items-center justify-center font-black text-lg shrink-0">
+                {(currentUser?.displayName || currentUser?.email || 'U')[0].toUpperCase()}
               </div>
-              {editingUser && (
-                <button
-                  type="button"
-                  onClick={() => setEditingUser(null)}
-                  className="text-xs text-zinc-400 hover:text-white px-2.5 py-1 rounded-lg bg-zinc-800 border border-zinc-700 cursor-pointer"
-                >
-                  Cancelar Edición
-                </button>
-              )}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-extrabold text-white truncate">
+                    {currentUser?.displayName || <span className="text-zinc-500 italic">Sin nombre configurado</span>}
+                  </h3>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded border uppercase bg-emerald-950/60 text-emerald-300 border-emerald-500/30">
+                    Sesión Activa
+                  </span>
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${currentUser?.roleBadgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}>
+                    {currentUser?.roleName || currentUser?.role}
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-0.5 truncate">
+                  {currentUser?.email} • <span className="text-zinc-500">Este nombre aparecerá en el historial de cada comanda</span>
+                </p>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              icon={Pencil}
+              size="sm"
+              onClick={() => {
+                setEditingUser({
+                  email: currentUser?.email || '',
+                  displayName: currentUser?.displayName || '',
+                  role: currentUser?.role || 'ADMIN',
+                });
+              }}
+              className="text-xs font-bold shrink-0 w-full sm:w-auto"
+            >
+              Editar Mi Nombre
+            </Button>
+          </div>
+
+          {/* Card 2: Registrar Nuevo Usuario por Email */}
+          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-bold text-white">
+              <UserPlus className="w-4 h-4 text-[var(--color-porkos-orange)]" />
+              <span>Registrar Nuevo Usuario y Asignar Rol</span>
             </div>
 
             <form onSubmit={handleAddUserSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
@@ -488,11 +539,10 @@ service cloud.firestore {
                 <input
                   type="email"
                   required
-                  disabled={Boolean(editingUser)}
-                  value={editingUser ? editingUser.email : newEmail}
+                  value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="ejemplo@porkos.pe"
-                  className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] disabled:opacity-50"
+                  className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
                 />
               </div>
 
@@ -503,14 +553,8 @@ service cloud.firestore {
                 <input
                   type="text"
                   required
-                  value={editingUser ? editingUser.displayName : newDisplayName}
-                  onChange={(e) => {
-                    if (editingUser) {
-                      setEditingUser({ ...editingUser, displayName: e.target.value });
-                    } else {
-                      setNewDisplayName(e.target.value);
-                    }
-                  }}
+                  value={newDisplayName}
+                  onChange={(e) => setNewDisplayName(e.target.value)}
                   placeholder="Ej. Juan Pérez"
                   className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
                 />
@@ -521,14 +565,8 @@ service cloud.firestore {
                   Rol Asignado *
                 </label>
                 <select
-                  value={editingUser ? editingUser.role : newRole}
-                  onChange={(e) => {
-                    if (editingUser) {
-                      setEditingUser({ ...editingUser, role: e.target.value });
-                    } else {
-                      setNewRole(e.target.value);
-                    }
-                  }}
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
                   className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)]"
                 >
                   <option value="ADMIN">ADMIN (Acceso Total)</option>
@@ -542,30 +580,27 @@ service cloud.firestore {
                 <Button
                   type="submit"
                   disabled={isAddingUser}
-                  icon={editingUser ? Check : UserPlus}
+                  icon={UserPlus}
                   size="md"
                   fullWidth
                   className="text-xs font-black py-2.5"
                 >
-                  {isAddingUser ? 'Guardando...' : (editingUser ? 'Guardar' : 'Asignar')}
+                  {isAddingUser ? 'Guardando...' : 'Asignar'}
                 </Button>
               </div>
             </form>
           </div>
 
-          {/* Card: Lista de Usuarios Registrados */}
+          {/* Card 3: Lista de Usuarios Registrados */}
           <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-bold text-white">
                 <UserCheck className="w-4 h-4 text-emerald-400" />
-                <span>Usuarios con Acceso Autorizado ({authorizedUsers.length})</span>
+                <span>Usuarios con Acceso Autorizado ({displayUsers.length})</span>
               </div>
-              <span className="text-xs text-zinc-500">
-                Sesión actual: <strong className="text-white">{currentUser?.displayName || currentUser?.email}</strong> ({currentUser?.role})
-              </span>
             </div>
 
-            {authorizedUsers.length === 0 ? (
+            {displayUsers.length === 0 ? (
               <div className="p-6 text-center text-zinc-500 border border-dashed border-zinc-800 rounded-xl">
                 <p className="text-xs">No hay usuarios registrados específicamente.</p>
                 <p className="text-[11px] text-zinc-600 mt-0.5">
@@ -585,9 +620,10 @@ service cloud.firestore {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800/60">
-                    {authorizedUsers.map((u) => {
+                    {displayUsers.map((u) => {
                       const roleConfig = APP_ROLES[u.role] || APP_ROLES.CAJERO;
                       const allowed = editingPermissions[u.role] || roleConfig.defaultModules;
+                      const isMe = currentUser?.email?.toLowerCase() === u.email?.toLowerCase();
 
                       return (
                         <tr key={u.email} className="hover:bg-black/30 transition-colors">
@@ -600,7 +636,7 @@ service cloud.firestore {
                           </td>
                           <td className="py-2.5 px-4 font-mono text-zinc-300">
                             {u.email}
-                            {currentUser?.email === u.email && (
+                            {isMe && (
                               <span className="ml-2 text-[10px] text-emerald-400 bg-emerald-950/40 px-1.5 py-0.2 rounded font-sans font-bold">
                                 Tú
                               </span>
@@ -627,11 +663,11 @@ service cloud.firestore {
                                 setEditingUser({
                                   email: u.email,
                                   displayName: u.displayName || '',
-                                  role: u.role,
+                                  role: u.role || 'CAJERO',
                                 });
                               }}
                               className="text-zinc-400 hover:text-[var(--color-porkos-orange)] p-1.5 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
-                              title="Editar nombre y rol"
+                              title="Editar nombre y rol de este usuario"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
@@ -867,6 +903,85 @@ service cloud.firestore {
           </div>
         </div>
       )}
+
+      {/* Modal Dedicado para Editar Usuario y Nombre */}
+      <Modal
+        isOpen={Boolean(editingUser)}
+        onClose={() => !isSavingEditUser && setEditingUser(null)}
+        title="Editar Nombre y Rol de Usuario"
+        subtitle="Configura el nombre visible en comandas y su nivel de permisos"
+        maxWidth="max-w-md"
+      >
+        {editingUser && (
+          <form onSubmit={handleSaveEditUser} className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-zinc-400 block">
+                Email de acceso (Google / Gmail)
+              </label>
+              <input
+                type="email"
+                disabled
+                value={editingUser.email}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-400 font-mono cursor-not-allowed select-none"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-white flex items-center justify-between">
+                <span>Nombre y Apellido *</span>
+                <span className="text-[10px] text-[var(--color-porkos-orange)] font-medium">Aparecerá en comandas</span>
+              </label>
+              <input
+                type="text"
+                required
+                autoFocus
+                value={editingUser.displayName || ''}
+                onChange={(e) => setEditingUser((prev) => (prev ? { ...prev, displayName: e.target.value } : null))}
+                placeholder="Ej. Luis Loli"
+                className="w-full bg-black/80 border border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] shadow-inner"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-zinc-300 block">
+                Rol Asignado *
+              </label>
+              <select
+                value={editingUser.role || 'CAJERO'}
+                onChange={(e) => setEditingUser((prev) => (prev ? { ...prev, role: e.target.value } : null))}
+                className="w-full bg-black/80 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              >
+                <option value="ADMIN">ADMIN (Acceso Total)</option>
+                <option value="COORDINADOR">COORDINADOR(A) (Todo menos Ajustes)</option>
+                <option value="COCINA">COCINA (Solo KDS Cocina)</option>
+                <option value="CAJERO">CAJERO (Ventas, Pedidos y Mesas)</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isSavingEditUser}
+                onClick={() => setEditingUser(null)}
+                className="text-xs border-zinc-700 text-zinc-300 hover:text-white"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSavingEditUser}
+                icon={Check}
+                size="sm"
+                className="text-xs font-black"
+              >
+                {isSavingEditUser ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }
