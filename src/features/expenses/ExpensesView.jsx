@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Wallet, Plus } from 'lucide-react';
 import { formatCurrency, formatTime } from '../../utils/formatters';
+import { sanitizeText } from '../../utils/security';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { subscribeToExpenses, saveExpenseToFirestore } from '../../services/firestoreService';
@@ -25,14 +26,16 @@ export default function ExpensesView() {
 
   const handleAddExpense = async (e) => {
     e.preventDefault();
-    if (!newAmount || !newDesc) return;
+    const cleanAmount = Math.round(Math.max(0.1, parseFloat(newAmount) || 0) * 100) / 100;
+    const cleanDescription = sanitizeText(newDesc, 200);
+    if (!cleanAmount || !cleanDescription) return;
 
     const newExp = {
       id: `exp_${Date.now()}`,
       date: new Date(),
       category: newCategory,
-      description: newDesc.trim(),
-      amount: parseFloat(newAmount) || 0,
+      description: cleanDescription,
+      amount: cleanAmount,
       paymentMethod: newMethod,
     };
 

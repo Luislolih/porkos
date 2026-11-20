@@ -31,6 +31,10 @@ export function getNextOrderNumber(orders = [], prefix = 'P') {
     }
   });
 
-  const nextSeq = maxSeq > 0 ? maxSeq + 1 : todayOrders.length + 1;
+  let nextSeq = maxSeq > 0 ? maxSeq + 1 : todayOrders.length + 1;
+  // Garantizar que no colisione con ninguna comanda existente
+  while ((orders || []).some((o) => o.orderNumber === `${prefix}-${String(nextSeq).padStart(3, '0')}`)) {
+    nextSeq++;
+  }
   return `${prefix}-${String(nextSeq).padStart(3, '0')}`;
 }

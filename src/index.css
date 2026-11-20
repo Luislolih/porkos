@@ -4,14 +4,14 @@
   --color-porkos-orange: #FD8B00;
   --color-porkos-orange-hover: #E57C00;
   --color-porkos-orange-muted: rgba(253, 139, 0, 0.15);
-  --color-porkos-bg: #0B0B0B;
-  --color-porkos-surface: #151515;
-  --color-porkos-surface-hover: #1E1E1E;
-  --color-porkos-surface-active: #282828;
-  --color-porkos-border: #242424;
-  --color-porkos-border-focus: #3A3A3A;
-  --color-porkos-muted: #8E8E8E;
-  --color-porkos-light: #F5F5F5;
+  --color-porkos-bg: #0C0C0E;
+  --color-porkos-surface: #151518;
+  --color-porkos-surface-hover: #1E1E23;
+  --color-porkos-surface-active: #27272E;
+  --color-porkos-border: #24242A;
+  --color-porkos-border-focus: #3F3F46;
+  --color-porkos-muted: #9CA3AF;
+  --color-porkos-light: #F4F4F5;
 }
 
 html {
@@ -21,6 +21,9 @@ html {
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   scrollbar-gutter: stable;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -31,11 +34,11 @@ body {
   overflow-x: hidden;
 }
 
-/* Animación fluida de apertura de modales */
+/* Animaciones fluidas y modernas de apertura */
 @keyframes modalEnter {
   from {
     opacity: 0;
-    transform: scale(0.96) translateY(6px);
+    transform: scale(0.97) translateY(4px);
   }
   to {
     opacity: 1;
@@ -43,30 +46,55 @@ body {
   }
 }
 
-.animate-modal-enter {
-  animation: modalEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+@keyframes fadeInSmooth {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* Custom scrollbar for POS touch screens */
+.animate-modal-enter {
+  animation: modalEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in-smooth {
+  animation: fadeInSmooth 0.15s ease-out forwards;
+}
+
+/* Scrollbar táctil moderno y discreto */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #111111;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2A2A2A;
+  background: #27272A;
   border-radius: 9999px;
+  transition: background-color 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-porkos-orange);
 }
 
-/* Prevenir auto-zoom y comportamientos pegajosos en inputs móviles (iOS Safari / Android Chrome) */
+/* Scrollbar oculto para barras horizontales de categorías */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Prevenir auto-zoom molesto en inputs en móviles (iOS Safari / Android Chrome) */
 @media screen and (max-width: 768px) {
   input,
   select,
@@ -80,6 +108,15 @@ select,
 textarea,
 button {
   touch-action: manipulation;
+}
+
+/* Microinteracciones táctiles rápidas para pantallas POS */
+button,
+[role="button"] {
+  -webkit-touch-callout: none;
+  transition-property: transform, background-color, border-color, color, box-shadow;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  transition-duration: 120ms;
 }
 
 /* Prevenir scroll encadenado al fondo en modales y cajones móviles */

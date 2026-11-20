@@ -4,7 +4,7 @@ import { ArrowUp } from 'lucide-react';
 /**
  * Flecha flotante elegante para volver al inicio cuando las listas son largas
  */
-export default function ScrollToTopButton({ threshold = 320 }) {
+export default function ScrollToTopButton({ threshold = 320, className = '' }) {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -35,7 +35,10 @@ export default function ScrollToTopButton({ threshold = 320 }) {
       onClick={scrollToTop}
       aria-label="Volver al inicio"
       title="Subir al inicio"
-      className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-40 p-3 rounded-full bg-zinc-900/90 hover:bg-zinc-800 text-[var(--color-porkos-orange)] border border-zinc-700/80 shadow-2xl backdrop-blur-md active:scale-95 transition-all cursor-pointer flex items-center justify-center group"
+      className={`
+        fixed z-40 p-3 rounded-full bg-zinc-900/95 hover:bg-zinc-800 text-[var(--color-porkos-orange)] border border-zinc-700/80 shadow-2xl backdrop-blur-md active:scale-95 transition-all cursor-pointer flex items-center justify-center group touch-manipulation
+        ${className || 'bottom-20 right-4 lg:bottom-6 lg:right-6'}
+      `}
     >
       <ArrowUp className="w-5 h-5 group-hover:-translate-y-0.5 transition-transform" />
     </button>

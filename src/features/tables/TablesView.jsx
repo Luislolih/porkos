@@ -232,21 +232,21 @@ export default function TablesView({
               {/* Actions */}
               <div className="pt-2 border-t border-zinc-800/80">
                 {isOccupied && tableOrders.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
                       onClick={() => onSelectTableForOrder(table)}
-                      className="py-2 px-1.5 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white flex items-center justify-center gap-1 transition-all cursor-pointer border border-zinc-700"
+                      className="py-2.5 px-2 min-h-[42px] rounded-xl text-xs font-bold bg-zinc-800/90 hover:bg-zinc-750 active:bg-zinc-700 text-zinc-200 hover:text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-zinc-700/80 active:scale-95 touch-manipulation shadow-sm"
                       title="Añadir más productos a la comanda"
                     >
-                      <Plus className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
+                      <Plus className="w-3.5 h-3.5 text-[var(--color-porkos-orange)] stroke-[2.5]" />
                       <span>Pedir</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleEditTable(table, tableOrders)}
-                      className="py-2 px-1.5 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-amber-500 hover:text-black text-amber-300 hover:border-amber-400 flex items-center justify-center gap-1 transition-all cursor-pointer border border-zinc-700"
+                      className="py-2.5 px-2 min-h-[42px] rounded-xl text-xs font-bold bg-zinc-800/90 hover:bg-amber-500 hover:text-black active:bg-amber-400 active:text-black text-amber-300 hover:border-amber-400 flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-zinc-700/80 active:scale-95 touch-manipulation shadow-sm"
                       title="Modificar comanda de mesa antes del cierre"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
@@ -256,7 +256,7 @@ export default function TablesView({
                     <button
                       type="button"
                       onClick={() => handleOpenCloseModal(table, tableOrders, tableTotal)}
-                      className="py-2 px-1.5 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95"
+                      className="py-2.5 px-2 min-h-[42px] rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 active:bg-orange-600 text-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-orange-500/20 active:scale-95 touch-manipulation"
                     >
                       <CheckCircle className="w-3.5 h-3.5 stroke-[2.5]" />
                       <span>Cobrar</span>
@@ -266,9 +266,9 @@ export default function TablesView({
                   <button
                     type="button"
                     onClick={() => onSelectTableForOrder(table)}
-                    className="w-full py-2.5 px-3 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-98"
+                    className="w-full py-3 px-3 min-h-[44px] rounded-xl text-xs sm:text-sm font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 active:bg-orange-600 text-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-orange-500/20 active:scale-97 touch-manipulation"
                   >
-                    <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                    <Plus className="w-4 h-4 stroke-[3]" />
                     <span>Abrir Mesa</span>
                   </button>
                 )}

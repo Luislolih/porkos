@@ -12,6 +12,7 @@ import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
 import { formatCurrency } from '../../utils/formatters';
 import { getNextOrderNumber } from '../../utils/orderNumber';
 import { isProductBeverage, isProductMarket, isProductFood, isProductDessert, isProductSnack } from '../../utils/productCategories';
+import { sanitizeText, sanitizeNotes } from '../../utils/security';
 import { useAuth } from '../../context/useAuth';
 import { CheckCircle2, UtensilsCrossed, Edit3 } from 'lucide-react';
 
@@ -256,8 +257,11 @@ export default function SalesView({
     const operatorName = user?.displayName || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Cajero');
     const operatorEmail = user?.email || 'caja@porkos.pe';
 
-    const clientName = (customerName?.trim() || customer.name?.trim()) || (isDelivery ? 'Cliente Delivery' : null);
-    const deliveryAddress = customer.address?.trim() || (isDelivery ? 'Dirección por coordinar' : null);
+    const rawName = (customerName?.trim() || customer.name?.trim()) || (isDelivery ? 'Cliente Delivery' : null);
+    const clientName = rawName ? sanitizeText(rawName, 100) : null;
+    const rawAddress = customer.address?.trim() || (isDelivery ? 'Dirección por coordinar' : null);
+    const deliveryAddress = rawAddress ? sanitizeText(rawAddress, 180) : null;
+    const cleanNotes = generalNotes ? sanitizeNotes(generalNotes, 300) : '';
 
     const orderData = {
       orderNumber: getNextOrderNumber(orders, isMarketSale ? 'M' : 'P'),
@@ -270,7 +274,7 @@ export default function SalesView({
       customer: isDelivery ? { ...customer, name: clientName || '', address: deliveryAddress } : null,
       items: [...items],
       packagings: [...packagings],
-      generalNotes,
+      generalNotes: cleanNotes,
       subtotal: itemsSubtotal,
       packagingsTotal,
       deliveryFee,
@@ -366,8 +370,11 @@ export default function SalesView({
       return;
     }
 
-    const clientName = (customerName?.trim() || customer.name?.trim()) || (modality === 'DELIVERY' ? 'Cliente Delivery' : null);
-    const deliveryAddress = customer.address?.trim() || (modality === 'DELIVERY' ? 'Dirección por coordinar' : null);
+    const rawEditName = (customerName?.trim() || customer.name?.trim()) || (modality === 'DELIVERY' ? 'Cliente Delivery' : null);
+    const clientName = rawEditName ? sanitizeText(rawEditName, 100) : null;
+    const rawEditAddress = customer.address?.trim() || (modality === 'DELIVERY' ? 'Dirección por coordinar' : null);
+    const deliveryAddress = rawEditAddress ? sanitizeText(rawEditAddress, 180) : null;
+    const cleanNotes = generalNotes ? sanitizeNotes(generalNotes, 300) : '';
 
     const updatedOrder = {
       ...editingOrder,
@@ -378,7 +385,7 @@ export default function SalesView({
       customer: modality === 'DELIVERY' ? { ...customer, name: clientName || '', address: deliveryAddress } : null,
       items: [...items],
       packagings: [...packagings],
-      generalNotes,
+      generalNotes: cleanNotes,
       subtotal: itemsSubtotal,
       packagingsTotal,
       deliveryFee,
@@ -420,10 +427,13 @@ export default function SalesView({
     const isDelivery = !isMarketSale && modality === 'DELIVERY';
     const orderStatus = isMarketSale ? 'ENTREGADO' : 'PENDIENTE';
 
-    const clientName = isMarketSale
+    const rawPaymentClient = isMarketSale
       ? 'Venta Mostrador'
       : ((customerName?.trim() || customer.name?.trim()) || (isDelivery ? 'Cliente Delivery' : null));
-    const deliveryAddress = customer.address?.trim() || (isDelivery ? 'Dirección por coordinar' : null);
+    const clientName = rawPaymentClient ? sanitizeText(rawPaymentClient, 100) : null;
+    const rawPaymentAddress = customer.address?.trim() || (isDelivery ? 'Dirección por coordinar' : null);
+    const deliveryAddress = rawPaymentAddress ? sanitizeText(rawPaymentAddress, 180) : null;
+    const cleanNotes = isMarketSale ? 'Venta directa en caja' : (generalNotes ? sanitizeNotes(generalNotes, 300) : '');
 
     const orderData = {
       orderNumber: getNextOrderNumber(orders, isMarketSale ? 'M' : 'P'),
@@ -436,7 +446,7 @@ export default function SalesView({
       customer: isDelivery ? { ...customer, name: clientName || '', address: deliveryAddress } : null,
       items: [...items],
       packagings: isMarketSale ? [] : [...packagings],
-      generalNotes: isMarketSale ? 'Venta directa en caja' : generalNotes,
+      generalNotes: cleanNotes,
       subtotal: itemsSubtotal,
       packagingsTotal: isMarketSale ? 0 : packagingsTotal,
       deliveryFee: isMarketSale ? 0 : deliveryFee,
@@ -667,8 +677,10 @@ export default function SalesView({
         onConfirmPayment={handleConfirmPayment}
       />
 
-      {/* Flecha flotante para subir al inicio en listas largas */}
-      <ScrollToTopButton />
+      {/* Flecha flotante para subir al inicio sin tapar el carrito ni el total de comanda */}
+      <ScrollToTopButton
+        className={items.length > 0 ? "bottom-32 left-4 lg:bottom-6 lg:left-8" : "bottom-20 left-4 lg:bottom-6 lg:left-8"}
+      />
     </div>
   );
 }

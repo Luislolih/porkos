@@ -11,12 +11,12 @@ export default function Button({
   ...props
 }) {
   const baseClasses =
-    'inline-flex items-center justify-center font-semibold rounded-xl transition-all duration-150 active:scale-[0.98] select-none cursor-pointer disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100 gap-2';
+    'inline-flex items-center justify-center font-bold rounded-xl transition-all duration-120 active:scale-[0.97] select-none cursor-pointer disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100 gap-2 touch-manipulation';
 
   const sizeClasses = {
-    sm: 'text-xs px-3 py-1.5 min-h-[36px]',
+    sm: 'text-xs px-3.5 py-2 min-h-[40px]',
     md: 'text-sm px-4 py-2.5 min-h-[44px]',
-    lg: 'text-base px-5 py-3.5 min-h-[52px]',
+    lg: 'text-base px-5 py-3.5 min-h-[50px]',
     icon: 'p-2.5 min-h-[44px] min-w-[44px]',
   };
 

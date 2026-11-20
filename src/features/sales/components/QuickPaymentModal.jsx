@@ -23,12 +23,14 @@ export default function QuickPaymentModal({
   );
 
   const handleConfirm = () => {
+    const finalCash = isCash ? (cashAmount > 0 ? cashAmount : total) : total;
+    const finalChange = isCash ? Math.max(0, Math.round((finalCash - total) * 100) / 100) : 0;
     onConfirmPayment({
       method: selectedMethod,
       amount: total,
-      cashGiven: isCash ? cashAmount : total,
-      change: isCash ? change : 0,
-      reference: reference.trim(),
+      cashGiven: finalCash,
+      change: finalChange,
+      reference: reference.trim().replace(/[<>]/g, '').slice(0, 100),
     });
     onClose();
   };

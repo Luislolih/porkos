@@ -374,22 +374,25 @@ export function CartProvider({ children }) {
   };
 
   const itemsSubtotal = useMemo(() => {
-    return items.reduce((sum, item) => sum + item.subtotal, 0);
+    const sum = items.reduce((acc, item) => acc + (Number(item.subtotal) || 0), 0);
+    return Math.round(sum * 100) / 100;
   }, [items]);
 
   const packagingsTotal = useMemo(() => {
-    return packagings.reduce((sum, p) => sum + p.total, 0);
+    const sum = packagings.reduce((acc, p) => acc + (Number(p.total) || 0), 0);
+    return Math.round(sum * 100) / 100;
   }, [packagings]);
 
   const deliveryFee = useMemo(() => {
     if (modality !== 'DELIVERY' && modality !== ORDER_MODALITIES.DELIVERY.id) return 0;
     const feeNum = parseFloat(customer.deliveryFee);
-    return isNaN(feeNum) ? 0 : Math.max(0, feeNum);
+    return isNaN(feeNum) ? 0 : Math.round(Math.max(0, feeNum) * 100) / 100;
   }, [modality, customer.deliveryFee]);
 
   const total = useMemo(() => {
-    const rawTotal = itemsSubtotal + packagingsTotal + deliveryFee - discount;
-    return Math.max(0, rawTotal);
+    const disc = Math.max(0, Number(discount) || 0);
+    const rawTotal = itemsSubtotal + packagingsTotal + deliveryFee - disc;
+    return Math.round(Math.max(0, rawTotal) * 100) / 100;
   }, [itemsSubtotal, packagingsTotal, deliveryFee, discount]);
 
   const itemCount = useMemo(() => {

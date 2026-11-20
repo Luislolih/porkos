@@ -339,7 +339,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
               <button
                 type="button"
                 onClick={() => onUpdateOrderStatus(order.orderNumber, 'PREPARANDO')}
-                className="flex-1 py-2.5 px-3 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-98"
+                className="flex-1 py-3 px-3 min-h-[46px] rounded-xl text-xs sm:text-sm font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-orange-500/20 active:scale-95 touch-manipulation"
               >
                 <Flame className="w-4 h-4 fill-current" />
                 <span>Iniciar Preparación</span>
@@ -348,7 +348,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
               <button
                 type="button"
                 onClick={() => onUpdateOrderStatus(order.orderNumber, 'ENTREGADO')}
-                className="py-2.5 px-3 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 flex items-center justify-center transition-all cursor-pointer active:scale-98"
+                className="py-3 px-3.5 min-h-[46px] rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 flex items-center justify-center transition-all cursor-pointer active:scale-95 touch-manipulation"
                 title="Despachar directamente"
               >
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -361,7 +361,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
               <button
                 type="button"
                 onClick={() => onUpdateOrderStatus(order.orderNumber, 'LISTO')}
-                className="flex-1 py-2.5 px-3 rounded-xl text-xs font-black bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
+                className="flex-1 py-3 px-3 min-h-[46px] rounded-xl text-xs sm:text-sm font-black bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 touch-manipulation shadow-sm"
               >
                 <Check className="w-4 h-4 stroke-[3] text-emerald-400" />
                 <span>Marcar como Listo</span>
@@ -369,7 +369,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
               <button
                 type="button"
                 onClick={() => onUpdateOrderStatus(order.orderNumber, 'ENTREGADO')}
-                className="py-2.5 px-3 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 flex items-center justify-center transition-all cursor-pointer active:scale-98"
+                className="py-3 px-3.5 min-h-[46px] rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 flex items-center justify-center transition-all cursor-pointer active:scale-95 touch-manipulation"
                 title="Despachar directamente"
               >
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -381,9 +381,9 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
             <button
               type="button"
               onClick={() => onUpdateOrderStatus(order.orderNumber, 'ENTREGADO')}
-              className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white flex items-center justify-center gap-2 transition-all cursor-pointer border border-zinc-700 active:scale-98"
+              className="w-full py-3 px-3 min-h-[46px] rounded-xl text-xs sm:text-sm font-black bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95 touch-manipulation"
             >
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
               <span>Despachar / Entregado</span>
             </button>
           )}
@@ -492,7 +492,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
           <button
             type="button"
             onClick={() => onUpdateOrderStatus(order.orderNumber, 'ENTREGADO')}
-            className="w-full py-2.5 px-3 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-emerald-500/20 active:scale-98"
+            className="w-full py-3 px-3 min-h-[46px] rounded-xl text-xs sm:text-sm font-black bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95 touch-manipulation"
           >
             <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
             <span>Marcar Entregado</span>

@@ -39,9 +39,24 @@ export function formatFirestoreDate(val) {
   return new Date();
 }
 
-// Limpiar valores undefined antes de guardar en Firestore
+// Limpiar valores undefined, campos prototipo y sanitizar payloads antes de persistir en Firestore
 function sanitizePayload(obj) {
-  return JSON.parse(JSON.stringify(obj, (key, value) => (value === undefined ? null : value)));
+  return JSON.parse(
+    JSON.stringify(obj, (key, value) => {
+      // Bloquear ataques de prototipo
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        return undefined;
+      }
+      if (value === undefined) {
+        return null;
+      }
+      if (typeof value === 'string') {
+        // Sanitizar strings de scripts maliciosos y etiquetas html peligrosas
+        return value.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').replace(/[<>]/g, '');
+      }
+      return value;
+    })
+  );
 }
 
 // =========================================================================

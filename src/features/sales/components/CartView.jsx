@@ -440,29 +440,32 @@ export default function CartView({
                   <button
                     type="button"
                     onClick={() => removeItem(item.itemId)}
-                    className="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                    className="p-2 min-w-[36px] min-h-[36px] text-zinc-500 hover:text-rose-400 hover:bg-rose-500/15 rounded-xl transition-all cursor-pointer active:scale-90 flex items-center justify-center touch-manipulation"
                     title="Eliminar de la comanda"
+                    aria-label="Eliminar producto"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
 
-                  <div className="flex items-center gap-2 bg-zinc-800/80 px-2 py-1 rounded-lg border border-zinc-700/60">
+                  <div className="flex items-center gap-1.5 bg-zinc-800/90 p-1 rounded-xl border border-zinc-700/60 shadow-sm">
                     <button
                       type="button"
                       onClick={() => updateItemQuantity(item.itemId, -1)}
-                      className="text-zinc-400 hover:text-white p-0.5 cursor-pointer font-bold active:scale-95"
+                      className="w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600 active:bg-zinc-500 text-zinc-200 hover:text-white flex items-center justify-center cursor-pointer font-bold active:scale-90 transition-transform touch-manipulation"
+                      aria-label="Disminuir cantidad"
                     >
-                      <Minus className="w-3.5 h-3.5" />
+                      <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
                     </button>
-                    <span className="font-extrabold text-xs text-white min-w-[18px] text-center">
+                    <span className="font-black text-sm text-white min-w-[22px] text-center select-none">
                       {item.quantity}
                     </span>
                     <button
                       type="button"
                       onClick={() => updateItemQuantity(item.itemId, 1)}
-                      className="text-zinc-400 hover:text-white p-0.5 cursor-pointer font-bold active:scale-95"
+                      className="w-8 h-8 rounded-lg bg-[var(--color-porkos-orange)]/20 hover:bg-[var(--color-porkos-orange)]/30 active:bg-[var(--color-porkos-orange)] text-[var(--color-porkos-orange)] hover:text-white flex items-center justify-center cursor-pointer font-bold active:scale-90 transition-transform touch-manipulation"
+                      aria-label="Aumentar cantidad"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                     </button>
                   </div>
                 </div>
