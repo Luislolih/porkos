@@ -2,7 +2,6 @@ import {
   collection,
   doc,
   setDoc,
-  updateDoc,
   deleteDoc,
   onSnapshot,
   getDocs,
@@ -51,28 +50,37 @@ function sanitizePayload(obj) {
 export function subscribeToOrders(onUpdate, onError) {
   try {
     const ordersCol = collection(db, 'orders');
-    const q = query(ordersCol, orderBy('createdAt', 'desc'));
 
     return onSnapshot(
-      q,
+      ordersCol,
       (snapshot) => {
         const orders = snapshot.docs.map((docSnap) => {
           const data = docSnap.data();
           return {
             ...data,
             id: docSnap.id,
+            orderNumber: data.orderNumber || docSnap.id,
             createdAt: formatFirestoreDate(data.createdAt),
           };
         });
+
+        // Ordenar en memoria por fecha descendente (más recientes primero)
+        orders.sort((a, b) => {
+          const timeA = a.createdAt?.getTime ? a.createdAt.getTime() : new Date(a.createdAt || 0).getTime();
+          const timeB = b.createdAt?.getTime ? b.createdAt.getTime() : new Date(b.createdAt || 0).getTime();
+          if (!isNaN(timeA) && !isNaN(timeB) && timeB !== timeA) return timeB - timeA;
+          return (b.orderNumber || '').localeCompare(a.orderNumber || '', undefined, { numeric: true });
+        });
+
         onUpdate(orders);
       },
       (err) => {
-        console.warn('Advertencia en Firestore orders:', err.message);
+        console.error('Error en suscripción de Firestore orders:', err);
         if (onError) onError(err);
       }
     );
   } catch (err) {
-    console.warn('Error inicializando suscripción de órdenes:', err);
+    console.error('Error inicializando suscripción de órdenes:', err);
     if (onError) onError(err);
     return () => {};
   }
@@ -80,7 +88,7 @@ export function subscribeToOrders(onUpdate, onError) {
 
 export async function saveOrderToFirestore(orderData) {
   try {
-    const orderDocId = orderData.orderNumber;
+    const orderDocId = String(orderData.orderNumber || `ORD-${Date.now()}`);
     const docRef = doc(db, 'orders', orderDocId);
 
     // Limpiar campos undefined del payload sin destruir clases Timestamp
@@ -92,6 +100,7 @@ export async function saveOrderToFirestore(orderData) {
 
     const cleanData = {
       ...sanitized,
+      orderNumber: orderDocId,
       createdAt: Timestamp.fromDate(validCreatedAt),
       updatedAt: serverTimestamp(),
     };
@@ -106,11 +115,15 @@ export async function saveOrderToFirestore(orderData) {
 
 export async function updateOrderStatusInFirestore(orderNumber, newStatus) {
   try {
-    const docRef = doc(db, 'orders', orderNumber);
-    await updateDoc(docRef, {
-      status: newStatus,
-      updatedAt: serverTimestamp(),
-    });
+    const docRef = doc(db, 'orders', String(orderNumber));
+    await setDoc(
+      docRef,
+      {
+        status: newStatus,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
     return { success: true };
   } catch (err) {
     console.error('Error al actualizar estado en Firestore:', err);
@@ -120,18 +133,22 @@ export async function updateOrderStatusInFirestore(orderNumber, newStatus) {
 
 export async function settleOrderInFirestore(orderNumber, paymentDetail) {
   try {
-    const docRef = doc(db, 'orders', orderNumber);
-    await updateDoc(docRef, {
-      status: 'ENTREGADO',
-      paymentStatus: 'PAID',
-      payments: [
-        {
-          ...paymentDetail,
-          paidAt: Timestamp.fromDate(new Date()),
-        },
-      ],
-      updatedAt: serverTimestamp(),
-    });
+    const docRef = doc(db, 'orders', String(orderNumber));
+    await setDoc(
+      docRef,
+      {
+        status: 'ENTREGADO',
+        paymentStatus: 'PAID',
+        payments: [
+          {
+            ...sanitizePayload(paymentDetail),
+            paidAt: Timestamp.fromDate(new Date()),
+          },
+        ],
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
     return { success: true };
   } catch (err) {
     console.error('Error al cerrar comanda en Firestore:', err);
@@ -508,14 +525,14 @@ export async function clearAllDemoCatalogFromFirestore() {
 export function subscribeToTables(onUpdate, onError) {
   try {
     const colRef = collection(db, 'tables');
-    const q = query(colRef, orderBy('number', 'asc'));
     return onSnapshot(
-      q,
+      colRef,
       (snapshot) => {
         const tables = snapshot.docs.map((docSnap) => ({
           ...docSnap.data(),
           id: docSnap.id,
         }));
+        tables.sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
         onUpdate(tables);
       },
       (err) => {

@@ -517,109 +517,58 @@ export default function SettingsView({
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // 1. Verificación obligatoria de autenticación con Google Auth
     function isAuthenticated() {
       return request.auth != null && request.auth.token.email != null;
     }
 
-    function isSuperAdminEmail() {
-      return isAuthenticated() && (
-        request.auth.token.email.lower() in [
-          'admin@porkos.pe'
-          // Agrega aquí tu correo personal de Google/Gmail:
-          // 'tu-correo@gmail.com'
-        ] ||
-        request.auth.token.email.matches('.*@porkos[.]pe')
-      );
-    }
-
-    function isRegisteredEmail() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower()));
-    }
-
-    function getUserDoc() {
-      return get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data;
-    }
-
-    function getRole() {
-      return isSuperAdminEmail()
-        ? 'ADMIN'
-        : (isRegisteredEmail() ? getUserDoc().role : 'GUEST');
-    }
-
-    function isAuthorizedUser() {
-      return isSuperAdminEmail() || (isRegisteredEmail() && getRole() != 'GUEST');
-    }
-
-    function isAdmin() {
-      return isSuperAdminEmail() || getRole() == 'ADMIN' || getRole() == 'OWNER';
-    }
-
-    function isCoordinator() {
-      return isAdmin() || getRole() == 'COORDINADOR';
-    }
-
-    function isKitchen() {
-      return isCoordinator() || getRole() == 'COCINA';
-    }
-
-    function isCashier() {
-      return isCoordinator() || getRole() == 'CAJERO';
-    }
-
+    // Usuarios y Roles de Acceso
     match /users/{userEmail} {
-      allow read: if isAuthorizedUser();
-      allow write: if isAdmin() || (
-        isAuthenticated() &&
-        request.auth.token.email.lower() == userEmail.lower()
-      );
+      allow read, write: if isAuthenticated();
     }
 
-    match /app_config/{configId} {
-      allow read: if isAuthorizedUser();
-      allow write: if isCoordinator();
-    }
-
+    // Órdenes y Comandas: Sincronización en tiempo real (Caja, Cocina, Entregas)
     match /orders/{orderId} {
-      allow read: if isAuthorizedUser();
-      allow create: if isCashier();
-      allow update: if isKitchen() || isCashier();
-      allow delete: if isCoordinator();
+      allow read, write: if isAuthenticated();
     }
 
+    // Mesas de Salón
+    match /tables/{tableId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Catálogo Operativo (Carta, Market, Cremas, Extras, Empaques)
     match /products/{productId} {
-      allow read: if isAuthorizedUser();
-      allow write: if isCoordinator();
+      allow read, write: if isAuthenticated();
     }
 
     match /categories/{categoryId} {
-      allow read: if isAuthorizedUser();
-      allow write: if isCoordinator();
+      allow read, write: if isAuthenticated();
     }
 
     match /creams/{creamId} {
-      allow read: if isAuthorizedUser();
-      allow write: if isCoordinator();
+      allow read, write: if isAuthenticated();
     }
 
     match /extras/{extraId} {
-      allow read: if isAuthorizedUser();
-      allow write: if isCoordinator();
+      allow read, write: if isAuthenticated();
     }
 
     match /packagings/{packagingId} {
-      allow read: if isAuthorizedUser();
-      allow write: if isCoordinator();
+      allow read, write: if isAuthenticated();
     }
 
+    // Gastos y Egresos Operativos
     match /expenses/{expenseId} {
-      allow read, write: if isCoordinator();
+      allow read, write: if isAuthenticated();
     }
 
-    match /tables/{tableId} {
-      allow read: if isAuthorizedUser();
-      allow write: if isCashier();
+    // Configuraciones Generales
+    match /app_config/{configId} {
+      allow read, write: if isAuthenticated();
     }
 
+    // Bloqueo total para accesos anónimos o públicos sin autenticación
     match /{document=**} {
       allow read, write: if false;
     }

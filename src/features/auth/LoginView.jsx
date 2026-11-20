@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/useAuth';
-import { Flame, ShieldCheck, ArrowRight, AlertCircle, Sparkles } from 'lucide-react';
+import { Flame, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export default function LoginView() {
-  const { loginWithGoogle, loginDemo, authError } = useAuth();
+  const { loginWithGoogle, authError } = useAuth();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [localError, setLocalError] = useState(null);
 
@@ -42,7 +42,7 @@ export default function LoginView() {
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] font-bold text-zinc-300">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Acceso Seguro con Firebase</span>
+            <span>Acceso Seguro Exclusivo con Google</span>
           </div>
         </div>
 
@@ -82,57 +82,8 @@ export default function LoginView() {
                 d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
               />
             </svg>
-            <span>{isLoggingIn ? 'Iniciando sesión...' : 'Continuar con Google'}</span>
+            <span>{isLoggingIn ? 'Iniciando sesión con Google...' : 'Continuar con Google'}</span>
           </button>
-
-          {/* Separador */}
-          <div className="relative py-2 flex items-center justify-center">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-zinc-800" />
-            </div>
-            <span className="relative bg-[#121212] px-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
-              o modo local
-            </span>
-          </div>
-
-          {/* Botones Demo / Offline por Rol */}
-          <div className="space-y-1.5">
-            <button
-              type="button"
-              onClick={() => loginDemo('ADMIN')}
-              className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-between border border-zinc-800 transition-all cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-rose-400" />
-                <span>Ingresar como Administrador (Total)</span>
-              </div>
-              <ArrowRight className="w-3 h-3 text-zinc-500" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => loginDemo('COORDINADOR')}
-              className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-between border border-zinc-800 transition-all cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Ingresar como Coordinador(a) (Sin Ajustes)</span>
-              </div>
-              <ArrowRight className="w-3 h-3 text-zinc-500" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => loginDemo('COCINA')}
-              className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-between border border-zinc-800 transition-all cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <Flame className="w-3.5 h-3.5 text-orange-400" />
-                <span>Ingresar como Cocina (Solo KDS)</span>
-              </div>
-              <ArrowRight className="w-3 h-3 text-zinc-500" />
-            </button>
-          </div>
         </div>
 
         {/* Footer info */}

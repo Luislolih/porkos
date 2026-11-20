@@ -108,7 +108,7 @@ function MainApp() {
   useEffect(() => {
     const unsubscribe = subscribeToOrders(
       (remoteOrders) => {
-        if (remoteOrders && remoteOrders.length > 0) {
+        if (Array.isArray(remoteOrders)) {
           const normalized = remoteOrders.map((o) => {
             const isTable = o.modality === 'MESA' || Boolean(o.tableId);
             return {
@@ -134,7 +134,7 @@ function MainApp() {
         }
       },
       (err) => {
-        console.warn('Suscripción de órdenes Firestore (modo local activo):', err?.message);
+        console.error('Suscripción de órdenes Firestore (modo local activo):', err?.message);
       }
     );
     return () => unsubscribe();
@@ -220,13 +220,18 @@ function MainApp() {
 
     // Actualización optimista local
     setOrders((prev) => {
-      const updated = [cleanOrder, ...prev];
+      const filtered = prev.filter((o) => o.orderNumber !== cleanOrder.orderNumber);
+      const updated = [cleanOrder, ...filtered];
       saveOrdersLocal(updated);
       return updated;
     });
 
-    // Guardar nueva orden individual en Firestore
-    await saveOrderToFirestore(cleanOrder);
+    // Guardar nueva orden individual en Firestore para sincronización inmediata
+    const res = await saveOrderToFirestore(cleanOrder);
+    if (!res?.success) {
+      console.error('Error al guardar comanda en Firestore:', res?.error);
+      alert('Aviso: Hubo un inconveniente al registrar la orden en la base de datos en tiempo real. Verifica tu conexión.');
+    }
   };
 
   // 4. Manejar el cierre y cobro de mesa (cierra todos los pedidos activos de la mesa)
@@ -271,12 +276,15 @@ function MainApp() {
     // Persistir en Firestore para cada orden cerrada
     for (const num of targetNumbers) {
       if (num) {
-        await settleOrderInFirestore(num, paymentDetail);
+        const res = await settleOrderInFirestore(num, paymentDetail);
+        if (!res?.success) {
+          console.error(`Error al liquidar orden ${num} en Firestore:`, res?.error);
+        }
       }
     }
   };
 
-  // 5. Manejar avance de comanda en cocina
+  // 5. Manejar avance de comanda en cocina o entregas
   const handleUpdateOrderStatus = async (orderNumber, newStatus) => {
     // Optimista local
     setOrders((prev) => {
@@ -285,8 +293,11 @@ function MainApp() {
       return updated;
     });
 
-    // Persistir en Firestore
-    await updateOrderStatusInFirestore(orderNumber, newStatus);
+    // Persistir en Firestore para que todos los dispositivos lo vean inmediatamente
+    const res = await updateOrderStatusInFirestore(orderNumber, newStatus);
+    if (!res?.success) {
+      console.error('Error al actualizar estado en Firestore:', res?.error);
+    }
   };
 
   // 6. Manejar edición de comanda antes de ser entregada
@@ -317,7 +328,10 @@ function MainApp() {
     });
 
     // Persistir en Firestore
-    await saveOrderToFirestore(cleanOrder);
+    const res = await saveOrderToFirestore(cleanOrder);
+    if (!res?.success) {
+      console.error('Error al actualizar orden en Firestore:', res?.error);
+    }
     return true;
   };
 
