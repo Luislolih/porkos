@@ -337,9 +337,10 @@ export default function SalesView({
   const handleSaveEditedOrder = () => {
     if (!editingOrder) return;
 
-    // Verificar si la orden ya fue entregada
-    if (editingOrder.status === 'ENTREGADO') {
-      showToast('⚠️ Esta comanda ya fue entregada y no puede ser modificada');
+    // Verificar si la orden ya fue entregada y pagada (finalizada)
+    const isUnpaidTable = (editingOrder.modality === 'MESA' || Boolean(editingOrder.tableId)) && editingOrder.paymentStatus !== 'PAID';
+    if (editingOrder.status === 'ENTREGADO' && !isUnpaidTable) {
+      showToast('⚠️ Esta comanda ya fue finalizada y no puede ser modificada');
       cancelEditingOrder();
       return;
     }
@@ -383,6 +384,7 @@ export default function SalesView({
       deliveryFee,
       discount: discount || 0,
       total,
+      mergedOrderNumbers: editingOrder.mergedOrderNumbers || null,
       updatedAt: new Date(),
     };
 
@@ -492,7 +494,9 @@ export default function SalesView({
             <div className="bg-amber-500/15 border border-amber-500/40 p-3 rounded-2xl flex items-center justify-between gap-3 text-xs animate-in fade-in">
               <div className="flex items-center gap-2.5 text-amber-300 font-bold">
                 <Edit3 className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>Editando comanda <strong>{editingOrder.orderNumber}</strong></span>
+                <span>
+                  Editando comanda <strong>{editingOrder.tableName ? `${editingOrder.tableName} (${editingOrder.orderNumber})` : editingOrder.orderNumber}</strong>
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <button

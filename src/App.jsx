@@ -21,6 +21,7 @@ import {
   saveOrderToFirestore,
   updateOrderStatusInFirestore,
   settleOrderInFirestore,
+  deleteOrderFromFirestore,
   clearAllOrdersFromFirestore,
   subscribeToTables,
   saveTableToFirestore,
@@ -300,12 +301,13 @@ function MainApp() {
     }
   };
 
-  // 6. Manejar edición de comanda antes de ser entregada
+  // 6. Manejar edición de comanda (antes del cierre o pago final)
   const handleUpdateOrder = async (updatedOrder) => {
-    // Bloquear si la comanda ya fue entregada
+    // Bloquear solo si la comanda ya fue entregada Y pagada (orden finalizada)
     const existing = orders.find((o) => o.orderNumber === updatedOrder.orderNumber);
-    if (existing?.status === 'ENTREGADO') {
-      alert('Esta comanda ya ha sido entregada y no puede ser modificada.');
+    const isUnpaidTable = (updatedOrder.modality === 'MESA' || Boolean(updatedOrder.tableId)) && existing?.paymentStatus !== 'PAID';
+    if (existing?.status === 'ENTREGADO' && !isUnpaidTable) {
+      alert('Esta comanda ya ha sido finalizada y no puede ser modificada.');
       return false;
     }
 
@@ -320,25 +322,37 @@ function MainApp() {
       updatedAt: new Date(),
     };
 
+    // Si la orden consolidó múltiples pedidos de la mesa, eliminar las órdenes secundarias fusionadas
+    const mergedNumbers = Array.isArray(updatedOrder.mergedOrderNumbers) ? updatedOrder.mergedOrderNumbers : [];
+    const secondaryNumbers = mergedNumbers.filter((num) => num !== updatedOrder.orderNumber);
+
     // Actualización optimista local
     setOrders((prev) => {
-      const updated = prev.map((o) => (o.orderNumber === updatedOrder.orderNumber ? cleanOrder : o));
+      const filtered = prev.filter((o) => !secondaryNumbers.includes(o.orderNumber));
+      const updated = filtered.map((o) => (o.orderNumber === updatedOrder.orderNumber ? cleanOrder : o));
       saveOrdersLocal(updated);
       return updated;
     });
 
-    // Persistir en Firestore
+    // Persistir comanda unificada en Firestore
     const res = await saveOrderToFirestore(cleanOrder);
     if (!res?.success) {
       console.error('Error al actualizar orden en Firestore:', res?.error);
     }
+
+    // Limpiar órdenes secundarias fusionadas en Firestore
+    for (const num of secondaryNumbers) {
+      await deleteOrderFromFirestore(num);
+    }
+
     return true;
   };
 
-  // 7. Cargar comanda en Caja/Ventas para añadir más platos del menú
+  // 7. Cargar comanda en Caja/Ventas para añadir o editar productos del menú
   const handleLoadOrderForEditing = (order) => {
-    if (order.status === 'ENTREGADO') {
-      alert('Esta comanda ya ha sido entregada y no puede ser modificada.');
+    const isUnpaidTable = (order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID';
+    if (order.status === 'ENTREGADO' && !isUnpaidTable) {
+      alert('Esta comanda ya ha sido finalizada y no puede ser modificada.');
       return;
     }
     loadOrderForEditing(order, tables);

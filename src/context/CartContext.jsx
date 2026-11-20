@@ -47,7 +47,11 @@ export function CartProvider({ children }) {
 
   const loadOrderForEditing = (order, availableTables = []) => {
     if (!order) return false;
-    if (order.status === 'ENTREGADO') {
+
+    // Permitir edición si es comanda de mesa aún no pagada (antes del cierre de mesa),
+    // o si es una comanda pendiente de otra modalidad
+    const isUnpaidTable = (order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID';
+    if (order.status === 'ENTREGADO' && !isUnpaidTable) {
       return false;
     }
 

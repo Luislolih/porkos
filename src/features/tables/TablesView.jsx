@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Clock, Plus, CheckCircle, ShoppingBag, Utensils, Edit3 } from 'lucide-react';
+import { Clock, Plus, CheckCircle, ShoppingBag, Utensils, Edit3, Package } from 'lucide-react';
 import { formatCurrency, formatElapsedTime } from '../../utils/formatters';
+import { isProductMarket } from '../../utils/productCategories';
 import QuickPaymentModal from '../sales/components/QuickPaymentModal';
+
+function orderRequiresKitchen(o) {
+  return o.items?.some((i) => Boolean(i.requiresKitchen) && !isProductMarket(i));
+}
 
 export default function TablesView({
   tables = [],
@@ -36,6 +41,47 @@ export default function TablesView({
     setClosingOrder(null);
   };
 
+  // Cargar comanda unificada de mesa para editar antes del cierre
+  const handleEditTable = (table, currentTableOrders) => {
+    // 1. Filtrar solo los productos que califican: entregados de esa mesa + cocina en preparación o entregados
+    const qualifyingOrders = currentTableOrders.filter((o) => {
+      if (o.status === 'ENTREGADO') return true;
+      if (orderRequiresKitchen(o)) return true;
+      return false;
+    });
+
+    if (qualifyingOrders.length === 0) {
+      if (currentTableOrders.length > 0) {
+        alert('Los productos solicitados para esta mesa aún están en la sección de Entregas. Una vez que se marquen como entregados, podrás editar los detalles aquí antes del cierre de mesa.');
+      }
+      return;
+    }
+
+    const primaryOrder = qualifyingOrders[0];
+    const consolidatedItems = qualifyingOrders.flatMap((o) => (o.items ? o.items.map((i) => ({ ...i })) : []));
+    const consolidatedPackagings = qualifyingOrders.flatMap((o) => (o.packagings ? o.packagings.map((p) => ({ ...p })) : []));
+    const clientName = qualifyingOrders.find((o) => o.customerName)?.customerName || '';
+    const generalNotes = qualifyingOrders
+      .map((o) => o.generalNotes)
+      .filter(Boolean)
+      .join(' | ');
+
+    const tableOrderToEdit = {
+      ...primaryOrder,
+      tableId: table.id,
+      tableName: table.label,
+      customerName: clientName,
+      items: consolidatedItems,
+      packagings: consolidatedPackagings,
+      generalNotes,
+      mergedOrderNumbers: qualifyingOrders.map((o) => o.orderNumber),
+    };
+
+    if (onEditTableOrder) {
+      onEditTableOrder(tableOrderToEdit);
+    }
+  };
+
   return (
     <div className="space-y-3 pb-20 lg:pb-6">
       {/* Grid de Mesas Puestas en Salón */}
@@ -44,6 +90,19 @@ export default function TablesView({
           const tableOrders = orders.filter(
             (o) => o.tableId === table.id && o.paymentStatus !== 'PAID' && o.status !== 'CANCELADO'
           );
+
+          // 1. Productos que salen en la mesa: todos los entregados + los de cocina en preparación o entregados
+          const qualifyingOrders = tableOrders.filter((o) => {
+            if (o.status === 'ENTREGADO') return true;
+            if (orderRequiresKitchen(o)) return true;
+            return false;
+          });
+
+          // 2. Pedidos que no requieren cocina y están pendientes de entrega (solo salen tras marcarse entregado)
+          const pendingDeliveryOrders = tableOrders.filter((o) => {
+            return !orderRequiresKitchen(o) && o.status !== 'ENTREGADO';
+          });
+
           const isOccupied = table.status === 'OCCUPIED' || tableOrders.length > 0;
           const tableTotal = tableOrders.reduce((sum, o) => sum + (o.total || 0), 0);
           const customerName = tableOrders.find((o) => o.customerName)?.customerName;
@@ -78,7 +137,16 @@ export default function TablesView({
                   <h3 className="text-base sm:text-lg font-black text-white">{table.label}</h3>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                  {pendingDeliveryOrders.length > 0 && (
+                    <span
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/30 flex items-center gap-1"
+                      title="Productos pendientes de entrega en barra/despacho"
+                    >
+                      <Package className="w-2.5 h-2.5 text-blue-400" />
+                      <span>{pendingDeliveryOrders.length} por entregar</span>
+                    </span>
+                  )}
                   {isOccupied && tableOrders.length > 1 && (
                     <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-zinc-800 text-amber-400 border border-amber-500/30">
                       {tableOrders.length} pedidos
@@ -125,14 +193,14 @@ export default function TablesView({
                     )}
                   </div>
 
-                  {/* Consumo compacto */}
-                  {tableOrders.some((o) => o.items?.length > 0) && (
+                  {/* Consumo de la mesa: productos entregados y platos en cocina */}
+                  {qualifyingOrders.some((o) => o.items?.length > 0) ? (
                     <div className="max-h-24 overflow-y-auto space-y-1 bg-black/40 p-2 rounded-lg border border-zinc-800/60 text-[11px]">
-                      {tableOrders.map((order) =>
+                      {qualifyingOrders.map((order) =>
                         order.items?.map((item, idx) => (
                           <div key={`${order.orderNumber}-${idx}`} className="flex justify-between items-center text-zinc-300">
                             <span className="truncate pr-2">
-                              {tableOrders.length > 1 && (
+                              {qualifyingOrders.length > 1 && (
                                 <span className="inline-block text-[9px] font-mono px-1 py-0.5 bg-zinc-800 text-[var(--color-porkos-orange)] rounded mr-1">
                                   {order.orderNumber}
                                 </span>
@@ -144,7 +212,15 @@ export default function TablesView({
                         ))
                       )}
                     </div>
-                  )}
+                  ) : pendingDeliveryOrders.length > 0 ? (
+                    <div className="py-2 px-2.5 rounded-lg bg-blue-950/20 border border-blue-800/30 text-[11px] text-blue-300 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Package className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        <span>Esperando entrega de bebidas / market</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-blue-400">Por entregar</span>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="py-3 text-center text-zinc-500 flex items-center justify-center gap-2">
@@ -169,9 +245,9 @@ export default function TablesView({
 
                     <button
                       type="button"
-                      onClick={() => onEditTableOrder && onEditTableOrder(tableOrders[0])}
+                      onClick={() => handleEditTable(table, tableOrders)}
                       className="py-2 px-1.5 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-amber-500 hover:text-black text-amber-300 hover:border-amber-400 flex items-center justify-center gap-1 transition-all cursor-pointer border border-zinc-700"
-                      title="Modificar última comanda abierta"
+                      title="Modificar comanda de mesa antes del cierre"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                       <span>Editar</span>

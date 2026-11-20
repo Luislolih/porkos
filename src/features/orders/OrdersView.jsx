@@ -412,8 +412,9 @@ export default function OrdersView({
                     </div>
                   </div>
 
-                  {/* Botón de Edición (solo antes de ser entregada) */}
-                  {order.status !== 'ENTREGADO' && order.status !== 'CANCELADO' ? (
+                  {/* Botón de Edición: permitido antes de entrega o si es mesa antes del cierre */}
+                  {((order.status !== 'ENTREGADO' && order.status !== 'CANCELADO') ||
+                    ((order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID' && order.status !== 'CANCELADO')) ? (
                     onEditOrderInSales && (
                       <button
                         type="button"
@@ -431,7 +432,7 @@ export default function OrdersView({
                   ) : (
                     <span
                       className="p-1.5 text-zinc-600 shrink-0"
-                      title="Comanda entregada"
+                      title="Comanda finalizada"
                     >
                       <Lock className="w-3.5 h-3.5" />
                     </span>
@@ -687,9 +688,10 @@ export default function OrdersView({
               </div>
             </div>
 
-            {/* Acciones de la Comanda: Edición permitida solo antes de entrega (flotante abajo) */}
+            {/* Acciones de la Comanda: Edición permitida antes de entrega o si es mesa abierta antes del cierre */}
             <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 z-20 flex items-center justify-between flex-wrap gap-2 shadow-2xl">
-              {selectedOrder.status !== 'ENTREGADO' && selectedOrder.status !== 'CANCELADO' ? (
+              {((selectedOrder.status !== 'ENTREGADO' && selectedOrder.status !== 'CANCELADO') ||
+                ((selectedOrder.modality === 'MESA' || Boolean(selectedOrder.tableId)) && selectedOrder.paymentStatus !== 'PAID' && selectedOrder.status !== 'CANCELADO')) ? (
                 onEditOrderInSales && (
                   <button
                     type="button"
@@ -707,7 +709,7 @@ export default function OrdersView({
               ) : (
                 <div className="flex items-center gap-1.5 text-zinc-500 text-xs font-semibold ml-auto py-1">
                   <Lock className="w-3.5 h-3.5" />
-                  <span>Comanda Entregada</span>
+                  <span>Comanda Finalizada</span>
                 </div>
               )}
             </div>
