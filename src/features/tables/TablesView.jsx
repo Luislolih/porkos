@@ -3,6 +3,7 @@ import { Clock, Plus, CheckCircle, ShoppingBag, Utensils, Edit3, Package } from 
 import { formatCurrency, formatElapsedTime } from '../../utils/formatters';
 import { isProductMarket } from '../../utils/productCategories';
 import QuickPaymentModal from '../sales/components/QuickPaymentModal';
+import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
 
 function orderRequiresKitchen(o) {
   return o.items?.some((i) => Boolean(i.requiresKitchen) && !isProductMarket(i));
@@ -198,14 +199,17 @@ export default function TablesView({
                     <div className="max-h-24 overflow-y-auto space-y-1 bg-black/40 p-2 rounded-lg border border-zinc-800/60 text-[11px]">
                       {qualifyingOrders.map((order) =>
                         order.items?.map((item, idx) => (
-                          <div key={`${order.orderNumber}-${idx}`} className="flex justify-between items-center text-zinc-300">
-                            <span className="truncate pr-2">
+                          <div key={`${order.orderNumber}-${idx}`} className="flex justify-between items-center gap-2 text-zinc-300">
+                            <span className="truncate pr-1 flex items-center gap-1.5 min-w-0">
                               {qualifyingOrders.length > 1 && (
-                                <span className="inline-block text-[9px] font-mono px-1 py-0.5 bg-zinc-800 text-[var(--color-porkos-orange)] rounded mr-1">
+                                <span className="inline-block text-[9px] font-mono px-1 py-0.5 bg-zinc-800 text-[var(--color-porkos-orange)] rounded shrink-0">
                                   {order.orderNumber}
                                 </span>
                               )}
-                              {item.quantity}× {item.name}
+                              <span className="truncate">
+                                {item.quantity}× {item.name}
+                              </span>
+                              <ItemConsumptionBadge item={item} orderModality={order.modality} />
                             </span>
                             <span className="font-bold text-white shrink-0">{formatCurrency(item.subtotal)}</span>
                           </div>

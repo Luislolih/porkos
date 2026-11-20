@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Utensils, Package, ShoppingBag } from 'lucide-react';
 import Modal from '../../../components/ui/Modal';
 import { formatCurrency } from '../../../utils/formatters';
 import { useCatalog } from '../../../context/useCatalog';
@@ -130,6 +131,14 @@ function CustomizerForm({
   const availablePackagings = [nonePackaging, ...associatedPaidPackagings];
   const hasPaidPackaging = associatedPaidPackagings.length > 0;
 
+  const [consumptionType, setConsumptionType] = useState(() => {
+    if (initialCustomization?.consumptionType) return initialCustomization.consumptionType;
+    if (modality === 'PARA_LLEVAR' || modality === 'LLEVAR') return 'PARA_LLEVAR';
+    if (modality === 'CONSUMO_EXTERNO') return 'CONSUMO_EXTERNO';
+    if (modality === 'DELIVERY') return 'DELIVERY';
+    return 'MESA';
+  });
+
   const [selectedPackaging, setSelectedPackaging] = useState(() => {
     if (initialCustomization?.packaging) {
       const match = availablePackagings.find((p) => p.id === initialCustomization.packaging.id);
@@ -137,6 +146,7 @@ function CustomizerForm({
     }
     // Solo si es para llevar o delivery, seleccionar por defecto el packaging asociado al producto
     const isTakeoutOrDelivery =
+      consumptionType === 'PARA_LLEVAR' ||
       modality === 'PARA_LLEVAR' ||
       modality === 'DELIVERY' ||
       modality === 'LLEVAR';
@@ -235,6 +245,7 @@ function CustomizerForm({
     }
 
     const customization = {
+      consumptionType,
       temperature: hasTemperature ? temperature : null,
       creamsSummary: summary,
       creamsDetail: isMarketProduct
@@ -259,6 +270,64 @@ function CustomizerForm({
 
   return (
     <div className="space-y-3 pb-1 text-xs">
+      {/* Selector de Destino / Tipo de Pedido (Mesa / Ir Comiendo / Llevar) */}
+      {modality !== 'DELIVERY' && (
+        <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
+          <span className="text-xs font-black text-white uppercase tracking-wider block">
+            Tipo de Pedido
+          </span>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              {
+                id: 'MESA',
+                label: 'Mesa',
+                icon: Utensils,
+                activeClass: 'bg-blue-600 text-white border-blue-500 shadow-md ring-1 ring-blue-400/50',
+              },
+              {
+                id: 'CONSUMO_EXTERNO',
+                label: 'Ir Comiendo',
+                icon: Package,
+                activeClass: 'bg-purple-600 text-white border-purple-500 shadow-md ring-1 ring-purple-400/50',
+              },
+              {
+                id: 'PARA_LLEVAR',
+                label: 'Llevar',
+                icon: ShoppingBag,
+                activeClass: 'bg-amber-500 text-black border-amber-400 shadow-md ring-1 ring-amber-400/50 font-black',
+              },
+            ].map((opt) => {
+              const isSelected = consumptionType === opt.id;
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    setConsumptionType(opt.id);
+                    if (opt.id === 'PARA_LLEVAR') {
+                      if (associatedPaidPackagings.length > 0) setSelectedPackaging(associatedPaidPackagings[0]);
+                    } else {
+                      setSelectedPackaging(nonePackaging);
+                    }
+                  }}
+                  className={`
+                    min-h-[44px] rounded-xl font-bold text-xs sm:text-sm border transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 touch-manipulation
+                    ${
+                      isSelected
+                        ? opt.activeClass
+                        : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                    }
+                  `}
+                >
+                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                  <span>{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {/* 1. ENSALADA */}
       {hasSalad && (
         <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">

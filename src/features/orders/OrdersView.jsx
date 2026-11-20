@@ -21,6 +21,7 @@ import {
 import { formatCurrency, formatTime, formatElapsedTime } from '../../utils/formatters';
 import { ORDER_STATUS, PAYMENT_STATUS } from '../../types/constants';
 import Modal from '../../components/ui/Modal';
+import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
 
 export default function OrdersView({
   orders = [],
@@ -600,9 +601,12 @@ export default function OrdersView({
                     className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/60 flex justify-between items-start text-xs"
                   >
                     <div className="space-y-0.5">
-                      <span className="font-extrabold text-white">
-                        {item.quantity}× {item.name}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-extrabold text-white">
+                          {item.quantity}× {item.name}
+                        </span>
+                        <ItemConsumptionBadge item={item} orderModality={selectedOrder.modality} />
+                      </div>
 
                       {/* 1. Ensalada */}
                       {item.customization?.saladSummary && (

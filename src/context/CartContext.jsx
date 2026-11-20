@@ -56,7 +56,23 @@ export function CartProvider({ children }) {
     }
 
     setEditingOrder(order);
-    setItems(order.items ? order.items.map((i) => ({ ...i })) : []);
+    setItems(
+      order.items
+        ? order.items.map((i) => ({
+            ...i,
+            consumptionType:
+              i.consumptionType ||
+              i.customization?.consumptionType ||
+              (order.modality === 'PARA_LLEVAR' || order.modality === 'LLEVAR'
+                ? 'PARA_LLEVAR'
+                : order.modality === 'CONSUMO_EXTERNO'
+                ? 'CONSUMO_EXTERNO'
+                : order.modality === 'DELIVERY'
+                ? 'DELIVERY'
+                : 'MESA'),
+          }))
+        : []
+    );
     setModalityState(order.modality || ORDER_MODALITIES.MESA.id);
 
     if (order.tableId) {
@@ -127,6 +143,15 @@ export function CartProvider({ children }) {
       newModality === 'DELIVERY' ||
       newModality === 'LLEVAR';
 
+    const defaultConsumptionType =
+      newModality === ORDER_MODALITIES.PARA_LLEVAR.id || newModality === 'PARA_LLEVAR' || newModality === 'LLEVAR'
+        ? 'PARA_LLEVAR'
+        : newModality === ORDER_MODALITIES.CONSUMO_EXTERNO.id || newModality === 'CONSUMO_EXTERNO'
+        ? 'CONSUMO_EXTERNO'
+        : newModality === ORDER_MODALITIES.DELIVERY.id || newModality === 'DELIVERY'
+        ? 'DELIVERY'
+        : 'MESA';
+
     // Carga de tarifa por defecto al seleccionar DELIVERY
     if (newModality === ORDER_MODALITIES.DELIVERY.id || newModality === 'DELIVERY') {
       setCustomer((prev) => {
@@ -139,14 +164,21 @@ export function CartProvider({ children }) {
       });
     }
 
-    // Actualizar dinámicamente el packaging de los ítems existentes en la comanda
+    // Actualizar dinámicamente el packaging y tipo de consumo de los ítems existentes en la comanda
     setItems((prevItems) => {
       return prevItems.map((item) => {
         const prod = products.find((p) => p.id === item.productId);
 
         // Si es producto de market (gaseosa, galleta, snack, etc.) no usa packaging de hamburguesa
         if (prod?.type === 'MARKET' || prod?.line === 'MARKET' || item.productId?.startsWith('mkt_')) {
-          return item;
+          return {
+            ...item,
+            consumptionType: defaultConsumptionType,
+            customization: {
+              ...item.customization,
+              consumptionType: defaultConsumptionType,
+            },
+          };
         }
 
         const updatedPackaging = isNowTakeoutOrDelivery
@@ -157,7 +189,9 @@ export function CartProvider({ children }) {
                 (prod?.availablePackagingIds?.includes(pkg.id) ||
                   pkg.applicableProductIds?.includes(item.productId) ||
                   item.availablePackagingIds?.includes(pkg.id))
-            ) || null
+            ) ||
+            (catalogPackagings || []).find((pkg) => pkg.active && pkg.id !== 'pkg_ninguno') ||
+            null
           : null;
 
         const extrasTotal = (item.customization?.selectedExtras || []).reduce(
@@ -165,14 +199,16 @@ export function CartProvider({ children }) {
           0
         );
         const pkgPrice = updatedPackaging?.price || 0;
-        const newUnitPrice = item.basePrice + extrasTotal + pkgPrice;
+        const newUnitPrice = Math.round((item.basePrice + extrasTotal + pkgPrice) * 100) / 100;
 
         return {
           ...item,
+          consumptionType: defaultConsumptionType,
           unitPrice: newUnitPrice,
-          subtotal: newUnitPrice * item.quantity,
+          subtotal: Math.round(newUnitPrice * item.quantity * 100) / 100,
           customization: {
             ...item.customization,
+            consumptionType: defaultConsumptionType,
             packaging: updatedPackaging,
           },
         };
@@ -188,8 +224,19 @@ export function CartProvider({ children }) {
       modality === 'DELIVERY' ||
       modality === 'LLEVAR';
 
+    const defaultConsumption = customization?.consumptionType ||
+      (isNowTakeoutOrDelivery
+        ? (modality === 'DELIVERY' || modality === ORDER_MODALITIES.DELIVERY.id ? 'DELIVERY' : 'PARA_LLEVAR')
+        : modality === ORDER_MODALITIES.CONSUMO_EXTERNO.id || modality === 'CONSUMO_EXTERNO'
+        ? 'CONSUMO_EXTERNO'
+        : 'MESA');
+
     let defaultPackaging = null;
-    if (isNowTakeoutOrDelivery && product.type !== 'MARKET' && product.line !== 'MARKET') {
+    if (
+      (defaultConsumption === 'PARA_LLEVAR' || defaultConsumption === 'DELIVERY') &&
+      product.type !== 'MARKET' &&
+      product.line !== 'MARKET'
+    ) {
       defaultPackaging =
         (catalogPackagings || []).find(
           (pkg) =>
@@ -197,7 +244,9 @@ export function CartProvider({ children }) {
             pkg.id !== 'pkg_ninguno' &&
             (product.availablePackagingIds?.includes(pkg.id) ||
               pkg.applicableProductIds?.includes(product.id))
-        ) || null;
+        ) ||
+        (catalogPackagings || []).find((pkg) => pkg.active && pkg.id !== 'pkg_ninguno') ||
+        null;
     }
 
     const custom = customization || {
@@ -209,12 +258,24 @@ export function CartProvider({ children }) {
       packaging: defaultPackaging,
       removedIngredients: [],
       itemNotes: '',
+      consumptionType: defaultConsumption,
     };
 
-    // Dos ítems son idénticos si comparten el mismo producto Y las mismas opciones
+    if (!custom.consumptionType) {
+      custom.consumptionType = defaultConsumption;
+    }
+    if (custom.consumptionType === 'PARA_LLEVAR' && !custom.packaging && defaultPackaging) {
+      custom.packaging = defaultPackaging;
+    }
+
+    // Dos ítems son idénticos si comparten el mismo producto Y las mismas opciones (incluyendo destino)
     const isIdentical = (item) => {
       if (item.productId !== product.id) return false;
       const iCust = item.customization || {};
+
+      const itemType = item.consumptionType || iCust.consumptionType || 'MESA';
+      const newType = custom.consumptionType || defaultConsumption || 'MESA';
+      const sameConsumption = itemType === newType;
 
       const sameTemp = (iCust.temperature || null) === (custom.temperature || null);
       const sameNotes = (iCust.itemNotes || '').trim().toLowerCase() === (custom.itemNotes || '').trim().toLowerCase();
@@ -224,7 +285,7 @@ export function CartProvider({ children }) {
       const sameExtras = JSON.stringify(iCust.selectedExtras || []) === JSON.stringify(custom.selectedExtras || []);
       const sameMods = JSON.stringify(iCust.selectedModifiers || []) === JSON.stringify(custom.selectedModifiers || []);
 
-      return sameTemp && sameNotes && samePkg && sameCreams && sameSalad && sameExtras && sameMods;
+      return sameConsumption && sameTemp && sameNotes && samePkg && sameCreams && sameSalad && sameExtras && sameMods;
     };
 
     setItems((prev) => {
@@ -236,7 +297,7 @@ export function CartProvider({ children }) {
             return {
               ...item,
               quantity: newQty,
-              subtotal: item.unitPrice * newQty,
+              subtotal: Math.round(item.unitPrice * newQty * 100) / 100,
             };
           }
           return item;
@@ -249,7 +310,7 @@ export function CartProvider({ children }) {
           0
         ) || 0;
       const packagingPrice = custom?.packaging?.price || 0;
-      const unitPrice = product.price + extrasTotal + packagingPrice;
+      const unitPrice = Math.round((product.price + extrasTotal + packagingPrice) * 100) / 100;
       const itemId = `${product.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
 
       const isMarket = isProductMarket(product);
@@ -270,6 +331,7 @@ export function CartProvider({ children }) {
         name: product.name,
         basePrice: product.price,
         availablePackagingIds: product.availablePackagingIds || [],
+        consumptionType: custom.consumptionType || defaultConsumption,
         unitPrice,
         quantity: 1,
         requiresKitchen: Boolean(itemRequiresKitchen),
@@ -281,6 +343,160 @@ export function CartProvider({ children }) {
       };
 
       return [...prev, newItem];
+    });
+  };
+
+  /**
+   * Cambiar el tipo de consumo de un ítem individual (Mesa, Ir comiendo, Llevar)
+   * Si la cantidad es > 1, desdobla 1 unidad para permitir pedidos mixtos fácilmente
+   * Si es Llevar, asigna automáticamente el táper correspondiente y recalcula totales
+   */
+  const updateItemConsumptionType = (itemId, newConsumptionType) => {
+    if (!['MESA', 'CONSUMO_EXTERNO', 'PARA_LLEVAR'].includes(newConsumptionType)) return;
+
+    setItems((prevItems) => {
+      const targetIndex = prevItems.findIndex((it) => it.itemId === itemId);
+      if (targetIndex === -1) return prevItems;
+
+      const item = prevItems[targetIndex];
+      const currentType =
+        item.consumptionType ||
+        item.customization?.consumptionType ||
+        (modality === 'PARA_LLEVAR' ? 'PARA_LLEVAR' : modality === 'CONSUMO_EXTERNO' ? 'CONSUMO_EXTERNO' : 'MESA');
+
+      if (currentType === newConsumptionType) return prevItems;
+
+      const prod = products.find((p) => p.id === item.productId);
+      const isMarketOrDirect = prod?.type === 'MARKET' || prod?.line === 'MARKET' || item.productId?.startsWith('mkt_');
+
+      // Buscar táper si pasa a PARA_LLEVAR
+      let targetPackaging = null;
+      if (newConsumptionType === 'PARA_LLEVAR' && !isMarketOrDirect) {
+        targetPackaging =
+          (catalogPackagings || []).find(
+            (pkg) =>
+              pkg.active &&
+              pkg.id !== 'pkg_ninguno' &&
+              (prod?.availablePackagingIds?.includes(pkg.id) ||
+                pkg.applicableProductIds?.includes(item.productId) ||
+                item.availablePackagingIds?.includes(pkg.id))
+          ) ||
+          (catalogPackagings || []).find((pkg) => pkg.active && pkg.id !== 'pkg_ninguno') ||
+          null;
+      }
+
+      const extrasTotal = (item.customization?.selectedExtras || []).reduce(
+        (sum, ext) => sum + ext.unitPrice * (ext.quantity || 1),
+        0
+      );
+      const pkgPrice = targetPackaging?.price || 0;
+      const newUnitPrice = Math.round((item.basePrice + extrasTotal + pkgPrice) * 100) / 100;
+
+      // Si la cantidad es 1, actualizar directamente el ítem
+      if (item.quantity === 1) {
+        const updatedItem = {
+          ...item,
+          consumptionType: newConsumptionType,
+          unitPrice: newUnitPrice,
+          subtotal: newUnitPrice,
+          customization: {
+            ...item.customization,
+            consumptionType: newConsumptionType,
+            packaging: targetPackaging,
+          },
+        };
+
+        // Buscar si ya existe un ítem idéntico con la nueva modalidad para combinarlos
+        const otherIndex = prevItems.findIndex(
+          (it, idx) =>
+            idx !== targetIndex &&
+            it.productId === item.productId &&
+            (it.consumptionType || it.customization?.consumptionType) === newConsumptionType &&
+            (it.customization?.packaging?.id || null) === (targetPackaging?.id || null) &&
+            (it.customization?.temperature || null) === (item.customization?.temperature || null) &&
+            (it.customization?.creamsSummary || '') === (item.customization?.creamsSummary || '') &&
+            (it.customization?.saladSummary || '') === (item.customization?.saladSummary || '') &&
+            (it.customization?.itemNotes || '').trim().toLowerCase() === (item.customization?.itemNotes || '').trim().toLowerCase() &&
+            JSON.stringify(it.customization?.selectedExtras || []) === JSON.stringify(item.customization?.selectedExtras || []) &&
+            JSON.stringify(it.customization?.selectedModifiers || []) === JSON.stringify(item.customization?.selectedModifiers || [])
+        );
+
+        if (otherIndex !== -1) {
+          return prevItems
+            .map((it, idx) => {
+              if (idx === otherIndex) {
+                const combinedQty = it.quantity + 1;
+                return {
+                  ...it,
+                  quantity: combinedQty,
+                  subtotal: Math.round(it.unitPrice * combinedQty * 100) / 100,
+                };
+              }
+              return it;
+            })
+            .filter((_, idx) => idx !== targetIndex);
+        }
+
+        return prevItems.map((it, idx) => (idx === targetIndex ? updatedItem : it));
+      }
+
+      // Si la cantidad es > 1: desdoblar 1 unidad con el nuevo tipo de consumo
+      const remainingQty = item.quantity - 1;
+      const updatedOriginal = {
+        ...item,
+        quantity: remainingQty,
+        subtotal: Math.round(item.unitPrice * remainingQty * 100) / 100,
+      };
+
+      const newItemId = `${item.productId}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+      const splitItem = {
+        ...item,
+        itemId: newItemId,
+        quantity: 1,
+        consumptionType: newConsumptionType,
+        unitPrice: newUnitPrice,
+        subtotal: newUnitPrice,
+        customization: {
+          ...item.customization,
+          consumptionType: newConsumptionType,
+          packaging: targetPackaging,
+        },
+      };
+
+      // Si ya existe un ítem en la comanda con esta modalidad e idénticas opciones, incrementarlo
+      const existingMatchIndex = prevItems.findIndex(
+        (it) =>
+          it.productId === item.productId &&
+          (it.consumptionType || it.customization?.consumptionType) === newConsumptionType &&
+          (it.customization?.packaging?.id || null) === (targetPackaging?.id || null) &&
+          (it.customization?.temperature || null) === (item.customization?.temperature || null) &&
+          (it.customization?.creamsSummary || '') === (item.customization?.creamsSummary || '') &&
+          (it.customization?.saladSummary || '') === (item.customization?.saladSummary || '') &&
+          (it.customization?.itemNotes || '').trim().toLowerCase() === (item.customization?.itemNotes || '').trim().toLowerCase() &&
+          JSON.stringify(it.customization?.selectedExtras || []) === JSON.stringify(item.customization?.selectedExtras || []) &&
+          JSON.stringify(it.customization?.selectedModifiers || []) === JSON.stringify(item.customization?.selectedModifiers || [])
+      );
+
+      if (existingMatchIndex !== -1) {
+        return prevItems.map((it, idx) => {
+          if (idx === targetIndex) return updatedOriginal;
+          if (idx === existingMatchIndex) {
+            const newQty = it.quantity + 1;
+            return {
+              ...it,
+              quantity: newQty,
+              subtotal: Math.round(it.unitPrice * newQty * 100) / 100,
+            };
+          }
+          return it;
+        });
+      }
+
+      // Si no existe, insertar splitItem tras el ítem original
+      const result = [...prevItems];
+      result[targetIndex] = updatedOriginal;
+      result.splice(targetIndex + 1, 0, splitItem);
+      return result;
     });
   };
 
@@ -420,6 +636,7 @@ export function CartProvider({ children }) {
     addItem,
     updateItemQuantity,
     updateItemCustomization,
+    updateItemConsumptionType,
     removeItem,
     clearCart,
     itemsSubtotal,

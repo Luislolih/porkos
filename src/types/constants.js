@@ -59,6 +59,39 @@ export const ORDER_MODALITIES = {
   },
 };
 
+export const ITEM_CONSUMPTION_TYPES = {
+  MESA: {
+    id: 'MESA',
+    label: 'Mesa',
+    shortLabel: 'Mesa',
+    badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+    icon: 'Utensils',
+  },
+  CONSUMO_EXTERNO: {
+    id: 'CONSUMO_EXTERNO',
+    label: 'Ir Comiendo',
+    shortLabel: 'Ir comiendo',
+    badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+    icon: 'Package',
+  },
+  PARA_LLEVAR: {
+    id: 'PARA_LLEVAR',
+    label: 'Para Llevar',
+    shortLabel: 'Llevar',
+    badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    icon: 'ShoppingBag',
+  },
+};
+
+export function resolveItemConsumptionType(item, orderModality) {
+  if (item?.consumptionType) return item.consumptionType;
+  if (item?.customization?.consumptionType) return item.customization.consumptionType;
+  if (orderModality === 'PARA_LLEVAR' || orderModality === 'LLEVAR') return 'PARA_LLEVAR';
+  if (orderModality === 'CONSUMO_EXTERNO') return 'CONSUMO_EXTERNO';
+  if (orderModality === 'DELIVERY') return 'DELIVERY';
+  return 'MESA';
+}
+
 export const ORDER_STATUS = {
   PENDIENTE: {
     id: 'PENDIENTE',

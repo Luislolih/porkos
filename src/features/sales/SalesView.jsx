@@ -132,6 +132,15 @@ export default function SalesView({
         modality === 'DELIVERY' ||
         modality === 'LLEVAR');
 
+    const defaultConsumptionType =
+      salesMode === SALES_MODES.MARKET
+        ? 'MESA'
+        : isTakeoutOrDelivery
+        ? (modality === 'DELIVERY' ? 'DELIVERY' : 'PARA_LLEVAR')
+        : modality === 'CONSUMO_EXTERNO'
+        ? 'CONSUMO_EXTERNO'
+        : 'MESA';
+
     let defaultPackaging = null;
     if (isTakeoutOrDelivery) {
       defaultPackaging =
@@ -141,7 +150,9 @@ export default function SalesView({
             pkg.id !== 'pkg_ninguno' &&
             (product.availablePackagingIds?.includes(pkg.id) ||
               pkg.applicableProductIds?.includes(product.id))
-        ) || null;
+        ) ||
+        (catalogPackagings || []).find((pkg) => pkg.active && pkg.id !== 'pkg_ninguno') ||
+        null;
     }
 
     if (product.type === 'MARKET' || product.line === 'MARKET' || product.type === SALES_MODES.MARKET) {
@@ -156,6 +167,7 @@ export default function SalesView({
         removedIngredients: [],
         packaging: null,
         itemNotes: '',
+        consumptionType: defaultConsumptionType,
       });
     } else {
       const defaultMods = [];
@@ -186,6 +198,7 @@ export default function SalesView({
         packaging: defaultPackaging,
         removedIngredients: [],
         itemNotes: '',
+        consumptionType: defaultConsumptionType,
       });
     }
 

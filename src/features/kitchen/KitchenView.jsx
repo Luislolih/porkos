@@ -14,6 +14,7 @@ import {
 import { formatTime, formatElapsedTime, isOrderDelayed } from '../../utils/formatters';
 import { getItemTicketDetails } from '../../utils/ticketFormatter';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
+import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
 import { isProductBeverage, isProductMarket } from '../../utils/productCategories';
 
 export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
@@ -201,13 +202,14 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
 
                 {/* Nombre y Especificaciones Limpias (1º Ensalada, 2º Papas, 3º Cremas) */}
                 <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="bg-zinc-800 text-white border border-zinc-700 px-1.5 py-0.2 rounded text-xs font-black shrink-0">
                       {item.quantity}×
                     </span>
                     <h5 className="font-extrabold text-sm text-white leading-tight truncate">
                       {item.name}
                     </h5>
+                    <ItemConsumptionBadge item={item} orderModality={order.modality} />
                   </div>
 
                   {ticketLines.length > 0 && (
@@ -263,9 +265,12 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                           {bev.quantity}×
                         </span>
                         <div className="min-w-0">
-                          <p className="font-extrabold text-white truncate text-xs leading-tight">
-                            {bev.name}
-                          </p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-extrabold text-white truncate text-xs leading-tight">
+                              {bev.name}
+                            </p>
+                            <ItemConsumptionBadge item={bev} orderModality={order.modality} />
+                          </div>
                           {bev.customization?.itemNotes && (
                             <p className="text-[10px] text-amber-300 italic truncate">
                               &ldquo;{bev.customization.itemNotes}&rdquo;
@@ -464,13 +469,14 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                 key={idx}
                 className="bg-black/50 p-2 rounded-xl border border-zinc-800 flex items-center justify-between gap-2"
               >
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded font-black text-xs shrink-0">
                     {item.quantity}×
                   </span>
                   <span className="font-bold text-white text-xs truncate">
                     {item.name}
                   </span>
+                  <ItemConsumptionBadge item={item} orderModality={order.modality} />
                 </div>
                 {item.customization?.temperature && (
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 shrink-0">

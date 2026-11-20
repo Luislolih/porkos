@@ -22,6 +22,7 @@ import { useCart } from '../../../context/useCart';
 import { useCatalog } from '../../../context/useCatalog';
 import { formatCurrency } from '../../../utils/formatters';
 import { isProductMarket } from '../../../utils/productCategories';
+import { resolveItemConsumptionType } from '../../../types/constants';
 import Button from '../../../components/ui/Button';
 import ProductThumbnail from '../../../components/ui/ProductThumbnail';
 import Modal from '../../../components/ui/Modal';
@@ -53,6 +54,7 @@ export default function CartView({
   const {
     items,
     updateItemQuantity,
+    updateItemConsumptionType,
     removeItem,
     clearCart,
     itemsSubtotal,
@@ -286,6 +288,7 @@ export default function CartView({
             const isCustomizable = Boolean(onEditItem);
             const isMarketItem = isMarketMode || !item.requiresKitchen;
             const showCreams = !isMarketItem && item.customization?.creamsSummary && item.customization.creamsSummary !== 'SIN CREMAS';
+            const itemConsumption = resolveItemConsumptionType(item, modality);
 
             const hasDetails = Boolean(
               item.customization?.saladSummary ||
@@ -340,6 +343,62 @@ export default function CartView({
                     {formatCurrency(item.subtotal)}
                   </span>
                 </div>
+
+                {/* Selector / Pestañita editable de Destino: Mesa / Ir Comiendo / Llevar */}
+                {!isMarketMode && modality !== 'DELIVERY' && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-zinc-800/80 w-fit touch-manipulation"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => updateItemConsumptionType(item.itemId, 'MESA')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 touch-manipulation ${
+                        itemConsumption === 'MESA'
+                          ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                      }`}
+                      title="Para comer en mesa / salón"
+                    >
+                      <Utensils className="w-3 h-3 text-blue-300 shrink-0" />
+                      <span>Mesa</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => updateItemConsumptionType(item.itemId, 'CONSUMO_EXTERNO')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 touch-manipulation ${
+                        itemConsumption === 'CONSUMO_EXTERNO'
+                          ? 'bg-purple-600 text-white shadow-sm ring-1 ring-purple-400/50'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                      }`}
+                      title="Para ir comiendo al paso"
+                    >
+                      <Package className="w-3 h-3 text-purple-300 shrink-0" />
+                      <span>Ir comiendo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => updateItemConsumptionType(item.itemId, 'PARA_LLEVAR')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 touch-manipulation ${
+                        itemConsumption === 'PARA_LLEVAR'
+                          ? 'bg-amber-500 text-black shadow-sm ring-1 ring-amber-400/50'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                      }`}
+                      title="Para llevar (agrega táper y empaque)"
+                    >
+                      <ShoppingBag className="w-3 h-3 text-amber-950 shrink-0" />
+                      <span>Llevar</span>
+                    </button>
+
+                    {item.quantity > 1 && (
+                      <span className="text-[9px] text-zinc-500 pl-1 italic select-none">
+                        (x{item.quantity})
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Customization Details - Formato Gastronómico Limpio y de Alto Contraste */}
                 {hasDetails && (

@@ -3,6 +3,13 @@ export function getItemTicketDetails(customization) {
 
   const lines = [];
 
+  // 0. DESTINO INDIVIDUAL: PARA LLEVAR / IR COMIENDO
+  if (customization.consumptionType === 'PARA_LLEVAR') {
+    lines.push({ label: 'PEDIDO', value: 'PARA LLEVAR (TÁPER)', type: 'takeout' });
+  } else if (customization.consumptionType === 'CONSUMO_EXTERNO') {
+    lines.push({ label: 'PEDIDO', value: 'IR COMIENDO', type: 'external' });
+  }
+
   // 1. ENSALADA: COMPLETA / SIN ENSALADA / TOMATE, LECHUGA (1º EN COMANDA Y COCINA)
   if (customization.saladSummary) {
     let saladVal = customization.saladSummary;
