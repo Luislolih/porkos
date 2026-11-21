@@ -79,6 +79,7 @@ export function AuthProvider({ children }) {
           displayName: currentUser.displayName || (email ? email.split('@')[0] : 'Operador PORKOS'),
           email,
           photoURL: currentUser.photoURL,
+          emailVerified: currentUser.emailVerified,
         };
         setFirebaseUser(profile);
       } else {
@@ -101,16 +102,17 @@ export function AuthProvider({ children }) {
     let role = matching?.role;
 
     // Si no está registrado en la lista:
-    // El primer usuario del sistema o cualquier correo @porkos.pe tiene rol ADMIN; otros CAJERO
+    // Solo 'admin@porkos.pe' o correo institucional verificado '@porkos.pe' inicia como ADMIN;
+    // cualquier otro usuario externo inicia como GUEST (requiere aprobación explícita de un Administrador)
     if (!role) {
-      if (authorizedUsers.length === 0 || email?.endsWith('@porkos.pe')) {
+      if (email === 'admin@porkos.pe' || (email?.endsWith('@porkos.pe') && firebaseUser.emailVerified)) {
         role = 'ADMIN';
       } else {
-        role = 'CAJERO';
+        role = 'GUEST';
       }
     }
 
-    const roleInfo = APP_ROLES[role] || APP_ROLES.CAJERO;
+    const roleInfo = APP_ROLES[role] || APP_ROLES.GUEST;
     const resolvedDisplayName = matching?.displayName || firebaseUser.displayName || (email ? email.split('@')[0] : 'Usuario');
 
     return {
@@ -159,7 +161,7 @@ export function AuthProvider({ children }) {
       if (email) {
         const matching = authorizedUsers.find((u) => u.email?.toLowerCase() === email);
         if (!matching) {
-          const autoRole = (authorizedUsers.length === 0 || email.endsWith('@porkos.pe')) ? 'ADMIN' : 'CAJERO';
+          const autoRole = (email === 'admin@porkos.pe' || (email.endsWith('@porkos.pe') && result.user.emailVerified)) ? 'ADMIN' : 'GUEST';
           await saveUserToFirestore({
             email,
             displayName,

@@ -2,20 +2,31 @@
 
 @theme {
   --color-porkos-orange: #FD8B00;
-  --color-porkos-orange-hover: #E57C00;
-  --color-porkos-orange-muted: rgba(253, 139, 0, 0.15);
-  --color-porkos-bg: #0C0C0E;
-  --color-porkos-surface: #151518;
-  --color-porkos-surface-hover: #1E1E23;
-  --color-porkos-surface-active: #27272E;
-  --color-porkos-border: #24242A;
-  --color-porkos-border-focus: #3F3F46;
-  --color-porkos-muted: #9CA3AF;
-  --color-porkos-light: #F4F4F5;
+  --color-porkos-orange-hover: #EA7F00;
+  --color-porkos-orange-active: #D47200;
+  --color-porkos-orange-muted: rgba(253, 139, 0, 0.12);
+  --color-porkos-orange-glow: rgba(253, 139, 0, 0.22);
+  --color-porkos-bg: #09090B;
+  --color-porkos-surface: #121215;
+  --color-porkos-surface-hover: #19191E;
+  --color-porkos-surface-active: #22222A;
+  --color-porkos-surface-card: #141418;
+  --color-porkos-surface-elevated: #1B1B22;
+  --color-porkos-border: #222229;
+  --color-porkos-border-subtle: #191920;
+  --color-porkos-border-hover: #32323D;
+  --color-porkos-border-focus: #FD8B00;
+  --color-porkos-muted: #8E8E9B;
+  --color-porkos-text-secondary: #A1A1AA;
+  --color-porkos-text-tertiary: #71717A;
+  --color-porkos-light: #F4F4F6;
+  --color-porkos-success: #10B981;
+  --color-porkos-warning: #F59E0B;
+  --color-porkos-danger: #F43F5E;
 }
 
 html {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
   background-color: var(--color-porkos-bg);
   color: var(--color-porkos-light);
   -webkit-tap-highlight-color: transparent;
@@ -34,11 +45,11 @@ body {
   overflow-x: hidden;
 }
 
-/* Animaciones fluidas y modernas de apertura */
+/* Animaciones fluidas para modales y transiciones */
 @keyframes modalEnter {
   from {
     opacity: 0;
-    transform: scale(0.97) translateY(4px);
+    transform: scale(0.97) translateY(6px);
   }
   to {
     opacity: 1;
@@ -46,10 +57,10 @@ body {
   }
 }
 
-@keyframes fadeInSmooth {
+@keyframes drawerEnterBottom {
   from {
     opacity: 0;
-    transform: translateY(3px);
+    transform: translateY(100%);
   }
   to {
     opacity: 1;
@@ -57,12 +68,40 @@ body {
   }
 }
 
+@keyframes fadeInSmooth {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseSubtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
 .animate-modal-enter {
   animation: modalEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+.animate-drawer-bottom {
+  animation: drawerEnterBottom 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 .animate-fade-in-smooth {
-  animation: fadeInSmooth 0.15s ease-out forwards;
+  animation: fadeInSmooth 0.16s ease-out forwards;
+}
+
+.animate-pulse-subtle {
+  animation: pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* Scrollbar táctil moderno y discreto */
@@ -94,7 +133,7 @@ body {
   scrollbar-width: none;
 }
 
-/* Prevenir auto-zoom molesto en inputs en móviles (iOS Safari / Android Chrome) */
+/* Prevenir auto-zoom molesto en inputs en móviles */
 @media screen and (max-width: 768px) {
   input,
   select,
@@ -114,7 +153,7 @@ button {
 button,
 [role="button"] {
   -webkit-touch-callout: none;
-  transition-property: transform, background-color, border-color, color, box-shadow;
+  transition-property: transform, background-color, border-color, color, box-shadow, opacity;
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   transition-duration: 120ms;
 }

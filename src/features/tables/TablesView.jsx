@@ -17,6 +17,7 @@ export default function TablesView({
   onEditTableOrder,
 }) {
   const [closingOrder, setClosingOrder] = useState(null);
+  const [isClosing, setIsClosing] = useState(false);
   const [, setTick] = useState(0);
 
   // Re-evaluar tiempos transcurridos de mesas cada 20 segundos
@@ -35,11 +36,19 @@ export default function TablesView({
     });
   };
 
-  const handleConfirmClosePayment = (paymentDetail) => {
-    if (onCloseTable && closingOrder) {
-      onCloseTable(closingOrder.tableId, closingOrder.orderNumbers || closingOrder.orderNumber, paymentDetail);
+  const handleConfirmClosePayment = async (paymentDetail) => {
+    if (isClosing) return;
+    setIsClosing(true);
+    try {
+      if (onCloseTable && closingOrder) {
+        await onCloseTable(closingOrder.tableId, closingOrder.orderNumbers || closingOrder.orderNumber, paymentDetail);
+      }
+      setClosingOrder(null);
+    } catch (err) {
+      console.error('Error cerrando mesa:', err);
+    } finally {
+      setIsClosing(false);
     }
-    setClosingOrder(null);
   };
 
   // Cargar comanda unificada de mesa para editar antes del cierre
@@ -282,13 +291,14 @@ export default function TablesView({
         })}
       </div>
 
-      {/* Modal de Cobro y Cierre de Mesa */}
+      {/* Modal de Cobro y Cierre de Mesa con protección de idempotencia */}
       {closingOrder && (
         <QuickPaymentModal
           isOpen={Boolean(closingOrder)}
-          onClose={() => setClosingOrder(null)}
+          onClose={() => !isClosing && setClosingOrder(null)}
           total={closingOrder.total}
           onConfirmPayment={handleConfirmClosePayment}
+          isSubmitting={isClosing}
         />
       )}
     </div>

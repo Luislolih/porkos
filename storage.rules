@@ -7,29 +7,45 @@ service firebase.storage {
       return request.auth != null && request.auth.token.email != null;
     }
 
-    // 2. Lista de correos autorizados para subir y administrar archivos
-    function isAuthorizedEmail() {
+    // 2. Administradores y correos institucionales verificados
+    function isSuperAdmin() {
       return isAuthenticated() && (
         request.auth.token.email.lower() in [
           'admin@porkos.pe'
-          // Agrega aquí tu correo personal de Google/Gmail:
-          // 'tu-correo@gmail.com'
-        ] ||
-        request.auth.token.email.matches('.*@porkos[.]pe') ||
-        firestore.exists(/databases/(default)/documents/users/$(request.auth.token.email.lower()))
+        ] || (
+          request.auth.token.email.matches('.*@porkos[.]pe') &&
+          request.auth.token.email_verified == true
+        )
+      );
+    }
+
+    // 3. Usuario registrado con rol operativo (no GUEST)
+    function isStaff() {
+      return isSuperAdmin() || (
+        isAuthenticated() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.token.email.lower())) &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.token.email.lower())).data.role != 'GUEST'
+      );
+    }
+
+    // 4. Coordinadores y Administradores autorizados para subir y borrar fotos del catálogo
+    function canManageCatalogImages() {
+      return isSuperAdmin() || (
+        isAuthenticated() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.token.email.lower())) &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.token.email.lower())).data.role in ['ADMIN', 'OWNER', 'COORDINADOR']
       );
     }
 
     // Fotografías de productos del catálogo:
-    // - Lectura: Exclusiva para usuarios autenticados con correos autorizados
-    // - Escritura / Subida: Correos autorizados, validando tipo de archivo y tamaño menor a 300 KB
-    // - Eliminación: Solo correos autorizados
+    // - Lectura: Personal autorizado del restaurante (no GUEST)
+    // - Escritura / Subida / Eliminación: Exclusiva para Administradores, Dueño y Coordinador
     match /products/{allPaths=**} {
-      allow read: if isAuthorizedEmail();
-      allow write: if isAuthorizedEmail()
+      allow read: if isStaff();
+      allow write: if canManageCatalogImages()
         && request.resource.size < 300 * 1024
         && request.resource.contentType.matches('image/(webp|jpeg|png)');
-      allow delete: if isAuthorizedEmail();
+      allow delete: if canManageCatalogImages();
     }
 
     // Bloqueo total por defecto para cualquier otra ruta dentro de Storage

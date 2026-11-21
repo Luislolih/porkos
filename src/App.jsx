@@ -131,11 +131,7 @@ function MainApp() {
             return (b.orderNumber || '').localeCompare(a.orderNumber || '', undefined, { numeric: true });
           });
           setOrders(sorted);
-          try {
-            localStorage.setItem('porkos_orders', JSON.stringify(sorted));
-          } catch (e) {
-            console.warn('Error guardando órdenes en localStorage:', e);
-          }
+          saveOrdersLocal(sorted);
         }
       },
       (err) => {
@@ -215,9 +211,11 @@ function MainApp() {
 
     const isTableModality = newOrder.modality === 'MESA' || Boolean(newOrder.tableId);
     const orderStatus = newOrder.status || 'PENDIENTE';
+    const orderUniqueId = newOrder.id || `ord_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     const cleanOrder = {
       ...newOrder,
+      id: orderUniqueId,
       status: orderStatus,
       paymentStatus: isTableModality ? (newOrder.paymentStatus || 'PENDING') : 'PAID',
       createdAt: newOrder.createdAt instanceof Date ? newOrder.createdAt : parseToDate(newOrder.createdAt) || new Date(),
@@ -225,7 +223,7 @@ function MainApp() {
 
     // Actualización optimista local
     setOrders((prev) => {
-      const filtered = prev.filter((o) => o.orderNumber !== cleanOrder.orderNumber);
+      const filtered = prev.filter((o) => o.id !== cleanOrder.id && o.orderNumber !== cleanOrder.orderNumber);
       const updated = [cleanOrder, ...filtered];
       saveOrdersLocal(updated);
       return updated;
@@ -236,10 +234,14 @@ function MainApp() {
     if (!res?.success) {
       console.error('Error al guardar comanda en Firestore:', res?.error);
       alert('Aviso: Hubo un inconveniente al registrar la orden en la base de datos en tiempo real. Verifica tu conexión.');
-    } else if (res.orderNumber && res.orderNumber !== cleanOrder.orderNumber) {
-      // Si el correlativo fue reasignado automáticamente para no sobreescribir otra orden, actualizar localmente
+    } else if (res.orderNumber && (res.orderNumber !== cleanOrder.orderNumber || res.id !== cleanOrder.id)) {
+      // Si el correlativo fue asignado atómicamente en Firestore, actualizar localmente
       setOrders((prev) => {
-        const updated = prev.map((o) => (o.orderNumber === cleanOrder.orderNumber ? { ...o, orderNumber: res.orderNumber } : o));
+        const updated = prev.map((o) =>
+          o.id === cleanOrder.id || o.orderNumber === cleanOrder.orderNumber
+            ? { ...o, id: res.id || o.id, orderNumber: res.orderNumber }
+            : o
+        );
         saveOrdersLocal(updated);
         return updated;
       });
@@ -259,13 +261,23 @@ function MainApp() {
           .map((o) => o.orderNumber)
       : [];
 
-    const targetNumbers = Array.from(new Set([...inputNumbers, ...activeTableNumbers]));
+    const targetNumbers = Array.from(new Set([...inputNumbers, ...activeTableNumbers]))
+      .filter((num) => {
+        const ord = orders.find((o) => o.orderNumber === num || o.id === num);
+        // Excluir órdenes ya canceladas o ya pagadas (protección contra doble liquidación o anulación previa)
+        return ord ? (ord.status !== 'CANCELADO' && ord.paymentStatus !== 'PAID') : Boolean(num);
+      });
+
+    if (targetNumbers.length === 0) {
+      console.warn('La mesa ya se encuentra liquidada o sin comandas pendientes.');
+      return;
+    }
 
     // Optimista local: registrar en cada orden su importe individual exacto para no triplicar ingresos en auditoría
     setOrders((prev) => {
       const updated = prev.map((o) => {
         const matchesTable = tableId && o.tableId === tableId && o.paymentStatus !== 'PAID' && o.status !== 'CANCELADO';
-        const matchesNumber = targetNumbers.includes(o.orderNumber);
+        const matchesNumber = targetNumbers.includes(o.orderNumber) || targetNumbers.includes(o.id);
         if (matchesTable || matchesNumber) {
           const itemAmount = Number(o.total) || 0;
           return {
@@ -291,14 +303,15 @@ function MainApp() {
     // Persistir en Firestore para cada orden cerrada con su importe proporcional correspondiente
     for (const num of targetNumbers) {
       if (num) {
-        const targetOrder = orders.find((o) => o.orderNumber === num);
+        const targetOrder = orders.find((o) => o.orderNumber === num || o.id === num);
         const itemAmount = Number(targetOrder?.total) || 0;
+        const targetDocIdentifier = targetOrder?.id || num;
         const orderPayment = {
           ...paymentDetail,
           amount: itemAmount > 0 ? itemAmount : paymentDetail.amount,
           consolidatedTableTotal: paymentDetail.amount,
         };
-        const res = await settleOrderInFirestore(num, orderPayment);
+        const res = await settleOrderInFirestore(targetDocIdentifier, orderPayment);
         if (!res?.success) {
           console.error(`Error al liquidar orden ${num} en Firestore:`, res?.error);
         }
@@ -497,7 +510,7 @@ function MainApp() {
 }
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, allowedModules, logout } = useAuth();
 
   if (loading) {
     return (
@@ -514,6 +527,35 @@ function AppContent() {
 
   if (!user) {
     return <LoginView />;
+  }
+
+  // Protección UI estricta para cuentas nuevas pendientes de aprobación
+  if (user?.role === 'GUEST' || (allowedModules && allowedModules.length === 0)) {
+    return (
+      <div className="min-h-screen bg-[#080808] text-white flex flex-col items-center justify-center p-4 selection:bg-orange-500 selection:text-black">
+        <div className="max-w-md w-full bg-zinc-900/90 border border-zinc-800 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-2xl backdrop-blur-md">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-3xl">
+            🔒
+          </div>
+          <h2 className="text-xl font-black text-zinc-100 tracking-tight">Acceso Pendiente de Aprobación</h2>
+          <p className="text-sm text-zinc-400 leading-relaxed">
+            Hola, <strong className="text-zinc-200">{user.displayName}</strong>. Tu cuenta (<span className="text-amber-400 font-mono text-xs">{user.email}</span>) ha sido registrada pero aún no cuenta con un rol operativo asignado.
+          </p>
+          <p className="text-xs text-zinc-500 leading-relaxed">
+            Por seguridad, solicita a un Administrador de Porkos que habilite tu rol en <em>Ajustes &gt; Accesos</em> para poder ingresar a las funciones del restaurante.
+          </p>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={logout}
+              className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-zinc-300 hover:text-white bg-zinc-800/80 hover:bg-zinc-700 border border-zinc-700/80 active:scale-95 transition-all cursor-pointer"
+            >
+              Cerrar sesión / Usar otra cuenta
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -69,6 +69,13 @@ export const APP_ROLES = {
       MODULES.ORDERS,
     ],
   },
+  GUEST: {
+    id: 'GUEST',
+    name: 'Invitado / Pendiente',
+    description: 'Cuenta pendiente de asignación de rol por el administrador',
+    badgeClass: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/40',
+    defaultModules: [],
+  },
 };
 
 export const ALL_MODULE_DEFINITIONS = [
@@ -83,9 +90,10 @@ export const ALL_MODULE_DEFINITIONS = [
 ];
 
 export function getAllowedModulesForRole(roleId, customRolePermissions = null) {
+  if (roleId === 'GUEST') return [];
   if (customRolePermissions && customRolePermissions[roleId]) {
     return customRolePermissions[roleId];
   }
-  const roleConfig = APP_ROLES[roleId] || APP_ROLES.CAJERO;
+  const roleConfig = APP_ROLES[roleId] || APP_ROLES.GUEST;
   return roleConfig.defaultModules;
 }

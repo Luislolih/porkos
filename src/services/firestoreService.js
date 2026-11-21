@@ -7,7 +7,10 @@ import {
   getDocs,
   getDoc,
   query,
+  where,
   orderBy,
+  limit,
+  runTransaction,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
@@ -61,82 +64,226 @@ function sanitizePayload(obj) {
 }
 
 // =========================================================================
-// 1. ÓRDENES / COMANDAS
+// 1. ÓRDENES / COMANDAS (ATÓMICAS, PARTICIONADAS E IDEMPOTENTES)
 // =========================================================================
+
+// Helper para resolver la referencia de un documento de orden por id único o por correlativo
+async function getOrderDocRef(identifier) {
+  if (!identifier) return null;
+  const idStr = String(identifier).trim();
+
+  // 1. Intento directo por document ID
+  const directRef = doc(db, 'orders', idStr);
+  try {
+    const snap = await getDoc(directRef);
+    if (snap.exists()) {
+      return directRef;
+    }
+  } catch (err) {
+    console.warn('Error verificando ID directo de orden:', err?.message);
+  }
+
+  // 2. Búsqueda por orderNumber si el identificador era el correlativo visible
+  try {
+    const q = query(collection(db, 'orders'), where('orderNumber', '==', idStr), limit(1));
+    const querySnap = await getDocs(q);
+    if (!querySnap.empty) {
+      return doc(db, 'orders', querySnap.docs[0].id);
+    }
+  } catch (err) {
+    console.warn('Error buscando orden por orderNumber:', err?.message);
+  }
+
+  // Fallback a directRef
+  return directRef;
+}
+
+/**
+ * Generador atómico de números correlativos (P-001, M-001) usando transacciones de Firestore.
+ * Garantiza que dos o más cajeros nunca obtengan el mismo correlativo incluso en clics concurrentes.
+ */
+export async function getNextAtomicOrderNumber(prefix = 'P') {
+  const counterRef = doc(db, 'app_config', 'order_counter');
+  const now = new Date();
+  const peruDateStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Lima' }); // YYYY-MM-DD
+
+  try {
+    const nextSeq = await runTransaction(db, async (transaction) => {
+      const counterSnap = await transaction.get(counterRef);
+      let currentSeq = 0;
+
+      if (counterSnap.exists()) {
+        const data = counterSnap.data();
+        const lastDate = data.date || peruDateStr;
+        // Si el contador es de hoy, tomamos la secuencia actual; si es de un nuevo día, reinicia en 0
+        if (lastDate === peruDateStr) {
+          currentSeq = Number(data[prefix]) || 0;
+        }
+      }
+
+      const seq = currentSeq + 1;
+      transaction.set(
+        counterRef,
+        {
+          date: peruDateStr,
+          [prefix]: seq,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      return seq;
+    });
+
+    return `${prefix}-${String(nextSeq).padStart(3, '0')}`;
+  } catch (err) {
+    console.warn('Advertencia en transacción de correlativo atómico (usando fallback seguro):', err?.message);
+    // Fallback de contingencia: marca de tiempo corta para garantizar unicidad sin detener la venta
+    const fallbackSeq = Math.floor(Date.now() % 1000);
+    return `${prefix}-${String(fallbackSeq).padStart(3, '0')}`;
+  }
+}
+
+/**
+ * Suscripción particionada en tiempo real:
+ * - Pedidos activos para cocina/barra (PENDIENTE, PREPARANDO, LISTO)
+ * - Pedidos de mesas no cobrados (paymentStatus == PENDING)
+ * - Pedidos recientes (limit 100 por createdAt desc)
+ * No descarga toda la base de datos histórica permanentemente, protegiendo memoria y cuota.
+ */
 export function subscribeToOrders(onUpdate, onError) {
   try {
     const ordersCol = collection(db, 'orders');
 
-    return onSnapshot(
-      ordersCol,
-      (snapshot) => {
-        const orders = snapshot.docs.map((docSnap) => {
-          const data = docSnap.data();
-          return {
-            ...data,
-            id: docSnap.id,
-            orderNumber: data.orderNumber || docSnap.id,
-            createdAt: formatFirestoreDate(data.createdAt),
-          };
-        });
+    // 1. Pedidos activos (Cocina / Barra)
+    const qActive = query(ordersCol, where('status', 'in', ['PENDIENTE', 'PREPARANDO', 'LISTO']));
 
-        // Ordenar en memoria por fecha descendente (más recientes primero)
-        orders.sort((a, b) => {
-          const timeA = a.createdAt?.getTime ? a.createdAt.getTime() : new Date(a.createdAt || 0).getTime();
-          const timeB = b.createdAt?.getTime ? b.createdAt.getTime() : new Date(b.createdAt || 0).getTime();
-          if (!isNaN(timeA) && !isNaN(timeB) && timeB !== timeA) return timeB - timeA;
-          return (b.orderNumber || '').localeCompare(a.orderNumber || '', undefined, { numeric: true });
-        });
+    // 2. Pedidos no liquidados de mesas (Salón)
+    const qUnpaid = query(ordersCol, where('paymentStatus', '==', 'PENDING'));
 
-        onUpdate(orders);
-      },
+    // 3. Pedidos recientes para caja/historial (últimos 100)
+    const qRecent = query(ordersCol, orderBy('createdAt', 'desc'), limit(100));
+
+    // Mapas en memoria por document ID
+    const activeMap = new Map();
+    const unpaidMap = new Map();
+    const recentMap = new Map();
+
+    const emitMerged = () => {
+      const mergedMap = new Map();
+      recentMap.forEach((val, id) => mergedMap.set(id, val));
+      unpaidMap.forEach((val, id) => mergedMap.set(id, val));
+      activeMap.forEach((val, id) => mergedMap.set(id, val));
+
+      const orders = Array.from(mergedMap.values());
+      // Ordenar en memoria por fecha descendente
+      orders.sort((a, b) => {
+        const timeA = a.createdAt?.getTime ? a.createdAt.getTime() : new Date(a.createdAt || 0).getTime();
+        const timeB = b.createdAt?.getTime ? b.createdAt.getTime() : new Date(b.createdAt || 0).getTime();
+        if (!isNaN(timeA) && !isNaN(timeB) && timeB !== timeA) return timeB - timeA;
+        return (b.orderNumber || '').localeCompare(a.orderNumber || '', undefined, { numeric: true });
+      });
+
+      onUpdate(orders);
+    };
+
+    const processDocs = (snapshot, targetMap) => {
+      targetMap.clear();
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        targetMap.set(docSnap.id, {
+          ...data,
+          id: docSnap.id,
+          orderNumber: data.orderNumber || docSnap.id,
+          createdAt: formatFirestoreDate(data.createdAt),
+        });
+      });
+      emitMerged();
+    };
+
+    const unsubActive = onSnapshot(
+      qActive,
+      (snap) => processDocs(snap, activeMap),
+      (err) => console.warn('Advertencia en subscripción qActive:', err?.message)
+    );
+
+    const unsubUnpaid = onSnapshot(
+      qUnpaid,
+      (snap) => processDocs(snap, unpaidMap),
+      (err) => console.warn('Advertencia en subscripción qUnpaid:', err?.message)
+    );
+
+    const unsubRecent = onSnapshot(
+      qRecent,
+      (snap) => processDocs(snap, recentMap),
       (err) => {
-        console.error('Error en suscripción de Firestore orders:', err);
+        console.warn('Advertencia en subscripción qRecent:', err?.message);
         if (onError) onError(err);
       }
     );
+
+    return () => {
+      unsubActive();
+      unsubUnpaid();
+      unsubRecent();
+    };
   } catch (err) {
-    console.error('Error inicializando suscripción de órdenes:', err);
+    console.error('Error inicializando suscripción particionada de órdenes:', err);
     if (onError) onError(err);
     return () => {};
   }
 }
 
+/**
+ * Consulta bajo demanda para reportes y auditoría histórica por rango de fechas
+ */
+export async function fetchOrdersByDateRange(startDate, endDate) {
+  try {
+    const startTs = Timestamp.fromDate(startDate instanceof Date ? startDate : new Date(startDate));
+    const endTs = Timestamp.fromDate(endDate instanceof Date ? endDate : new Date(endDate));
+    const q = query(
+      collection(db, 'orders'),
+      where('createdAt', '>=', startTs),
+      where('createdAt', '<=', endTs),
+      orderBy('createdAt', 'desc')
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((docSnap) => {
+      const data = docSnap.data();
+      return {
+        ...data,
+        id: docSnap.id,
+        orderNumber: data.orderNumber || docSnap.id,
+        createdAt: formatFirestoreDate(data.createdAt),
+      };
+    });
+  } catch (err) {
+    console.error('Error al consultar historial por rango de fechas:', err);
+    return [];
+  }
+}
+
 export async function saveOrderToFirestore(orderData, isNewOrder = false) {
   try {
-    let orderDocId = String(orderData.orderNumber || `ORD-${Date.now()}`);
-    let docRef = doc(db, 'orders', orderDocId);
+    // Garantizar ID interno inmutable único en Firestore para prevenir sobreescrituras accidentales
+    let orderDocId = orderData.id || orderData._id;
+    let orderNumber = orderData.orderNumber;
 
-    // Prevención de colisiones concurrentes si dos cajeros envían una orden nueva al mismo tiempo
-    if (isNewOrder) {
-      try {
-        const existingSnap = await getDoc(docRef);
-        if (existingSnap.exists()) {
-          // Si ya existe otra orden con este número, calcular el siguiente correlativo
-          const prefixMatch = orderDocId.match(/^([A-Za-z]+)-?(\d+)/);
-          if (prefixMatch) {
-            const prefix = prefixMatch[1] || 'P';
-            let nextNum = (parseInt(prefixMatch[2], 10) || 1) + 1;
-            orderDocId = `${prefix}-${String(nextNum).padStart(3, '0')}`;
-            docRef = doc(db, 'orders', orderDocId);
+    if (isNewOrder || !orderDocId) {
+      if (!orderDocId) {
+        orderDocId = doc(collection(db, 'orders')).id;
+      }
 
-            // Segunda verificación de respaldo
-            const secondSnap = await getDoc(docRef);
-            if (secondSnap.exists()) {
-              orderDocId = `${orderDocId}-${Date.now().toString().slice(-4)}`;
-              docRef = doc(db, 'orders', orderDocId);
-            }
-          } else {
-            orderDocId = `${orderDocId}-${Date.now().toString().slice(-4)}`;
-            docRef = doc(db, 'orders', orderDocId);
-          }
-        }
-      } catch (checkErr) {
-        console.warn('Advertencia en verificación de colisión de orden:', checkErr);
+      // Si no tiene número correlativo asignado o es provisional, obtenerlo atómicamente
+      if (!orderNumber || orderNumber.startsWith('TEMP-') || orderNumber.startsWith('ORD-')) {
+        const prefix = orderData.modality === 'MARKET' ? 'M' : 'P';
+        orderNumber = await getNextAtomicOrderNumber(prefix);
       }
     }
 
-    // Limpiar campos undefined del payload sin destruir clases Timestamp
+    const docRef = doc(db, 'orders', String(orderDocId));
+
+    // Sanitizar payload
     const sanitized = sanitizePayload(orderData);
 
     const validCreatedAt = orderData.createdAt instanceof Date
@@ -145,22 +292,25 @@ export async function saveOrderToFirestore(orderData, isNewOrder = false) {
 
     const cleanData = {
       ...sanitized,
-      orderNumber: orderDocId,
+      id: orderDocId,
+      orderNumber: orderNumber || orderDocId,
       createdAt: Timestamp.fromDate(validCreatedAt),
       updatedAt: serverTimestamp(),
     };
 
     await setDoc(docRef, cleanData, { merge: true });
-    return { success: true, orderNumber: orderDocId };
+    return { success: true, id: orderDocId, orderNumber: cleanData.orderNumber };
   } catch (err) {
     console.error('Error al guardar comanda en Firestore:', err);
     return { success: false, error: err };
   }
 }
 
-export async function updateOrderStatusInFirestore(orderNumber, newStatus) {
+export async function updateOrderStatusInFirestore(orderIdentifier, newStatus) {
   try {
-    const docRef = doc(db, 'orders', String(orderNumber));
+    const docRef = await getOrderDocRef(orderIdentifier);
+    if (!docRef) return { success: false, error: 'Documento no encontrado' };
+
     await setDoc(
       docRef,
       {
@@ -176,20 +326,30 @@ export async function updateOrderStatusInFirestore(orderNumber, newStatus) {
   }
 }
 
-export async function settleOrderInFirestore(orderNumber, paymentDetail) {
+export async function settleOrderInFirestore(orderIdentifier, paymentDetail) {
   try {
-    const docRef = doc(db, 'orders', String(orderNumber));
+    const docRef = await getOrderDocRef(orderIdentifier);
+    if (!docRef) return { success: false, error: 'Documento no encontrado' };
+
+    // Soportar pagos múltiples (split payments) o pago individual
+    const paymentsList = Array.isArray(paymentDetail?.payments)
+      ? paymentDetail.payments.map((p) => ({
+          ...sanitizePayload(p),
+          paidAt: p.paidAt ? formatFirestoreDate(p.paidAt) : Timestamp.fromDate(new Date()),
+        }))
+      : [
+          {
+            ...sanitizePayload(paymentDetail),
+            paidAt: Timestamp.fromDate(new Date()),
+          },
+        ];
+
     await setDoc(
       docRef,
       {
         status: 'ENTREGADO',
         paymentStatus: 'PAID',
-        payments: [
-          {
-            ...sanitizePayload(paymentDetail),
-            paidAt: Timestamp.fromDate(new Date()),
-          },
-        ],
+        payments: paymentsList,
         updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -201,9 +361,11 @@ export async function settleOrderInFirestore(orderNumber, paymentDetail) {
   }
 }
 
-export async function deleteOrderFromFirestore(orderNumber) {
+export async function deleteOrderFromFirestore(orderIdentifier) {
   try {
-    const docRef = doc(db, 'orders', orderNumber);
+    const docRef = await getOrderDocRef(orderIdentifier);
+    if (!docRef) return { success: false, error: 'Documento no encontrado' };
+
     await deleteDoc(docRef);
     return { success: true };
   } catch (err) {
