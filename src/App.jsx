@@ -398,7 +398,7 @@ function MainApp() {
         activeOrdersCount={activeOrdersCount}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5">
+      <main className="flex-1 max-w-[1720px] w-full mx-auto p-3 sm:p-4 lg:p-6">
         {activeModule === MODULES.SALES && (
           <SalesView
             onOrderCreated={handleOrderCreated}

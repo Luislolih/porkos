@@ -559,7 +559,7 @@ export default function SalesView({
           />
 
           {/* Grid de Productos (Ordenados de mayor a menor salida) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-3.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-3.5">
             {filteredAndSortedProducts.map((product) => (
               <ProductCard
                 key={product.id}
@@ -690,9 +690,13 @@ export default function SalesView({
         onConfirmPayment={handleConfirmPayment}
       />
 
-      {/* Flecha flotante para subir al inicio sin tapar el carrito ni el total de comanda */}
+      {/* Flecha flotante a la derecha en mobile y al borde del catálogo en desktop */}
       <ScrollToTopButton
-        className={items.length > 0 ? "bottom-32 left-4 lg:bottom-6 lg:left-8" : "bottom-20 left-4 lg:bottom-6 lg:left-8"}
+        className={
+          items.length > 0
+            ? "bottom-36 right-4 sm:bottom-36 sm:right-6 lg:bottom-6 lg:right-[43%] xl:right-[35%]"
+            : "bottom-20 right-4 sm:bottom-20 sm:right-6 lg:bottom-6 lg:right-[43%] xl:right-[35%]"
+        }
       />
     </div>
   );

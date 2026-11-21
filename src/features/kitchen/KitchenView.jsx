@@ -650,7 +650,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                     <p className="text-xs text-zinc-500 mt-0.5">Los nuevos pedidos de comida aparecerán aquí</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5 items-start">
                     {pendientes.map((order, idx) => renderOrderCard(order, 'PENDIENTE', idx + 1))}
                   </div>
                 )}
@@ -667,7 +667,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                     <p className="text-xs text-zinc-500 mt-0.5">Selecciona una comanda de &quot;Pendientes&quot; para iniciarla</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5 items-start">
                     {preparando.map((order, idx) => renderOrderCard(order, 'PREPARANDO', idx + 1))}
                   </div>
                 )}
@@ -684,7 +684,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                     <p className="text-xs text-zinc-500 mt-0.5">Al marcar una comanda como lista, se mostrará aquí</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5 items-start">
                     {listos.map((order, idx) => renderOrderCard(order, 'LISTO', idx + 1))}
                   </div>
                 )}
@@ -755,7 +755,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 items-start">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5 items-start">
                 {pendingDeliveries.map((order, idx) => renderDeliveryCard(order, idx + 1))}
               </div>
             )}

@@ -46,9 +46,9 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
     <>
       {/* Top Bar for Desktop & Mobile */}
       <header className="sticky top-0 z-30 bg-[var(--color-porkos-bg)]/95 backdrop-blur-md border-b border-[var(--color-porkos-border)] px-3 sm:px-4 py-2">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 xl:gap-4">
+        <div className="max-w-[1720px] mx-auto flex items-center justify-between gap-2 xl:gap-4">
           {/* Logo & Brand */}
-          <div className="flex items-center gap-2.5 shrink-0 whitespace-nowrap">
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 whitespace-nowrap">
             <img
               src="/favicon.png"
               alt="Porkos Isotipo"
@@ -56,10 +56,10 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
             />
             <div className="shrink-0 whitespace-nowrap">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <span className="font-extrabold text-lg sm:text-xl text-white tracking-wider whitespace-nowrap">
+                <span className="font-extrabold text-base sm:text-lg xl:text-xl text-white tracking-wider whitespace-nowrap">
                   PORKO<span className="text-[var(--color-porkos-orange)]">APP</span>
                 </span>
-                <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 uppercase shrink-0 inline-block">
+                <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 uppercase shrink-0 inline-block">
                   POS
                 </span>
               </div>
@@ -77,7 +77,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
                   type="button"
                   onClick={() => onSelectModule(item.id)}
                   className={`
-                    flex items-center gap-1.5 xl:gap-2 px-2.5 xl:px-3 py-1.5 rounded-xl text-xs font-bold transition-all relative cursor-pointer whitespace-nowrap shrink-0
+                    flex items-center gap-1.5 xl:gap-2 px-2 xl:px-3 py-1.5 rounded-xl text-xs font-bold transition-all relative cursor-pointer whitespace-nowrap shrink-0
                     ${
                       isActive
                         ? 'bg-[var(--color-porkos-orange)] text-black shadow-md'

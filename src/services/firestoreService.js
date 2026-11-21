@@ -468,6 +468,39 @@ export async function saveExpenseToFirestore(expense) {
   }
 }
 
+export async function updateExpenseInFirestore(expenseId, expenseData) {
+  try {
+    const docRef = doc(db, 'expenses', expenseId);
+    const sanitized = sanitizePayload(expenseData);
+    const cleanData = {
+      ...sanitized,
+      updatedAt: serverTimestamp(),
+    };
+    if (expenseData.date) {
+      const validDate = expenseData.date instanceof Date
+        ? expenseData.date
+        : formatFirestoreDate(expenseData.date);
+      cleanData.date = Timestamp.fromDate(validDate);
+    }
+    await setDoc(docRef, cleanData, { merge: true });
+    return true;
+  } catch (err) {
+    console.error('Error al actualizar gasto en Firestore:', err);
+    return false;
+  }
+}
+
+export async function deleteExpenseFromFirestore(expenseId) {
+  try {
+    const docRef = doc(db, 'expenses', expenseId);
+    await deleteDoc(docRef);
+    return true;
+  } catch (err) {
+    console.error('Error al eliminar gasto en Firestore:', err);
+    return false;
+  }
+}
+
 // =========================================================================
 // 7. CATEGORÍAS (100% DINÁMICAS EN FIRESTORE)
 // =========================================================================

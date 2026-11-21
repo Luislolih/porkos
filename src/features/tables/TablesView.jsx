@@ -86,7 +86,7 @@ export default function TablesView({
   return (
     <div className="space-y-3 pb-20 lg:pb-6">
       {/* Grid de Mesas Puestas en Salón */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
         {tables.map((table) => {
           const tableOrders = orders.filter(
             (o) => o.tableId === table.id && o.paymentStatus !== 'PAID' && o.status !== 'CANCELADO'
