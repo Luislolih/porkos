@@ -681,17 +681,14 @@ export default function SalesView({
           >
             {/* Tirador superior deslizante: arrastrar hacia abajo para cerrar o pulsar */}
             <div
-              className="w-full py-3 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing shrink-0 touch-none bg-black/40 border-b border-zinc-800/80 group select-none"
+              className="w-full py-2.5 flex items-center justify-center cursor-grab active:cursor-grabbing shrink-0 touch-none bg-black/40 border-b border-zinc-800/80 group select-none"
               onTouchStart={handleDrawerTouchStart}
               onTouchMove={handleDrawerTouchMove}
               onTouchEnd={handleDrawerTouchEnd}
               onClick={() => setIsMobileCartOpen(false)}
-              title="Desliza hacia abajo o toca para cerrar la comanda"
+              title="Desliza hacia abajo o toca para cerrar"
             >
               <div className="w-16 h-1.5 bg-zinc-500 rounded-full group-hover:bg-[var(--color-porkos-orange)] transition-colors shadow-xs" />
-              <span className="text-[10px] text-zinc-500 group-hover:text-zinc-300 font-semibold mt-1">
-                Deslizar para cerrar
-              </span>
             </div>
 
             <div className="flex-1 overflow-hidden flex flex-col">
