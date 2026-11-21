@@ -1,6 +1,22 @@
 import { MODULES } from './constants';
 
 export const APP_ROLES = {
+  OWNER: {
+    id: 'OWNER',
+    name: 'Propietario(a) / Dueño',
+    description: 'Control absoluto del negocio, finanzas y configuración',
+    badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+    defaultModules: [
+      MODULES.SALES,
+      MODULES.TABLES,
+      MODULES.KITCHEN,
+      MODULES.ORDERS,
+      MODULES.CATALOG,
+      MODULES.EXPENSES,
+      MODULES.DASHBOARD,
+      MODULES.SETTINGS,
+    ],
+  },
   ADMIN: {
     id: 'ADMIN',
     name: 'Administrador(a)',

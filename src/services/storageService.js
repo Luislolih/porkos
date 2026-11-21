@@ -64,12 +64,21 @@ function getStorageCandidates() {
 }
 
 /**
- * Prueba la conexión con Firebase Storage intentando subir y borrar un blob de prueba
+ * Prueba la conexión con Firebase Storage intentando subir y borrar un blob de prueba (PNG válido según storage.rules)
  */
 export async function testStorageConnection() {
   const candidates = getStorageCandidates();
-  const testBlob = new Blob(['porkos_test'], { type: 'text/plain' });
-  const testPath = `products/_test_connection_${Date.now()}.txt`;
+  // 1x1 transparent PNG para satisfacer regla de tipo MIME image/(webp|jpeg|png) en Storage
+  const png1x1 = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+    0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+    0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+    0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+    0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+  ]);
+  const testBlob = new Blob([png1x1], { type: 'image/png' });
+  const testPath = `products/_test_connection_${Date.now()}.png`;
 
   let lastError = null;
   const attempts = [];
@@ -78,7 +87,7 @@ export async function testStorageConnection() {
     try {
       const testRef = ref(candidate.instance, testPath);
       await withTimeout(
-        uploadBytes(testRef, testBlob, { contentType: 'text/plain' }),
+        uploadBytes(testRef, testBlob, { contentType: 'image/png' }),
         6000,
         `Timeout en bucket ${candidate.name}`
       );

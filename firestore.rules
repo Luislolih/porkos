@@ -14,8 +14,10 @@ service cloud.firestore {
           'admin@porkos.pe'
           // Agrega aquí tu correo personal de Google/Gmail:
           // 'tu-correo@gmail.com'
-        ] ||
-        request.auth.token.email.matches('.*@porkos[.]pe')
+        ] || (
+          request.auth.token.email.matches('.*@porkos[.]pe') &&
+          request.auth.token.email_verified == true
+        )
       );
     }
 
@@ -64,15 +66,17 @@ service cloud.firestore {
 
     // 1. Gestión de Usuarios y Accesos (/users/{userEmail}):
     // - Lectura: Exclusiva para usuarios autorizados
-    // - Creación inicial: El propio usuario registrándose por primera vez con su email
+    // - Creación inicial: El propio usuario registrándose por primera vez con su email (solo rol CAJERO o GUEST, nunca ADMIN/OWNER)
     // - Edición y eliminación: SOLO Administradores
     match /users/{userEmail} {
       allow read: if isAuthorizedUser();
-      allow write: if isAdmin() || (
+      allow create: if isAdmin() || (
         isAuthenticated() &&
         request.auth.token.email.lower() == userEmail.lower() &&
-        !exists(/databases/$(database)/documents/users/$(userEmail.lower()))
+        !exists(/databases/$(database)/documents/users/$(userEmail.lower())) &&
+        request.resource.data.role in ['GUEST', 'CAJERO']
       );
+      allow update, delete: if isAdmin();
     }
 
     // 2. Configuración General del Sistema (/app_config/{configId}):

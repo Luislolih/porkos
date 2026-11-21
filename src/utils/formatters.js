@@ -36,23 +36,42 @@ export const formatCurrency = (amount) => {
 export const formatDate = (dateInput) => {
   const date = parseToDate(dateInput);
   if (!date) return '--/--/----';
-  return date.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return date.toLocaleDateString('es-PE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'America/Lima',
+  });
 };
 
 export const formatDateTime = (dateInput) => {
   const date = parseToDate(dateInput);
   if (!date) return '--/--/---- --:--';
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  const time = date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false });
-  return `${day}/${month}/${year} ${time}`;
+  const parts = new Intl.DateTimeFormat('es-PE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'America/Lima',
+  }).formatToParts(date);
+  const p = {};
+  parts.forEach((part) => {
+    p[part.type] = part.value;
+  });
+  return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
 };
 
 export const formatTime = (dateInput) => {
   const date = parseToDate(dateInput);
   if (!date) return '--:--';
-  return date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return date.toLocaleTimeString('es-PE', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'America/Lima',
+  });
 };
 
 export const formatElapsedTime = (dateInput) => {

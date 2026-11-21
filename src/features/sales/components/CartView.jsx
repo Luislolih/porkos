@@ -51,6 +51,7 @@ export default function CartView({
   onSaveEditedOrder,
   onCancelEditing,
   onCloseMobileCart,
+  isSubmitting = false,
 }) {
   const {
     items,
@@ -708,19 +709,22 @@ export default function CartView({
             <div className="space-y-2">
               <Button
                 onClick={onSaveEditedOrder}
-                disabled={items.length === 0 || (modality === 'MESA' && !selectedTable)}
+                disabled={isSubmitting || items.length === 0 || (modality === 'MESA' && !selectedTable)}
                 variant="primary"
                 size="lg"
                 icon={Check}
                 className="w-full text-xs sm:text-sm font-black py-3.5 bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 cursor-pointer"
               >
-                Guardar Cambios Comanda {editingOrder.orderNumber} ({formatCurrency(total)})
+                {isSubmitting
+                  ? 'Guardando cambios...'
+                  : `Guardar Cambios Comanda ${editingOrder.orderNumber} (${formatCurrency(total)})`}
               </Button>
               <Button
                 onClick={() => {
                   cancelEditingOrder();
                   if (onCancelEditing) onCancelEditing();
                 }}
+                disabled={isSubmitting}
                 variant="secondary"
                 size="sm"
                 className="w-full text-xs font-bold py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 cursor-pointer"
@@ -732,24 +736,26 @@ export default function CartView({
             /* EN MODO MARKET: Acción directa y limpia de COBRAR */
             <Button
               onClick={onCheckout}
-              disabled={items.length === 0}
+              disabled={isSubmitting || items.length === 0}
               variant="primary"
               size="lg"
               className="w-full text-sm sm:text-base font-black bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-600/20 py-3.5 cursor-pointer"
             >
-              Cobrar {formatCurrency(total)}
+              {isSubmitting ? 'Procesando...' : `Cobrar ${formatCurrency(total)}`}
             </Button>
           ) : isTableOccupied && selectedTable ? (
             /* EN MESA ABIERTA: Cada pedido se envía individual a cocina o se suma a la mesa */
             <Button
               onClick={onSendToKitchen}
-              disabled={items.length === 0}
+              disabled={isSubmitting || items.length === 0}
               variant="primary"
               size="lg"
               icon={hasKitchenItems ? Flame : Package}
               className="w-full text-xs sm:text-sm font-black py-3.5 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20 cursor-pointer active:scale-98"
             >
-              {hasKitchenItems
+              {isSubmitting
+                ? 'Enviando...'
+                : hasKitchenItems
                 ? `Mandar a Cocina (${selectedTable.label}) • ${formatCurrency(total)}`
                 : `Enviar a Entregas (${selectedTable.label}) • ${formatCurrency(total)}`}
             </Button>
@@ -764,7 +770,7 @@ export default function CartView({
                     onSendToKitchen();
                   }
                 }}
-                disabled={items.length === 0}
+                disabled={isSubmitting || items.length === 0}
                 variant="primary"
                 size="md"
                 icon={hasKitchenItems ? Flame : Package}
@@ -774,7 +780,9 @@ export default function CartView({
                     : 'bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20'
                 }`}
               >
-                {modality === 'MESA' && !selectedTable
+                {isSubmitting
+                  ? 'Enviando...'
+                  : modality === 'MESA' && !selectedTable
                   ? 'Elegir mesa para enviar'
                   : selectedTable
                   ? (hasKitchenItems ? `Abrir comanda (${selectedTable.label})` : `Enviar a ${selectedTable.label} (Entregas)`)
@@ -785,13 +793,13 @@ export default function CartView({
 
               <Button
                 onClick={onCheckout}
-                disabled={items.length === 0}
+                disabled={isSubmitting || items.length === 0}
                 variant="secondary"
                 size="md"
                 icon={CreditCard}
                 className="text-xs font-bold py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 cursor-pointer"
               >
-                Cobrar en Caja ({formatCurrency(total)})
+                {isSubmitting ? 'Procesando...' : `Cobrar en Caja (${formatCurrency(total)})`}
               </Button>
             </div>
           )}

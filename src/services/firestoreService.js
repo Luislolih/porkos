@@ -5,6 +5,7 @@ import {
   deleteDoc,
   onSnapshot,
   getDocs,
+  getDoc,
   query,
   orderBy,
   serverTimestamp,
@@ -101,10 +102,39 @@ export function subscribeToOrders(onUpdate, onError) {
   }
 }
 
-export async function saveOrderToFirestore(orderData) {
+export async function saveOrderToFirestore(orderData, isNewOrder = false) {
   try {
-    const orderDocId = String(orderData.orderNumber || `ORD-${Date.now()}`);
-    const docRef = doc(db, 'orders', orderDocId);
+    let orderDocId = String(orderData.orderNumber || `ORD-${Date.now()}`);
+    let docRef = doc(db, 'orders', orderDocId);
+
+    // Prevención de colisiones concurrentes si dos cajeros envían una orden nueva al mismo tiempo
+    if (isNewOrder) {
+      try {
+        const existingSnap = await getDoc(docRef);
+        if (existingSnap.exists()) {
+          // Si ya existe otra orden con este número, calcular el siguiente correlativo
+          const prefixMatch = orderDocId.match(/^([A-Za-z]+)-?(\d+)/);
+          if (prefixMatch) {
+            const prefix = prefixMatch[1] || 'P';
+            let nextNum = (parseInt(prefixMatch[2], 10) || 1) + 1;
+            orderDocId = `${prefix}-${String(nextNum).padStart(3, '0')}`;
+            docRef = doc(db, 'orders', orderDocId);
+
+            // Segunda verificación de respaldo
+            const secondSnap = await getDoc(docRef);
+            if (secondSnap.exists()) {
+              orderDocId = `${orderDocId}-${Date.now().toString().slice(-4)}`;
+              docRef = doc(db, 'orders', orderDocId);
+            }
+          } else {
+            orderDocId = `${orderDocId}-${Date.now().toString().slice(-4)}`;
+            docRef = doc(db, 'orders', orderDocId);
+          }
+        }
+      } catch (checkErr) {
+        console.warn('Advertencia en verificación de colisión de orden:', checkErr);
+      }
+    }
 
     // Limpiar campos undefined del payload sin destruir clases Timestamp
     const sanitized = sanitizePayload(orderData);
@@ -121,7 +151,7 @@ export async function saveOrderToFirestore(orderData) {
     };
 
     await setDoc(docRef, cleanData, { merge: true });
-    return { success: true };
+    return { success: true, orderNumber: orderDocId };
   } catch (err) {
     console.error('Error al guardar comanda en Firestore:', err);
     return { success: false, error: err };

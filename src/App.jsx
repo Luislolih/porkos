@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
 import { CatalogProvider } from './context/CatalogContext';
@@ -11,11 +11,13 @@ import SalesView from './features/sales/SalesView';
 import KitchenView from './features/kitchen/KitchenView';
 import OrdersView from './features/orders/OrdersView';
 import TablesView from './features/tables/TablesView';
-import CatalogView from './features/catalog/CatalogView';
-import ExpensesView from './features/expenses/ExpensesView';
-import DashboardView from './features/dashboard/DashboardView';
-import SettingsView from './features/settings/SettingsView';
 import LoginView from './features/auth/LoginView';
+
+// Code-splitting modular con lazy loading para módulos secundarios pesados
+const CatalogView = lazy(() => import('./features/catalog/CatalogView'));
+const ExpensesView = lazy(() => import('./features/expenses/ExpensesView'));
+const DashboardView = lazy(() => import('./features/dashboard/DashboardView'));
+const SettingsView = lazy(() => import('./features/settings/SettingsView'));
 import {
   subscribeToOrders,
   saveOrderToFirestore,
@@ -32,7 +34,9 @@ import { Flame } from 'lucide-react';
 
 function saveOrdersLocal(ordersList) {
   try {
-    localStorage.setItem('porkos_orders', JSON.stringify(ordersList));
+    // Guardar las 100 órdenes más recientes para prevenir desbordamiento de cuota (5MB) en localStorage
+    const slice = Array.isArray(ordersList) ? ordersList.slice(0, 100) : [];
+    localStorage.setItem('porkos_orders', JSON.stringify(slice));
   } catch (e) {
     console.warn('Error guardando órdenes en localStorage:', e);
   }
@@ -227,15 +231,22 @@ function MainApp() {
       return updated;
     });
 
-    // Guardar nueva orden individual en Firestore para sincronización inmediata
-    const res = await saveOrderToFirestore(cleanOrder);
+    // Guardar nueva orden individual en Firestore con protección contra colisión concurrente
+    const res = await saveOrderToFirestore(cleanOrder, true);
     if (!res?.success) {
       console.error('Error al guardar comanda en Firestore:', res?.error);
       alert('Aviso: Hubo un inconveniente al registrar la orden en la base de datos en tiempo real. Verifica tu conexión.');
+    } else if (res.orderNumber && res.orderNumber !== cleanOrder.orderNumber) {
+      // Si el correlativo fue reasignado automáticamente para no sobreescribir otra orden, actualizar localmente
+      setOrders((prev) => {
+        const updated = prev.map((o) => (o.orderNumber === cleanOrder.orderNumber ? { ...o, orderNumber: res.orderNumber } : o));
+        saveOrdersLocal(updated);
+        return updated;
+      });
     }
   };
 
-  // 4. Manejar el cierre y cobro de mesa (cierra todos los pedidos activos de la mesa)
+  // 4. Manejar el cierre y cobro de mesa (cierra todos los pedidos activos de la mesa con integridad contable)
   const handleCloseTable = async (tableId, orderNumberOrNumbers, paymentDetail) => {
     const inputNumbers = Array.isArray(orderNumberOrNumbers)
       ? orderNumberOrNumbers
@@ -250,12 +261,13 @@ function MainApp() {
 
     const targetNumbers = Array.from(new Set([...inputNumbers, ...activeTableNumbers]));
 
-    // Optimista local
+    // Optimista local: registrar en cada orden su importe individual exacto para no triplicar ingresos en auditoría
     setOrders((prev) => {
       const updated = prev.map((o) => {
         const matchesTable = tableId && o.tableId === tableId && o.paymentStatus !== 'PAID' && o.status !== 'CANCELADO';
         const matchesNumber = targetNumbers.includes(o.orderNumber);
         if (matchesTable || matchesNumber) {
+          const itemAmount = Number(o.total) || 0;
           return {
             ...o,
             status: 'ENTREGADO',
@@ -263,6 +275,8 @@ function MainApp() {
             payments: [
               {
                 ...paymentDetail,
+                amount: itemAmount > 0 ? itemAmount : paymentDetail.amount,
+                consolidatedTableTotal: paymentDetail.amount,
                 paidAt: new Date(),
               },
             ],
@@ -274,10 +288,17 @@ function MainApp() {
       return updated;
     });
 
-    // Persistir en Firestore para cada orden cerrada
+    // Persistir en Firestore para cada orden cerrada con su importe proporcional correspondiente
     for (const num of targetNumbers) {
       if (num) {
-        const res = await settleOrderInFirestore(num, paymentDetail);
+        const targetOrder = orders.find((o) => o.orderNumber === num);
+        const itemAmount = Number(targetOrder?.total) || 0;
+        const orderPayment = {
+          ...paymentDetail,
+          amount: itemAmount > 0 ? itemAmount : paymentDetail.amount,
+          consolidatedTableTotal: paymentDetail.amount,
+        };
+        const res = await settleOrderInFirestore(num, orderPayment);
         if (!res?.success) {
           console.error(`Error al liquidar orden ${num} en Firestore:`, res?.error);
         }
@@ -446,21 +467,30 @@ function MainApp() {
           />
         )}
 
-        {activeModule === MODULES.CATALOG && <CatalogView />}
+        <Suspense
+          fallback={
+            <div className="flex flex-col items-center justify-center p-16 space-y-3">
+              <div className="w-8 h-8 rounded-full border-2 border-[var(--color-porkos-orange)] border-t-transparent animate-spin" />
+              <p className="text-xs text-zinc-400 font-bold uppercase tracking-wider">Cargando módulo...</p>
+            </div>
+          }
+        >
+          {activeModule === MODULES.CATALOG && <CatalogView />}
 
-        {activeModule === MODULES.EXPENSES && <ExpensesView />}
+          {activeModule === MODULES.EXPENSES && <ExpensesView />}
 
-        {activeModule === MODULES.DASHBOARD && <DashboardView orders={orders} />}
+          {activeModule === MODULES.DASHBOARD && <DashboardView orders={orders} />}
 
-        {activeModule === MODULES.SETTINGS && (
-          <SettingsView
-            onClearAllOrders={handleClearAllOrders}
-            tablesList={tablesList}
-            onAddTable={handleAddTable}
-            onUpdateTable={handleUpdateTable}
-            onDeleteTable={handleDeleteTable}
-          />
-        )}
+          {activeModule === MODULES.SETTINGS && (
+            <SettingsView
+              onClearAllOrders={handleClearAllOrders}
+              tablesList={tablesList}
+              onAddTable={handleAddTable}
+              onUpdateTable={handleUpdateTable}
+              onDeleteTable={handleDeleteTable}
+            />
+          )}
+        </Suspense>
       </main>
     </div>
   );

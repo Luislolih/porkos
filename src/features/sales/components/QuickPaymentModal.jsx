@@ -9,6 +9,7 @@ export default function QuickPaymentModal({
   onClose,
   total,
   onConfirmPayment,
+  isSubmitting = false,
 }) {
   const [selectedMethod, setSelectedMethod] = useState(PAYMENT_METHODS.EFECTIVO.id);
   const [cashGiven, setCashGiven] = useState('');
@@ -23,6 +24,7 @@ export default function QuickPaymentModal({
   );
 
   const handleConfirm = () => {
+    if (isSubmitting) return;
     const finalCash = isCash ? (cashAmount > 0 ? cashAmount : total) : total;
     const finalChange = isCash ? Math.max(0, Math.round((finalCash - total) * 100) / 100) : 0;
     onConfirmPayment({
@@ -32,7 +34,6 @@ export default function QuickPaymentModal({
       change: finalChange,
       reference: reference.trim().replace(/[<>]/g, '').slice(0, 100),
     });
-    onClose();
   };
 
   return (
@@ -148,16 +149,16 @@ export default function QuickPaymentModal({
           </div>
         )}
 
-        {/* Confirm Payment button (flotante abajo) */}
+        {/* Confirm Payment button (flotante abajo con protección de doble clic) */}
         <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 z-20 shadow-2xl">
           <Button
             onClick={handleConfirm}
             fullWidth
             size="lg"
-            disabled={isCash && cashAmount > 0 && cashAmount < total}
+            disabled={isSubmitting || (isCash && cashAmount > 0 && cashAmount < total)}
             className="text-base"
           >
-            Confirmar y Finalizar Venta
+            {isSubmitting ? 'Procesando Cobro...' : 'Confirmar y Finalizar Venta'}
           </Button>
         </div>
       </div>

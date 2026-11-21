@@ -53,6 +53,7 @@ export default function SalesView({
   const [editingCartItem, setEditingCartItem] = useState(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(() => Boolean(editingOrder));
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [drawerDragY, setDrawerDragY] = useState(0);
   const [isDraggingDrawer, setIsDraggingDrawer] = useState(false);
   const drawerStartYRef = useRef(0);
@@ -282,8 +283,11 @@ export default function SalesView({
     }, 2500);
   };
 
-  // Crear la orden y enviar a cocina (alimenta el histórico de ventas)
-  const handleSendToKitchen = () => {
+  // Crear la orden y enviar a cocina (con protección de concurrencia y doble clic)
+  const handleSendToKitchen = async () => {
+    if (isSubmitting) return;
+    if (items.length === 0) return;
+
     // Exigir número de mesa si la modalidad es MESA
     if (salesMode !== SALES_MODES.MARKET && (modality === 'MESA' || modality === ORDER_MODALITIES.MESA.id)) {
       if (!selectedTable?.id) {
@@ -292,79 +296,86 @@ export default function SalesView({
       }
     }
 
-    const hasKitchenItems = items.some((i) => Boolean(i.requiresKitchen) && !isProductMarket(i));
-    const isTable = modality === 'MESA' || modality === ORDER_MODALITIES.MESA?.id;
-    const isDelivery = modality === 'DELIVERY';
-    const isMarketSale = salesMode === SALES_MODES.MARKET;
+    setIsSubmitting(true);
+    try {
+      const hasKitchenItems = items.some((i) => Boolean(i.requiresKitchen) && !isProductMarket(i));
+      const isTable = modality === 'MESA' || modality === ORDER_MODALITIES.MESA?.id;
+      const isDelivery = modality === 'DELIVERY';
+      const isMarketSale = salesMode === SALES_MODES.MARKET;
 
-    // En modo Restaurante:
-    // - Si tiene productos de cocina: PENDIENTE (Cocina)
-    // - Si NO tiene cocina (ej. productos de market, bebidas, postres): PENDIENTE (va a Pendientes de Entrega)
-    // En modo Market (caja rápida de mostrador): entregado
-    const orderStatus = isMarketSale ? 'ENTREGADO' : 'PENDIENTE';
+      // En modo Restaurante:
+      // - Si tiene productos de cocina: PENDIENTE (Cocina)
+      // - Si NO tiene cocina (ej. productos de market, bebidas, postres): PENDIENTE (va a Pendientes de Entrega)
+      // En modo Market (caja rápida de mostrador): entregado
+      const orderStatus = isMarketSale ? 'ENTREGADO' : 'PENDIENTE';
 
-    const operatorName = user?.displayName || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Cajero');
-    const operatorEmail = user?.email || 'caja@porkos.pe';
+      const operatorName = user?.displayName || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Cajero');
+      const operatorEmail = user?.email || 'caja@porkos.pe';
 
-    const rawName = (customerName?.trim() || customer.name?.trim()) || (isDelivery ? 'Cliente Delivery' : null);
-    const clientName = rawName ? sanitizeText(rawName, 100) : null;
-    const rawAddress = customer.address?.trim() || (isDelivery ? 'Dirección por coordinar' : null);
-    const deliveryAddress = rawAddress ? sanitizeText(rawAddress, 180) : null;
-    const cleanNotes = generalNotes ? sanitizeNotes(generalNotes, 300) : '';
+      const rawName = (customerName?.trim() || customer.name?.trim()) || (isDelivery ? 'Cliente Delivery' : null);
+      const clientName = rawName ? sanitizeText(rawName, 100) : null;
+      const rawAddress = customer.address?.trim() || (isDelivery ? 'Dirección por coordinar' : null);
+      const deliveryAddress = rawAddress ? sanitizeText(rawAddress, 180) : null;
+      const cleanNotes = generalNotes ? sanitizeNotes(generalNotes, 300) : '';
 
-    const orderData = {
-      orderNumber: getNextOrderNumber(orders, isMarketSale ? 'M' : 'P'),
-      modality: isMarketSale ? 'MARKET' : (isTable ? 'MESA' : modality),
-      status: orderStatus,
-      paymentStatus: isTable ? 'PENDING' : 'PAID',
-      tableId: isTable ? (selectedTable?.id || null) : null,
-      tableName: isTable ? (selectedTable?.label || null) : null,
-      customerName: clientName,
-      customer: isDelivery ? { ...customer, name: clientName || '', address: deliveryAddress } : null,
-      items: [...items],
-      packagings: [...packagings],
-      generalNotes: cleanNotes,
-      subtotal: itemsSubtotal,
-      packagingsTotal,
-      deliveryFee,
-      discount: discount || 0,
-      total,
-      createdBy: {
-        uid: user?.uid || null,
-        email: operatorEmail,
-        name: operatorName,
-      },
-      createdAt: new Date(),
-    };
+      const orderData = {
+        orderNumber: getNextOrderNumber(orders, isMarketSale ? 'M' : 'P'),
+        modality: isMarketSale ? 'MARKET' : (isTable ? 'MESA' : modality),
+        status: orderStatus,
+        paymentStatus: isTable ? 'PENDING' : 'PAID',
+        tableId: isTable ? (selectedTable?.id || null) : null,
+        tableName: isTable ? (selectedTable?.label || null) : null,
+        customerName: clientName,
+        customer: isDelivery ? { ...customer, name: clientName || '', address: deliveryAddress } : null,
+        items: [...items],
+        packagings: [...packagings],
+        generalNotes: cleanNotes,
+        subtotal: itemsSubtotal,
+        packagingsTotal,
+        deliveryFee,
+        discount: discount || 0,
+        total,
+        createdBy: {
+          uid: user?.uid || null,
+          email: operatorEmail,
+          name: operatorName,
+        },
+        createdAt: new Date(),
+      };
 
-    // Actualizar histórico de ventas de los productos
-    recordProductSales(items);
+      // Actualizar conteo local de salidas
+      recordProductSales(items);
 
-    if (onOrderCreated) {
-      onOrderCreated(orderData);
+      if (onOrderCreated) {
+        await onOrderCreated(orderData);
+      }
+
+      const isAddingToOpenTable = selectedTable?.status === 'OCCUPIED';
+
+      clearCart();
+      setIsMobileCartOpen(false);
+      showToast(
+        isTable
+          ? hasKitchenItems
+            ? isAddingToOpenTable
+              ? `Comanda ${orderData.orderNumber} enviada a Cocina (${selectedTable.label})`
+              : `Comanda ${orderData.orderNumber} enviada a Cocina`
+            : `Pedido ${orderData.orderNumber} en Pendientes de Entrega (${selectedTable.label})`
+          : isDelivery
+          ? hasKitchenItems
+            ? `Pedido Delivery ${orderData.orderNumber} enviado a Cocina`
+            : `Pedido Delivery ${orderData.orderNumber} en Pendientes de Entrega`
+          : isMarketSale
+          ? `Venta ${orderData.orderNumber} entregada`
+          : hasKitchenItems
+          ? `Comanda ${orderData.orderNumber} enviada a Cocina`
+          : `Pedido ${orderData.orderNumber} en Pendientes de Entrega`
+      );
+    } catch (err) {
+      console.error('Error registrando comanda:', err);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const isAddingToOpenTable = selectedTable?.status === 'OCCUPIED';
-
-    clearCart();
-    setIsMobileCartOpen(false);
-    showToast(
-      isTable
-        ? hasKitchenItems
-          ? isAddingToOpenTable
-            ? `Comanda ${orderData.orderNumber} enviada a Cocina (${selectedTable.label})`
-            : `Comanda ${orderData.orderNumber} enviada a Cocina`
-          : `Pedido ${orderData.orderNumber} en Pendientes de Entrega (${selectedTable.label})`
-        : isDelivery
-        ? hasKitchenItems
-          ? `Pedido Delivery ${orderData.orderNumber} enviado a Cocina`
-          : `Pedido Delivery ${orderData.orderNumber} en Pendientes de Entrega`
-        : isMarketSale
-        ? `Venta ${orderData.orderNumber} entregada`
-        : hasKitchenItems
-        ? `Comanda ${orderData.orderNumber} enviada a Cocina`
-        : `Pedido ${orderData.orderNumber} en Pendientes de Entrega`
-    );
   };
 
   const handleOpenCheckout = () => {
@@ -379,8 +390,9 @@ export default function SalesView({
     setIsPaymentOpen(true);
   };
 
-  // Guardar edición de comanda activa existente
-  const handleSaveEditedOrder = () => {
+  // Guardar edición de comanda activa existente (con protección de concurrencia)
+  const handleSaveEditedOrder = async () => {
+    if (isSubmitting) return;
     if (!editingOrder) return;
 
     // Verificar si la orden ya fue entregada y pagada (finalizada)
@@ -404,41 +416,48 @@ export default function SalesView({
       return;
     }
 
-    const rawEditName = (customerName?.trim() || customer.name?.trim()) || (modality === 'DELIVERY' ? 'Cliente Delivery' : null);
-    const clientName = rawEditName ? sanitizeText(rawEditName, 100) : null;
-    const rawEditAddress = customer.address?.trim() || (modality === 'DELIVERY' ? 'Dirección por coordinar' : null);
-    const deliveryAddress = rawEditAddress ? sanitizeText(rawEditAddress, 180) : null;
-    const cleanNotes = generalNotes ? sanitizeNotes(generalNotes, 300) : '';
+    setIsSubmitting(true);
+    try {
+      const rawEditName = (customerName?.trim() || customer.name?.trim()) || (modality === 'DELIVERY' ? 'Cliente Delivery' : null);
+      const clientName = rawEditName ? sanitizeText(rawEditName, 100) : null;
+      const rawEditAddress = customer.address?.trim() || (modality === 'DELIVERY' ? 'Dirección por coordinar' : null);
+      const deliveryAddress = rawEditAddress ? sanitizeText(rawEditAddress, 180) : null;
+      const cleanNotes = generalNotes ? sanitizeNotes(generalNotes, 300) : '';
 
-    const updatedOrder = {
-      ...editingOrder,
-      modality,
-      tableId: modality === 'MESA' ? (selectedTable?.id || null) : null,
-      tableName: modality === 'MESA' ? (selectedTable?.label || null) : null,
-      customerName: clientName,
-      customer: modality === 'DELIVERY' ? { ...customer, name: clientName || '', address: deliveryAddress } : null,
-      items: [...items],
-      packagings: [...packagings],
-      generalNotes: cleanNotes,
-      subtotal: itemsSubtotal,
-      packagingsTotal,
-      deliveryFee,
-      discount: discount || 0,
-      total,
-      mergedOrderNumbers: editingOrder.mergedOrderNumbers || null,
-      updatedAt: new Date(),
-    };
+      const updatedOrder = {
+        ...editingOrder,
+        modality,
+        tableId: modality === 'MESA' ? (selectedTable?.id || null) : null,
+        tableName: modality === 'MESA' ? (selectedTable?.label || null) : null,
+        customerName: clientName,
+        customer: modality === 'DELIVERY' ? { ...customer, name: clientName || '', address: deliveryAddress } : null,
+        items: [...items],
+        packagings: [...packagings],
+        generalNotes: cleanNotes,
+        subtotal: itemsSubtotal,
+        packagingsTotal,
+        deliveryFee,
+        discount: discount || 0,
+        total,
+        mergedOrderNumbers: editingOrder.mergedOrderNumbers || null,
+        updatedAt: new Date(),
+      };
 
-    if (onOrderUpdated) {
-      onOrderUpdated(updatedOrder);
-    }
+      if (onOrderUpdated) {
+        await onOrderUpdated(updatedOrder);
+      }
 
-    cancelEditingOrder();
-    clearCart();
-    setIsMobileCartOpen(false);
-    showToast(`Comanda ${updatedOrder.orderNumber} actualizada`);
-    if (onReturnToOrders) {
-      onReturnToOrders();
+      cancelEditingOrder();
+      clearCart();
+      setIsMobileCartOpen(false);
+      showToast(`Comanda ${updatedOrder.orderNumber} actualizada`);
+      if (onReturnToOrders) {
+        onReturnToOrders();
+      }
+    } catch (err) {
+      console.error('Error actualizando comanda:', err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -451,72 +470,82 @@ export default function SalesView({
     }
   };
 
-  // Cobro directo (alimenta el histórico de ventas)
-  const handleConfirmPayment = (paymentDetail) => {
-    const isMarketSale = salesMode === SALES_MODES.MARKET;
-    const operatorName = user?.displayName || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Cajero');
-    const operatorEmail = user?.email || 'caja@porkos.pe';
+  // Cobro directo (con protección de doble envío)
+  const handleConfirmPayment = async (paymentDetail) => {
+    if (isSubmitting) return;
+    if (items.length === 0) return;
 
-    const hasKitchenItems = items.some((i) => Boolean(i.requiresKitchen) && !isProductMarket(i));
-    const isDelivery = !isMarketSale && modality === 'DELIVERY';
-    const orderStatus = isMarketSale ? 'ENTREGADO' : 'PENDIENTE';
+    setIsSubmitting(true);
+    try {
+      const isMarketSale = salesMode === SALES_MODES.MARKET;
+      const operatorName = user?.displayName || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Cajero');
+      const operatorEmail = user?.email || 'caja@porkos.pe';
 
-    const rawPaymentClient = isMarketSale
-      ? 'Venta Mostrador'
-      : ((customerName?.trim() || customer.name?.trim()) || (isDelivery ? 'Cliente Delivery' : null));
-    const clientName = rawPaymentClient ? sanitizeText(rawPaymentClient, 100) : null;
-    const rawPaymentAddress = customer.address?.trim() || (isDelivery ? 'Dirección por coordinar' : null);
-    const deliveryAddress = rawPaymentAddress ? sanitizeText(rawPaymentAddress, 180) : null;
-    const cleanNotes = isMarketSale ? 'Venta directa en caja' : (generalNotes ? sanitizeNotes(generalNotes, 300) : '');
+      const hasKitchenItems = items.some((i) => Boolean(i.requiresKitchen) && !isProductMarket(i));
+      const isDelivery = !isMarketSale && modality === 'DELIVERY';
+      const orderStatus = isMarketSale ? 'ENTREGADO' : 'PENDIENTE';
 
-    const orderData = {
-      orderNumber: getNextOrderNumber(orders, isMarketSale ? 'M' : 'P'),
-      modality: isMarketSale ? 'MARKET' : modality,
-      status: orderStatus,
-      paymentStatus: 'PAID',
-      tableId: isMarketSale ? null : (selectedTable?.id || null),
-      tableName: isMarketSale ? null : (selectedTable?.label || null),
-      customerName: clientName,
-      customer: isDelivery ? { ...customer, name: clientName || '', address: deliveryAddress } : null,
-      items: [...items],
-      packagings: isMarketSale ? [] : [...packagings],
-      generalNotes: cleanNotes,
-      subtotal: itemsSubtotal,
-      packagingsTotal: isMarketSale ? 0 : packagingsTotal,
-      deliveryFee: isMarketSale ? 0 : deliveryFee,
-      discount: 0,
-      total,
-      createdBy: {
-        uid: user?.uid || null,
-        email: operatorEmail,
-        name: operatorName,
-      },
-      payments: [
-        {
-          ...paymentDetail,
-          paidAt: new Date(),
+      const rawPaymentClient = isMarketSale
+        ? 'Venta Mostrador'
+        : ((customerName?.trim() || customer.name?.trim()) || (isDelivery ? 'Cliente Delivery' : null));
+      const clientName = rawPaymentClient ? sanitizeText(rawPaymentClient, 100) : null;
+      const rawPaymentAddress = customer.address?.trim() || (isDelivery ? 'Dirección por coordinar' : null);
+      const deliveryAddress = rawPaymentAddress ? sanitizeText(rawPaymentAddress, 180) : null;
+      const cleanNotes = isMarketSale ? 'Venta directa en caja' : (generalNotes ? sanitizeNotes(generalNotes, 300) : '');
+
+      const orderData = {
+        orderNumber: getNextOrderNumber(orders, isMarketSale ? 'M' : 'P'),
+        modality: isMarketSale ? 'MARKET' : modality,
+        status: orderStatus,
+        paymentStatus: 'PAID',
+        tableId: isMarketSale ? null : (selectedTable?.id || null),
+        tableName: isMarketSale ? null : (selectedTable?.label || null),
+        customerName: clientName,
+        customer: isDelivery ? { ...customer, name: clientName || '', address: deliveryAddress } : null,
+        items: [...items],
+        packagings: isMarketSale ? [] : [...packagings],
+        generalNotes: cleanNotes,
+        subtotal: itemsSubtotal,
+        packagingsTotal: isMarketSale ? 0 : packagingsTotal,
+        deliveryFee: isMarketSale ? 0 : deliveryFee,
+        discount: 0,
+        total,
+        createdBy: {
+          uid: user?.uid || null,
+          email: operatorEmail,
+          name: operatorName,
         },
-      ],
-      createdAt: new Date(),
-    };
+        payments: [
+          {
+            ...paymentDetail,
+            paidAt: new Date(),
+          },
+        ],
+        createdAt: new Date(),
+      };
 
-    // Actualizar histórico de ventas de los productos
-    recordProductSales(items);
+      // Actualizar conteo local de salidas
+      recordProductSales(items);
 
-    if (onOrderCreated) {
-      onOrderCreated(orderData, Boolean(orderData.tableId));
+      if (onOrderCreated) {
+        await onOrderCreated(orderData, Boolean(orderData.tableId));
+      }
+
+      clearCart();
+      setIsPaymentOpen(false);
+      setIsMobileCartOpen(false);
+      showToast(
+        isMarketSale
+          ? `Venta Market ${orderData.orderNumber} cobrada con éxito`
+          : hasKitchenItems
+          ? `Comanda ${orderData.orderNumber} cobrada y enviada a Cocina`
+          : `Pedido ${orderData.orderNumber} cobrado y enviado a Pendientes de Entrega`
+      );
+    } catch (err) {
+      console.error('Error procesando cobro:', err);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    clearCart();
-    setIsPaymentOpen(false);
-    setIsMobileCartOpen(false);
-    showToast(
-      isMarketSale
-        ? `Venta Market ${orderData.orderNumber} cobrada con éxito`
-        : hasKitchenItems
-        ? `Comanda ${orderData.orderNumber} cobrada y enviada a Cocina`
-        : `Pedido ${orderData.orderNumber} cobrado y enviado a Pendientes de Entrega`
-    );
   };
 
   return (
@@ -622,6 +651,7 @@ export default function SalesView({
             tables={tables}
             onSaveEditedOrder={handleSaveEditedOrder}
             onCancelEditing={handleCancelEditing}
+            isSubmitting={isSubmitting}
           />
         </div>
       </div>
@@ -693,6 +723,7 @@ export default function SalesView({
                 tables={tables}
                 onSaveEditedOrder={handleSaveEditedOrder}
                 onCancelEditing={handleCancelEditing}
+                isSubmitting={isSubmitting}
               />
             </div>
           </div>
@@ -719,6 +750,7 @@ export default function SalesView({
         onClose={() => setIsPaymentOpen(false)}
         total={total}
         onConfirmPayment={handleConfirmPayment}
+        isSubmitting={isSubmitting}
       />
 
       {/* Flecha flotante a la derecha en mobile y al borde del catálogo en desktop */}

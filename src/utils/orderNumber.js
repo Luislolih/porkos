@@ -4,7 +4,10 @@
  */
 export function getNextOrderNumber(orders = [], prefix = 'P') {
   const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  // Obtener fecha actual en zona horaria America/Lima (Perú, UTC-5)
+  const peruDateStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Lima' }); // Formato ISO local: YYYY-MM-DD
+  const [pYear, pMonth, pDay] = peruDateStr.split('-').map(Number);
+  const startOfDay = new Date(pYear, pMonth - 1, pDay, 0, 0, 0, 0).getTime();
 
   // Filtrar órdenes que correspondan a la jornada de hoy
   const todayOrders = (orders || []).filter((o) => {

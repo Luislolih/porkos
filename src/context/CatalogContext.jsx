@@ -632,18 +632,16 @@ export function CatalogProvider({ children }) {
     });
   };
 
-  // Registrar ventas para alimentar el ranking histórico de salida
+  // Registrar ventas para alimentar el ranking histórico de salida localmente
   const recordProductSales = (soldItems = []) => {
     setProducts((prev) => {
       const updated = prev.map((p) => {
         const matchingItem = soldItems.find((item) => item.productId === p.id);
         if (matchingItem) {
-          const updatedProd = {
+          return {
             ...p,
             salesCount: (p.salesCount || 0) + (matchingItem.quantity || 1),
           };
-          saveProductToFirestore(updatedProd);
-          return updatedProd;
         }
         return p;
       });
