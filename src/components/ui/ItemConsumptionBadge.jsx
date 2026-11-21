@@ -1,4 +1,3 @@
-import React from 'react';
 import { Utensils, Package, ShoppingBag, Bike } from 'lucide-react';
 import { resolveItemConsumptionType } from '../../types/constants';
 

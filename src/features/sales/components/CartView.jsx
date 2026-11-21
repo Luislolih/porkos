@@ -50,6 +50,7 @@ export default function CartView({
   tables = [],
   onSaveEditedOrder,
   onCancelEditing,
+  onCloseMobileCart,
 }) {
   const {
     items,
