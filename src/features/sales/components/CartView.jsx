@@ -125,21 +125,34 @@ export default function CartView({
         <div className="px-3.5 py-2.5 bg-black/40 border-b border-[var(--color-porkos-border)] space-y-2">
           {/* Banner de Edición de Comanda Activa */}
           {editingOrder && (
-            <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl flex items-center justify-between text-xs animate-in fade-in">
-              <div className="flex items-center gap-2 text-amber-300 font-bold">
-                <Edit3 className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>Editando Comanda: <strong>{editingOrder.orderNumber}</strong></span>
+            <div className="space-y-1.5 animate-in fade-in">
+              <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-amber-300 font-bold">
+                  <Edit3 className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Editando Comanda: <strong>{editingOrder.orderNumber}</strong></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    cancelEditingOrder();
+                    if (onCancelEditing) onCancelEditing();
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold border border-zinc-700 cursor-pointer active:scale-95"
+                >
+                  Cancelar y Volver
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  cancelEditingOrder();
-                  if (onCancelEditing) onCancelEditing();
-                }}
-                className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold border border-zinc-700 cursor-pointer active:scale-95"
-              >
-                Cancelar y Volver
-              </button>
+
+              {onCloseMobileCart && (
+                <button
+                  type="button"
+                  onClick={onCloseMobileCart}
+                  className="w-full py-1.5 px-3 rounded-lg bg-zinc-900 border border-zinc-700/80 hover:border-[var(--color-porkos-orange)] text-[var(--color-porkos-orange)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Añadir más productos del menú</span>
+                </button>
+              )}
             </div>
           )}
 

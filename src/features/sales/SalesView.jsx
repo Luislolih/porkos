@@ -23,18 +23,51 @@ export default function SalesView({
   onSettleTableOrder,
   onOrderUpdated,
   onReturnToOrders,
+  autoOpenCart = false,
+  onCartOpened,
 }) {
   const { user } = useAuth();
+  const {
+    items,
+    addItem,
+    updateItemCustomization,
+    total,
+    itemCount,
+    modality,
+    selectedTable,
+    customerName,
+    customer,
+    packagings,
+    generalNotes,
+    itemsSubtotal,
+    packagingsTotal,
+    deliveryFee,
+    discount,
+    clearCart,
+    editingOrder,
+    cancelEditingOrder,
+  } = useCart();
+
   const [salesMode, setSalesMode] = useState(SALES_MODES.RESTAURANT);
   const [selectedLine, setSelectedLine] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [customizingProduct, setCustomizingProduct] = useState(null);
   const [editingCartItem, setEditingCartItem] = useState(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(() => Boolean(editingOrder || autoOpenCart));
   const [drawerDragY, setDrawerDragY] = useState(0);
   const [isDraggingDrawer, setIsDraggingDrawer] = useState(false);
   const drawerStartYRef = useRef(0);
+
+  // Al entrar a editar una comanda (desde Mesas o Pedidos), abrir automáticamente la comanda desplegada
+  useEffect(() => {
+    if (editingOrder || autoOpenCart) {
+      setIsMobileCartOpen(true);
+      if (onCartOpened) {
+        onCartOpened();
+      }
+    }
+  }, [editingOrder, autoOpenCart, onCartOpened]);
 
   const handleDrawerTouchStart = (e) => {
     if (!e.touches || e.touches.length === 0) return;
@@ -65,27 +98,6 @@ export default function SalesView({
   const [successToast, setSuccessToast] = useState(null);
 
   const { products, categories = [], packagings: catalogPackagings, recordProductSales } = useCatalog();
-
-  const {
-    items,
-    addItem,
-    updateItemCustomization,
-    total,
-    itemCount,
-    modality,
-    selectedTable,
-    customerName,
-    customer,
-    packagings,
-    generalNotes,
-    itemsSubtotal,
-    packagingsTotal,
-    deliveryFee,
-    discount,
-    clearCart,
-    editingOrder,
-    cancelEditingOrder,
-  } = useCart();
 
   // Prevenir scroll en el fondo (ventas) al abrir el cajón de comanda en móvil
   useEffect(() => {
