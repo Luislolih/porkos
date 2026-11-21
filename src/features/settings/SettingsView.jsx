@@ -108,35 +108,6 @@ function DeliverySettingsTab({ initialFee, onSave }) {
           </div>
         </form>
       </div>
-
-      {/* Tarjeta explicativa de funcionamiento */}
-      <div className="bg-black/40 border border-zinc-800/80 rounded-2xl p-4 sm:p-5 space-y-3">
-        <h4 className="text-xs font-black uppercase tracking-wider text-zinc-400">
-          ¿Cómo opera el flujo de Delivery y Empaques?
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-          <div className="bg-zinc-900/60 p-3 rounded-xl border border-zinc-800/60 space-y-1">
-            <span className="font-bold text-white block">1. Carga Automática</span>
-            <p className="text-zinc-400 text-[11px] leading-relaxed">
-              Al cambiar una comanda a modalidad Delivery, este costo se pre-carga en automático para agilizar el despacho.
-            </p>
-          </div>
-
-          <div className="bg-zinc-900/60 p-3 rounded-xl border border-zinc-800/60 space-y-1">
-            <span className="font-bold text-white block">2. 100% Editable</span>
-            <p className="text-zinc-400 text-[11px] leading-relaxed">
-              El cajero puede modificar el costo de envío en cada comanda según la dirección, distancia o zona del cliente.
-            </p>
-          </div>
-
-          <div className="bg-zinc-900/60 p-3 rounded-xl border border-zinc-800/60 space-y-1">
-            <span className="font-bold text-white block">3. Empaque Inteligente</span>
-            <p className="text-zinc-400 text-[11px] leading-relaxed">
-              Al pasar de Mesa a Llevar o Delivery, se agregan los empaques por defecto; si vuelve a Mesa, se retiran automáticamente.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -207,27 +178,20 @@ function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDelet
   const sortedTables = [...tablesList].sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
 
   return (
-    <div className="space-y-4 max-w-4xl">
-      {/* Header de Mesas */}
-      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-2xl bg-orange-500/20 text-[var(--color-porkos-orange)] border border-orange-500/30">
-            <Grid2X2 className="w-6 h-6" />
-          </div>
-          <div>
-            <h3 className="text-base font-extrabold text-white">
-              Gestión de Mesas del Salón ({tablesList.length})
-            </h3>
-            <p className="text-xs text-zinc-400">
-              Añade, edita o retira mesas en tiempo real en la base de datos de PorkoApp.
-            </p>
-          </div>
+    <div className="space-y-3.5 max-w-5xl">
+      {/* Barra de acción compacta de mesas */}
+      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Grid2X2 className="w-4 h-4 text-[var(--color-porkos-orange)]" />
+          <span className="font-extrabold text-sm text-white">
+            Mesas del Salón ({tablesList.length})
+          </span>
         </div>
 
         <button
           type="button"
           onClick={openAddModal}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20 cursor-pointer active:scale-95 transition-all"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-md shadow-orange-500/20 cursor-pointer active:scale-95 transition-all"
         >
           <Plus className="w-4 h-4 stroke-[3]" />
           <span>Agregar Mesa</span>
@@ -235,7 +199,7 @@ function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDelet
       </div>
 
       {/* Lista de Mesas en DB */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {sortedTables.map((table) => (
           <div
             key={table.id}
@@ -590,86 +554,72 @@ service cloud.firestore {
         </div>
       )}
 
-      {/* Top Header & Sub-Navigation */}
-      <div className="bg-[var(--color-porkos-surface)] p-4 rounded-2xl border border-[var(--color-porkos-border)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-orange-500/20 text-[var(--color-porkos-orange)] border border-orange-500/30">
-            <Settings className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-extrabold text-white tracking-tight">
-              Ajustes & Accesos
-            </h2>
-          </div>
-        </div>
+      {/* Sub-Navegación compacta de Configuración */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        <button
+          type="button"
+          onClick={() => setActiveTab('catalog')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap border ${
+            activeTab === 'catalog'
+              ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-md'
+              : 'bg-zinc-900/90 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+          }`}
+        >
+          <UtensilsCrossed className="w-3.5 h-3.5" />
+          <span>Catálogo</span>
+        </button>
 
-        {/* Pestañas de Configuración */}
-        <div className="flex items-center gap-1 bg-black/50 p-1 rounded-xl border border-zinc-800 text-xs font-bold w-full sm:w-auto overflow-x-auto scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setActiveTab('catalog')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'catalog'
-                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <UtensilsCrossed className="w-3.5 h-3.5" />
-            <span>Catálogo</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('tables')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap border ${
+            activeTab === 'tables'
+              ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-md'
+              : 'bg-zinc-900/90 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+          }`}
+        >
+          <Grid2X2 className="w-3.5 h-3.5" />
+          <span>Mesas Salón ({tablesList.length})</span>
+        </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('tables')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'tables'
-                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Grid2X2 className="w-3.5 h-3.5" />
-            <span>Mesas Salón ({tablesList.length})</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('delivery')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap border ${
+            activeTab === 'delivery'
+              ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-md'
+              : 'bg-zinc-900/90 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+          }`}
+        >
+          <Bike className="w-3.5 h-3.5" />
+          <span>Tarifas Delivery</span>
+        </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('delivery')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'delivery'
-                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Bike className="w-3.5 h-3.5" />
-            <span>Tarifas & Delivery</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('users')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap border ${
+            activeTab === 'users'
+              ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-md'
+              : 'bg-zinc-900/90 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+          }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span>Usuarios & Roles</span>
+        </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('users')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'users'
-                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Usuarios & Roles Blindados</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('system')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'system'
-                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Database className="w-3.5 h-3.5" />
-            <span>Cloud & Base de Datos</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveTab('system')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap border ${
+            activeTab === 'system'
+              ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-md'
+              : 'bg-zinc-900/90 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+          }`}
+        >
+          <Database className="w-3.5 h-3.5" />
+          <span>Cloud & BD</span>
+        </button>
       </div>
 
       {/* 1. Vista de Catálogo */}

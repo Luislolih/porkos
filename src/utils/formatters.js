@@ -33,6 +33,22 @@ export const formatCurrency = (amount) => {
   return `S/ ${num.toFixed(2)}`;
 };
 
+export const formatDate = (dateInput) => {
+  const date = parseToDate(dateInput);
+  if (!date) return '--/--/----';
+  return date.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+export const formatDateTime = (dateInput) => {
+  const date = parseToDate(dateInput);
+  if (!date) return '--/--/---- --:--';
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  const time = date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${day}/${month}/${year} ${time}`;
+};
+
 export const formatTime = (dateInput) => {
   const date = parseToDate(dateInput);
   if (!date) return '--:--';

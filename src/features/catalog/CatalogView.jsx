@@ -749,90 +749,78 @@ export default function CatalogView() {
         </div>
       )}
 
-      {/* Header Principal */}
-      <div className="bg-[var(--color-porkos-surface)] p-4 rounded-2xl border border-[var(--color-porkos-border)] flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-orange-500/20 text-[var(--color-porkos-orange)] border border-orange-500/30">
-            <UtensilsCrossed className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-extrabold text-white tracking-tight">
-              Catálogo & Opciones
-            </h2>
-          </div>
+      {/* Barra de Sub-Navegación y Acciones del Catálogo */}
+      <div className="bg-[var(--color-porkos-surface)] p-2.5 sm:p-3 rounded-2xl border border-[var(--color-porkos-border)] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
+        {/* 5 Pestañas del Catálogo */}
+        <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-zinc-800 text-xs font-bold overflow-x-auto scrollbar-none">
+          <button
+            type="button"
+            onClick={() => setActiveTab('products')}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'products'
+                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <UtensilsCrossed className="w-3.5 h-3.5" />
+            <span>Productos ({products.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('categories')}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'categories'
+                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Tag className="w-3.5 h-3.5" />
+            <span>Categorías ({categories.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('creams')}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'creams'
+                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Cremas ({creams.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('extras')}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'extras'
+                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Extras ({extras.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('packagings')}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'packagings'
+                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Package className="w-3.5 h-3.5" />
+            <span>Empaques ({packagings.length})</span>
+          </button>
         </div>
 
-        {/* Action Buttons & Tab Switch */}
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-between md:justify-end">
-          {/* 4 Pestañas Principales */}
-          <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-zinc-800 text-xs font-bold overflow-x-auto scrollbar-none">
-            <button
-              type="button"
-              onClick={() => setActiveTab('products')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'products'
-                  ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <UtensilsCrossed className="w-3.5 h-3.5" />
-              <span>Productos ({products.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('categories')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'categories'
-                  ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <Tag className="w-3.5 h-3.5" />
-              <span>Categorías ({categories.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('creams')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'creams'
-                  ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Cremas ({creams.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('extras')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'extras'
-                  ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Extras ({extras.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('packagings')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'packagings'
-                  ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <Package className="w-3.5 h-3.5" />
-              <span>Empaques ({packagings.length})</span>
-            </button>
-          </div>
-
-          {/* Botón de Agregar según la Pestaña Activa */}
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 justify-end">
           {activeTab === 'products' && (
             <Button
               onClick={handleOpenNewProduct}

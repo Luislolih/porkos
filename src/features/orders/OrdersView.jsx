@@ -17,8 +17,10 @@ import {
   Trash2,
   Lock,
   UserCheck,
+  Calendar,
+  User,
 } from 'lucide-react';
-import { formatCurrency, formatTime, formatElapsedTime } from '../../utils/formatters';
+import { formatCurrency, formatTime, formatDate, formatElapsedTime } from '../../utils/formatters';
 import { ORDER_STATUS, PAYMENT_STATUS } from '../../types/constants';
 import Modal from '../../components/ui/Modal';
 import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
@@ -288,164 +290,229 @@ export default function OrdersView({
                   }
                 }}
                 className={`
-                  group bg-[#141414] border rounded-2xl p-3 sm:p-3.5 transition-all cursor-pointer flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 hover:border-zinc-700 active:scale-[0.99]
+                  group bg-[#141414] hover:bg-[#181818] border rounded-2xl p-3 sm:p-4 transition-all cursor-pointer flex flex-col gap-2.5 hover:border-zinc-700 active:scale-[0.99] shadow-sm
                   ${
                     !isFinished
                       ? 'border-zinc-800 hover:border-[var(--color-porkos-orange)]/50'
-                      : 'border-zinc-800 opacity-90'
+                      : 'border-zinc-800/80 opacity-90'
                   }
                 `}
                 title="Toca para ver el seguimiento y detalle del pedido"
               >
-                {/* Left: Info, Number, Client, Modality */}
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-                      order.status === 'ENTREGADO'
-                        ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
-                        : order.status === 'LISTO'
-                        ? 'bg-amber-950/40 border-amber-500/30 text-amber-400'
-                        : 'bg-orange-950/40 border-orange-500/30 text-[var(--color-porkos-orange)]'
-                    }`}
-                  >
-                    {getModalityIcon(order.modality)}
+                {/* Fila 1: Cabecera con Número de Orden, Modalidad, Fechas y Total */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5">
+                  {/* Izquierda: Icono + Número + Modalidad / Mesa */}
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                        order.status === 'ENTREGADO'
+                          ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
+                          : order.status === 'LISTO'
+                          ? 'bg-amber-950/40 border-amber-500/30 text-amber-400'
+                          : 'bg-orange-950/40 border-orange-500/30 text-[var(--color-porkos-orange)]'
+                      }`}
+                    >
+                      {getModalityIcon(order.modality)}
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-black text-sm sm:text-base text-white group-hover:text-[var(--color-porkos-orange)] transition-colors">
+                          {order.orderNumber}
+                        </h4>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
+                          {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Para Llevar' : order.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : order.modality === 'DELIVERY' ? 'Delivery' : 'Market Directo')}
+                        </span>
+                      </div>
+
+                      {/* Cliente inline con edición rápida */}
+                      <div className="flex items-center gap-2 text-xs text-zinc-400 mt-0.5">
+                        {editingCustomerNameOrder === order.orderNumber ? (
+                          <div
+                            className="flex items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="text"
+                              autoFocus
+                              value={tempCustomerName}
+                              onChange={(e) => setTempCustomerName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveCustomerName(order);
+                                if (e.key === 'Escape') setEditingCustomerNameOrder(null);
+                              }}
+                              className="bg-zinc-900 border border-zinc-700 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] font-bold w-28"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveCustomerName(order)}
+                              className="p-1 rounded bg-[var(--color-porkos-orange)] text-black cursor-pointer"
+                            >
+                              <Check className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingCustomerNameOrder(null)}
+                              className="p-1 rounded bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingCustomerNameOrder(order.orderNumber);
+                              setTempCustomerName(order.customerName || order.customer?.name || '');
+                            }}
+                            className="group/cust inline-flex items-center gap-1 cursor-pointer text-amber-400 hover:text-amber-300 font-bold truncate"
+                            title="Clic para editar nombre del cliente"
+                          >
+                            <User className="w-3 h-3 text-zinc-500 group-hover/cust:text-amber-300 shrink-0" />
+                            <span>{order.customerName || order.customer?.name || 'Cliente'}</span>
+                            <Edit3 className="w-2.5 h-2.5 text-zinc-500 group-hover/cust:text-amber-300 shrink-0" />
+                          </button>
+                        )}
+
+                        {order.createdBy?.name && (
+                          <span className="text-zinc-500 text-[11px] font-medium hidden sm:inline">
+                            • Por: <strong className="text-zinc-400 font-semibold">{order.createdBy.name}</strong>
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-black text-sm sm:text-base text-white group-hover:text-[var(--color-porkos-orange)] transition-colors">
-                        {order.orderNumber}
-                      </h4>
-                      <span className="text-[11px] text-zinc-500 font-semibold">
-                        {formatTime(order.createdAt)}
+                  {/* Derecha: Fecha/Hora, Estados y Monto Total */}
+                  <div className="flex items-center gap-3 shrink-0 ml-auto">
+                    {/* Badges de Estado */}
+                    <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-1.5">
+                      <span
+                        className={`text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full border whitespace-nowrap ${
+                          statusConf.badgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                        }`}
+                      >
+                        {statusConf.label || order.status}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                          payConf.badgeClass || 'text-zinc-400 bg-zinc-800'
+                        }`}
+                      >
+                        {payConf.label || effectivePaymentStatus}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-xs text-zinc-400 mt-0.5 flex-wrap">
-                      <span className="font-semibold text-zinc-300">
-                        {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Para Llevar' : order.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : order.modality)}
-                      </span>
-                      {editingCustomerNameOrder === order.orderNumber ? (
-                        <div
-                          className="flex items-center gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="text"
-                            autoFocus
-                            value={tempCustomerName}
-                            onChange={(e) => setTempCustomerName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSaveCustomerName(order);
-                              if (e.key === 'Escape') setEditingCustomerNameOrder(null);
-                            }}
-                            className="bg-zinc-900 border border-zinc-700 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] font-bold w-28"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleSaveCustomerName(order)}
-                            className="p-1 rounded bg-[var(--color-porkos-orange)] text-black cursor-pointer"
-                          >
-                            <Check className="w-3 h-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingCustomerNameOrder(null)}
-                            className="p-1 rounded bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingCustomerNameOrder(order.orderNumber);
-                            setTempCustomerName(order.customerName || order.customer?.name || '');
-                          }}
-                          className="group/cust inline-flex items-center gap-1 cursor-pointer text-amber-400 hover:text-amber-300 font-bold truncate"
-                          title="Clic para editar nombre del cliente"
-                        >
-                          <span>• {order.customerName || 'Cliente'}</span>
-                          <Edit3 className="w-2.5 h-2.5 text-zinc-500 group-hover/cust:text-amber-300" />
-                        </button>
-                      )}
-                      <span className="text-zinc-500 text-[11px]">
-                        ({order.items?.length || 0} items)
-                      </span>
-                      {order.createdBy?.name && (
-                        <span className="text-zinc-400 text-[11px] font-medium">
-                          • Por: <strong className="text-zinc-300 font-semibold">{order.createdBy.name}</strong>
-                        </span>
-                      )}
+                    {/* Monto Total y Hora */}
+                    <div className="text-right pl-2 border-l border-zinc-800 shrink-0">
+                      <div className="font-black text-base sm:text-lg text-white group-hover:text-[var(--color-porkos-orange)] transition-colors">
+                        {formatCurrency(order.total)}
+                      </div>
+                      <div className="text-[10px] text-zinc-400 flex items-center justify-end gap-1 font-medium">
+                        <Calendar className="w-2.5 h-2.5 text-zinc-500 shrink-0" />
+                        <span>{formatDate(order.createdAt)}</span>
+                        <span className="text-zinc-600">•</span>
+                        <Clock className="w-2.5 h-2.5 text-zinc-500 shrink-0" />
+                        <span>{formatTime(order.createdAt)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Right: Status Pill, Elapsed, Total, Tap CTA */}
-                <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-800">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
-                        statusConf.badgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'
-                      }`}
-                    >
-                      {statusConf.label || order.status}
-                    </span>
-
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        payConf.badgeClass || 'text-zinc-400 bg-zinc-800'
-                      }`}
-                    >
-                      {payConf.label || effectivePaymentStatus}
-                    </span>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <div className="font-black text-sm sm:text-base text-white">
-                      {formatCurrency(order.total)}
-                    </div>
-                    <div className="text-[10px] text-zinc-500 flex items-center justify-end gap-1">
-                      <Clock className="w-2.5 h-2.5" />
-                      <span>{formatElapsedTime(order.createdAt)}</span>
-                    </div>
-                  </div>
-
-                  {/* Botón de Edición: permitido antes de entrega o si es mesa antes del cierre */}
-                  {((order.status !== 'ENTREGADO' && order.status !== 'CANCELADO') ||
-                    ((order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID' && order.status !== 'CANCELADO')) ? (
-                    onEditOrderInSales && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEditOrderInSales(order);
-                        }}
-                        className="p-1.5 rounded-lg bg-zinc-800/80 hover:bg-[var(--color-porkos-orange)] text-zinc-400 hover:text-black transition-colors shrink-0 cursor-pointer"
-                        title="Editar comanda"
-                        aria-label="Editar comanda"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                    )
+                {/* Fila 2: Chips visuales de Productos ordenados (Scannable Items) */}
+                <div className="bg-black/40 rounded-xl p-2 sm:p-2.5 border border-zinc-900 flex flex-wrap items-center gap-1.5">
+                  {order.items && order.items.length > 0 ? (
+                    <>
+                      {order.items.slice(0, 5).map((item, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 text-zinc-200 px-2 py-1 rounded-lg text-xs"
+                        >
+                          <span className="font-extrabold text-[var(--color-porkos-orange)]">
+                            {item.quantity}×
+                          </span>
+                          <span className="font-semibold text-zinc-300 truncate max-w-[130px] sm:max-w-[180px]">
+                            {item.name}
+                          </span>
+                          <ItemConsumptionBadge item={item} orderModality={order.modality} />
+                        </span>
+                      ))}
+                      {order.items.length > 5 && (
+                        <span className="inline-flex items-center text-[11px] font-bold text-zinc-400 bg-zinc-800/80 px-2 py-1 rounded-lg border border-zinc-700">
+                          +{order.items.length - 5} más
+                        </span>
+                      )}
+                    </>
                   ) : (
-                    <span
-                      className="p-1.5 text-zinc-600 shrink-0"
-                      title="Comanda finalizada"
-                    >
-                      <Lock className="w-3.5 h-3.5" />
-                    </span>
+                    <span className="text-xs text-zinc-500 italic">Sin productos</span>
                   )}
 
-                  <button
-                    type="button"
-                    className="p-1.5 rounded-lg bg-zinc-800/80 group-hover:bg-[var(--color-porkos-orange)] text-zinc-400 group-hover:text-black transition-colors shrink-0"
-                    aria-label="Ver detalle"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
+                  {order.deliveryFee > 0 && (
+                    <span className="inline-flex items-center gap-1 bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 px-2 py-1 rounded-lg text-[11px] font-bold">
+                      <Bike className="w-3 h-3 text-emerald-400" />
+                      Delivery ({formatCurrency(order.deliveryFee)})
+                    </span>
+                  )}
+                </div>
+
+                {/* Fila 3: Barra inferior con tiempo transcurrido, notas y botones de acción */}
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-zinc-900 text-xs">
+                  {/* Tiempo transcurrido / Notas */}
+                  <div className="flex items-center gap-2 text-zinc-500 text-[11px] min-w-0">
+                    <span className="inline-flex items-center gap-1 bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-800 text-zinc-400 font-medium">
+                      <Clock className="w-3 h-3 text-zinc-500" />
+                      {formatElapsedTime(order.createdAt)}
+                    </span>
+                    {order.notes && (
+                      <span className="truncate italic text-amber-400/90 max-w-[200px] sm:max-w-xs">
+                        &ldquo;{order.notes}&rdquo;
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Acciones */}
+                  <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                    {/* Botón Editar Comanda si está permitido */}
+                    {((order.status !== 'ENTREGADO' && order.status !== 'CANCELADO') ||
+                      ((order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID' && order.status !== 'CANCELADO')) ? (
+                      onEditOrderInSales && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditOrderInSales(order);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800/80 hover:bg-[var(--color-porkos-orange)] text-zinc-300 hover:text-black text-xs font-bold transition-all cursor-pointer active:scale-95"
+                          title="Editar comanda"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Editar</span>
+                        </button>
+                      )
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-zinc-500 text-[10px] font-semibold"
+                        title="Comanda finalizada"
+                      >
+                        <Lock className="w-3 h-3" />
+                        <span className="hidden sm:inline">Finalizada</span>
+                      </span>
+                    )}
+
+                    {/* Botón Ver Detalle */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedOrder(order);
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800/80 group-hover:bg-[var(--color-porkos-orange)] text-zinc-300 group-hover:text-black text-xs font-bold transition-all cursor-pointer active:scale-95"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Detalle</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );

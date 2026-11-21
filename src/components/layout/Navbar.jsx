@@ -46,7 +46,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
     <>
       {/* Top Bar for Desktop & Mobile */}
       <header className="sticky top-0 z-30 bg-[var(--color-porkos-bg)]/95 backdrop-blur-md border-b border-[var(--color-porkos-border)] px-3 sm:px-4 py-2">
-        <div className="max-w-[1720px] mx-auto flex items-center justify-between gap-2 xl:gap-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 xl:gap-4">
           {/* Logo & Brand */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 whitespace-nowrap">
             <img
@@ -102,34 +102,40 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
             })}
           </nav>
 
-          {/* Right Header: User Profile & Mobile Hamburger Button */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          {/* Right Header: User Profile & Logout Button */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
             {user && (
-              <div className="flex items-center gap-2 bg-zinc-900/80 pl-2 pr-2 sm:pr-3 py-1 rounded-2xl border border-zinc-800">
-                {user.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt={user.displayName}
-                    className="w-7 h-7 rounded-xl object-cover border border-zinc-700"
-                  />
-                ) : (
-                  <div className="w-7 h-7 rounded-xl bg-orange-500/20 text-[var(--color-porkos-orange)] flex items-center justify-center font-black text-xs border border-orange-500/40">
-                    <UserIcon className="w-3.5 h-3.5" />
-                  </div>
-                )}
-                <div className="text-left hidden sm:block">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-white block leading-tight truncate max-w-[120px]">
-                      {user.displayName}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 bg-zinc-900/90 pl-2 pr-2.5 py-1 rounded-xl border border-zinc-800/90 shadow-xs">
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName}
+                      className="w-7 h-7 rounded-lg object-cover border border-zinc-700 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded-lg bg-orange-500/20 text-[var(--color-porkos-orange)] flex items-center justify-center font-black text-xs border border-orange-500/40 shrink-0">
+                      <UserIcon className="w-3.5 h-3.5" />
+                    </div>
+                  )}
+                  <div className="text-left hidden sm:block min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-white block leading-tight truncate max-w-[110px]">
+                        {user.displayName}
+                      </span>
+                      <span
+                        className={`text-[9px] font-black px-1.5 py-0.2 rounded border uppercase shrink-0 ${
+                          user.roleBadgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                        }`}
+                      >
+                        {user.role}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold leading-none pt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                      En línea
                     </span>
-                    <span className={`text-[9px] font-black px-1.5 py-0.2 rounded border uppercase ${user.roleBadgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}>
-                      {user.role}
-                    </span>
                   </div>
-                  <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    Online
-                  </span>
                 </div>
 
                 <button
@@ -139,10 +145,12 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
                       logout();
                     }
                   }}
-                  className="hidden sm:block p-1 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-zinc-800 transition-colors ml-1 cursor-pointer"
+                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900/90 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-300 border border-zinc-800 hover:border-rose-500/40 transition-all cursor-pointer font-bold text-xs active:scale-95 shadow-xs"
                   title="Cerrar sesión"
+                  aria-label="Cerrar sesión"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
+                  <LogOut className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                  <span className="hidden md:inline">Salir</span>
                 </button>
               </div>
             )}

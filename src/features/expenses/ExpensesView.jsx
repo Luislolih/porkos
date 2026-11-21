@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Wallet, Plus, Edit3, Trash2, ShieldCheck, AlertTriangle } from 'lucide-react';
-import { formatCurrency, formatTime } from '../../utils/formatters';
+import { useState, useEffect, useMemo } from 'react';
+import { Wallet, Plus, Edit3, Trash2, ShieldCheck, AlertTriangle, Calendar, Clock } from 'lucide-react';
+import { formatCurrency, formatTime, formatDate, parseToDate } from '../../utils/formatters';
 import { sanitizeText } from '../../utils/security';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -59,6 +59,15 @@ export default function ExpensesView() {
   }, []);
 
   const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+
+  // Ordenar gastos cronológicamente por fecha descendente (más recientes primero)
+  const sortedExpenses = useMemo(() => {
+    return [...expenses].sort((a, b) => {
+      const timeA = parseToDate(a.date)?.getTime() || 0;
+      const timeB = parseToDate(b.date)?.getTime() || 0;
+      return timeB - timeA;
+    });
+  }, [expenses]);
 
   // 1. Registrar nuevo gasto
   const handleAddExpense = async (e) => {
@@ -213,7 +222,7 @@ export default function ExpensesView() {
             <table className="w-full text-left text-xs whitespace-nowrap">
               <thead className="bg-black/50 text-zinc-400 font-bold uppercase tracking-wider border-b border-zinc-800/80">
                 <tr>
-                  <th className="py-3 px-4">Hora</th>
+                  <th className="py-3 px-4">Fecha & Hora</th>
                   <th className="py-3 px-4">Categoría</th>
                   <th className="py-3 px-4">Descripción</th>
                   <th className="py-3 px-4">Método</th>
@@ -222,10 +231,16 @@ export default function ExpensesView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/60 font-medium">
-                {expenses.map((exp) => (
+                {sortedExpenses.map((exp) => (
                   <tr key={exp.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="py-3.5 px-4 text-zinc-400 font-mono text-[11px]">
-                      {formatTime(exp.date)}
+                    <td className="py-3.5 px-4 font-mono text-[11px] text-zinc-300">
+                      <div className="flex items-center gap-1.5 font-bold text-white">
+                        <Calendar className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                        <span>{formatDate(exp.date)}</span>
+                        <span className="text-zinc-500 font-normal">•</span>
+                        <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
+                        <span className="text-zinc-300 font-semibold">{formatTime(exp.date)}</span>
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 font-bold text-amber-400">{exp.category}</td>
                     <td className="py-3.5 px-4 text-white font-semibold">{exp.description}</td>
