@@ -582,7 +582,7 @@ export default function OrdersView({
                         if (e.key === 'Enter') handleSaveCustomerName(selectedOrder);
                         if (e.key === 'Escape') setEditingCustomerNameOrder(null);
                       }}
-                      placeholder="Nombre del cliente..."
+                      placeholder="Nombre"
                       className="bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] font-bold w-full max-w-[200px]"
                     />
                     <button

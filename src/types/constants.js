@@ -47,7 +47,7 @@ export const ORDER_MODALITIES = {
     id: 'DELIVERY',
     label: 'Delivery',
     icon: 'Bike',
-    requiresCustomerInfo: true,
+    requiresCustomerInfo: false,
     badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
   },
   MARKET: {

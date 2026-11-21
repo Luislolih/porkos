@@ -256,13 +256,7 @@ export default function CartView({
                 setCustomerName(val);
                 setCustomer((prev) => ({ ...prev, name: val }));
               }}
-              placeholder={
-                isDelivery
-                  ? 'Nombre del cliente (Delivery) *'
-                  : isTakeout
-                  ? 'Nombre del cliente (Para llevar)...'
-                  : 'Nombre del cliente / comensal...'
-              }
+              placeholder="Nombre"
               className="w-full bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] rounded-xl pl-8 pr-7 py-2 text-xs text-white placeholder-zinc-500 font-semibold focus:outline-none transition-colors"
             />
             {(customerName || customer.name) && (
@@ -605,7 +599,7 @@ export default function CartView({
                 type="tel"
                 value={customer.phone || ''}
                 onChange={(e) => setCustomer((prev) => ({ ...prev, phone: e.target.value }))}
-                placeholder="Celular / WhatsApp *"
+                placeholder="Celular / WhatsApp"
                 className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-medium"
               />
             </div>
@@ -617,12 +611,12 @@ export default function CartView({
                 type="text"
                 value={customer.address || ''}
                 onChange={(e) => setCustomer((prev) => ({ ...prev, address: e.target.value }))}
-                placeholder="Dirección exacta de entrega (calle, número, dpto) *"
+                placeholder="Dirección"
                 className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-medium"
               />
             </div>
 
-            {/* Referencia de entrega & Monto editable de delivery */}
+            {/* Referencia de entrega & Monto de delivery */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               <div className="relative">
                 <Navigation className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
@@ -630,7 +624,7 @@ export default function CartView({
                   type="text"
                   value={customer.reference || ''}
                   onChange={(e) => setCustomer((prev) => ({ ...prev, reference: e.target.value }))}
-                  placeholder="Referencia (frente al parque...)"
+                  placeholder="Referencia"
                   className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
                 />
               </div>
@@ -644,11 +638,8 @@ export default function CartView({
                   value={customer.deliveryFee ?? ''}
                   onChange={(e) => setCustomer((prev) => ({ ...prev, deliveryFee: e.target.value }))}
                   placeholder="Costo envío"
-                  className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-14 py-1.5 text-xs text-zinc-200 font-bold placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+                  className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-zinc-200 font-bold placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
                 />
-                <span className="absolute right-2.5 text-[10px] text-zinc-500 font-medium pointer-events-none">
-                  Editable
-                </span>
               </div>
             </div>
           </div>

@@ -278,14 +278,6 @@ export default function SalesView({
       }
     }
 
-    if (modality === 'DELIVERY') {
-      const clientName = customerName?.trim() || customer.name?.trim();
-      if (!clientName) {
-        showToast('⚠️ Ingresa el nombre del cliente para delivery');
-        return;
-      }
-    }
-
     const hasKitchenItems = items.some((i) => Boolean(i.requiresKitchen) && !isProductMarket(i));
     const isTable = modality === 'MESA' || modality === ORDER_MODALITIES.MESA?.id;
     const isDelivery = modality === 'DELIVERY';
@@ -370,13 +362,6 @@ export default function SalesView({
       }
     }
 
-    if (salesMode !== SALES_MODES.MARKET && modality === 'DELIVERY') {
-      const clientName = customerName?.trim() || customer.name?.trim();
-      if (!clientName) {
-        showToast('⚠️ Ingresa el nombre del cliente para delivery');
-        return;
-      }
-    }
     setIsPaymentOpen(true);
   };
 
@@ -396,14 +381,6 @@ export default function SalesView({
     if (salesMode !== SALES_MODES.MARKET && (modality === 'MESA' || modality === ORDER_MODALITIES.MESA.id)) {
       if (!selectedTable?.id) {
         showToast('Debes seleccionar un número de mesa para la comanda');
-        return;
-      }
-    }
-
-    if (modality === 'DELIVERY') {
-      const clientName = customerName?.trim() || customer.name?.trim();
-      if (!clientName) {
-        showToast('⚠️ Ingresa el nombre del cliente para delivery');
         return;
       }
     }
