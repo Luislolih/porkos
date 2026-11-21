@@ -115,7 +115,10 @@ function CustomizerForm({
   });
 
   const [selectedExtras, setSelectedExtras] = useState(() => {
-    return initialCustomization?.selectedExtras || [];
+    return (initialCustomization?.selectedExtras || []).map((e) => ({
+      ...e,
+      quantity: e.quantity || 1,
+    }));
   });
 
   // 5. Empaques asociados estrictamente a este producto
@@ -178,13 +181,36 @@ function CustomizerForm({
     );
   };
 
-  const toggleExtra = (extra) => {
+  const addExtraUnit = (extra) => {
     setSelectedExtras((prev) => {
-      const exists = prev.find((e) => e.id === extra.id);
-      if (exists) {
-        return prev.filter((e) => e.id !== extra.id);
+      const match = prev.find((e) => e.id === extra.id);
+      if (match) {
+        return prev.map((e) =>
+          e.id === extra.id ? { ...e, quantity: (e.quantity || 1) + 1 } : e
+        );
       }
-      return [...prev, { id: extra.id, name: extra.name, unitPrice: extra.price, quantity: 1 }];
+      return [
+        ...prev,
+        {
+          id: extra.id,
+          name: extra.name,
+          unitPrice: extra.price,
+          quantity: 1,
+        },
+      ];
+    });
+  };
+
+  const removeExtraUnit = (extraId) => {
+    setSelectedExtras((prev) => {
+      const match = prev.find((e) => e.id === extraId);
+      if (!match) return prev;
+      if ((match.quantity || 1) > 1) {
+        return prev.map((e) =>
+          e.id === extraId ? { ...e, quantity: (e.quantity || 1) - 1 } : e
+        );
+      }
+      return prev.filter((e) => e.id !== extraId);
     });
   };
 
@@ -457,35 +483,101 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 4. EXTRAS */}
+      {/* 4. EXTRAS DINÁMICOS CON CANTIDADES (1x, 2x, 3x...) */}
       {compatibleExtras.length > 0 && (
-        <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-          <span className="text-xs font-black text-white uppercase tracking-wider block">
-            4. Extras
-          </span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div className="space-y-2 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-white uppercase tracking-wider block">
+              4. Extras
+            </span>
+            {selectedExtras.length > 0 && (
+              <span className="text-[11px] font-black text-[var(--color-porkos-orange)]">
+                +{formatCurrency(extrasTotal)} ({selectedExtras.reduce((acc, e) => acc + (e.quantity || 1), 0)} u.)
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {compatibleExtras.map((ext) => {
-              const isSelected = selectedExtras.some((e) => e.id === ext.id);
+              const selectedItem = selectedExtras.find((e) => e.id === ext.id);
+              const qty = selectedItem?.quantity || 0;
+              const isSelected = qty > 0;
               const cleanName = ext.name.replace(/^Extra\s+/i, '');
+              const subtotalExtra = ext.price * qty;
+
               return (
-                <button
+                <div
                   key={ext.id}
-                  type="button"
-                  onClick={() => toggleExtra(ext)}
                   className={`
-                    min-h-[56px] sm:min-h-[62px] px-3.5 py-2.5 rounded-xl border-2 flex items-center justify-between transition-all active:scale-95 cursor-pointer
+                    p-2.5 sm:p-3 rounded-xl border-2 flex items-center justify-between gap-2.5 transition-all
                     ${
                       isSelected
-                        ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md'
-                        : 'bg-zinc-900/90 text-zinc-200 border-zinc-800 hover:border-zinc-700'
+                        ? 'bg-zinc-900 border-[var(--color-porkos-orange)] shadow-md'
+                        : 'bg-zinc-900/70 text-zinc-300 border-zinc-800 hover:border-zinc-700'
                     }
                   `}
                 >
-                  <span className="text-sm sm:text-base font-extrabold truncate">{cleanName}</span>
-                  <span className={`text-xs sm:text-sm font-black ml-2 shrink-0 ${isSelected ? 'text-black' : 'text-orange-400'}`}>
-                    +{formatCurrency(ext.price)}
-                  </span>
-                </button>
+                  {/* Nombre y Precio unitario o subtotal */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-sm sm:text-base font-extrabold truncate ${isSelected ? 'text-white' : 'text-zinc-200'}`}>
+                        {cleanName}
+                      </span>
+                      {isSelected && (
+                        <span className="bg-[var(--color-porkos-orange)] text-black px-1.5 py-0.2 rounded text-[11px] font-black shrink-0">
+                          {qty}x
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs font-semibold mt-0.5">
+                      {isSelected ? (
+                        <span className="text-[var(--color-porkos-orange)] font-black">
+                          +{formatCurrency(subtotalExtra)}{' '}
+                          <span className="text-zinc-400 font-normal text-[11px]">
+                            ({qty}× {formatCurrency(ext.price)})
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-zinc-400">+{formatCurrency(ext.price)} c/u</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Controles Stepper: Añadir o Disminuir / Incrementar */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {isSelected ? (
+                      <div className="flex items-center bg-black/80 rounded-xl border border-zinc-700 p-0.5 shadow-xs">
+                        <button
+                          type="button"
+                          onClick={() => removeExtraUnit(ext.id)}
+                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-black text-sm flex items-center justify-center transition-all cursor-pointer active:scale-90"
+                          title="Quitar una unidad"
+                        >
+                          -
+                        </button>
+                        <span className="w-7 sm:w-8 text-center font-black text-xs sm:text-sm text-white">
+                          {qty}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => addExtraUnit(ext)}
+                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black font-black text-sm flex items-center justify-center transition-all cursor-pointer active:scale-90 shadow-xs"
+                          title="Añadir otra unidad"
+                        >
+                          +
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => addExtraUnit(ext)}
+                        className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-[var(--color-porkos-orange)] text-zinc-300 hover:text-black font-black text-xs transition-all cursor-pointer active:scale-95 border border-zinc-700 hover:border-transparent flex items-center gap-1 shadow-xs"
+                      >
+                        <span>+ Agregar</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
               );
             })}
           </div>

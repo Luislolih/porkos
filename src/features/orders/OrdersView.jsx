@@ -696,12 +696,30 @@ export default function OrdersView({
                         </p>
                       )}
 
-                      {/* 4. Extras */}
-                      {item.customization?.selectedExtras?.map((e) => (
-                        <p key={e.id} className="text-[10px] text-amber-300 font-medium">
-                          + {e.name}
-                        </p>
-                      ))}
+                      {/* 4. Extras en líneas separadas */}
+                      {item.customization?.selectedExtras?.map((e, eIdx) => {
+                        const clean = e.name.replace(/^Extra\s+/i, '');
+                        const qty = e.quantity || 1;
+                        const totalExtraPrice = (e.unitPrice || 0) * qty;
+                        return (
+                          <div
+                            key={e.id || eIdx}
+                            className="flex items-center justify-between text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20"
+                          >
+                            <span className="flex items-center gap-1.5 min-w-0 truncate">
+                              <span className="bg-amber-400 text-black px-1.5 py-0.2 rounded text-[10px] font-black shrink-0">
+                                {qty}x
+                              </span>
+                              <span className="truncate">{clean}</span>
+                            </span>
+                            {totalExtraPrice > 0 && (
+                              <span className="text-[10px] text-amber-200/90 font-black shrink-0 ml-2">
+                                +{formatCurrency(totalExtraPrice)}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
 
                       {/* 5. Empaque individual */}
                       {item.customization?.packaging && item.customization.packaging.price > 0 && (

@@ -69,15 +69,17 @@ export function getItemTicketDetails(customization) {
     lines.push({ label: 'CREMAS', value: cleanCreams, type: 'creams' });
   }
 
-  // 4. EXTRAS: Queso, Huevo
+  // 4. EXTRAS: Cada extra en su propia línea para distinguirse con precisión
   if (customization.selectedExtras?.length > 0) {
-    const extrasList = customization.selectedExtras
-      .map((e) => {
-        const cleanName = e.name.replace(/^Extra\s+/i, '');
-        return e.quantity > 1 ? `${e.quantity}x ${cleanName}` : cleanName;
-      })
-      .join(', ');
-    lines.push({ label: 'EXTRAS', value: extrasList, type: 'extras' });
+    customization.selectedExtras.forEach((e) => {
+      const cleanName = e.name.replace(/^Extra\s+/i, '');
+      const qty = e.quantity || 1;
+      lines.push({
+        label: 'EXTRA',
+        value: `${qty}x ${cleanName}`.toUpperCase(),
+        type: 'extras',
+      });
+    });
   }
 
   // 5. EMPAQUE / TAPER

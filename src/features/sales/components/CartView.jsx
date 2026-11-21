@@ -481,20 +481,30 @@ export default function CartView({
                       </div>
                     )}
 
-                    {/* 4. EXTRAS */}
+                    {/* 4. EXTRAS EN LÍNEAS SEPARADAS */}
                     {item.customization?.selectedExtras?.length > 0 && (
-                      <div className="flex items-baseline gap-1.5 leading-tight">
-                        <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
-                          Extras:
-                        </span>
-                        <span className="font-semibold text-zinc-200">
-                          {item.customization.selectedExtras
-                            .map((e) => {
-                              const clean = e.name.replace(/^Extra\s+/i, '');
-                              return `${clean}${e.unitPrice ? ` (+${formatCurrency(e.unitPrice)})` : ''}`;
-                            })
-                            .join(', ')}
-                        </span>
+                      <div className="space-y-1 pt-0.5">
+                        {item.customization.selectedExtras.map((e, eIdx) => {
+                          const clean = e.name.replace(/^Extra\s+/i, '');
+                          const qty = e.quantity || 1;
+                          const totalPrice = (e.unitPrice || 0) * qty;
+                          return (
+                            <div
+                              key={eIdx}
+                              className="flex items-center justify-between text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20"
+                            >
+                              <span className="flex items-center gap-1.5 min-w-0 truncate">
+                                <span className="bg-amber-400 text-black px-1.5 py-0.2 rounded text-[10px] font-black shrink-0">
+                                  {qty}x
+                                </span>
+                                <span className="truncate">{clean}</span>
+                              </span>
+                              <span className="text-[10px] text-amber-200/90 font-black shrink-0 ml-2">
+                                +{formatCurrency(totalPrice)}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
 
