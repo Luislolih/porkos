@@ -698,12 +698,12 @@ export default function OrdersView({
 
                       {/* 4. Extras en líneas separadas */}
                       {item.customization?.selectedExtras?.map((e, eIdx) => {
-                        const clean = e.name.replace(/^Extra\s+/i, '');
-                        const qty = e.quantity || 1;
-                        const totalExtraPrice = (e.unitPrice || 0) * qty;
+                        const clean = (e?.name || e?.label || (typeof e === 'string' ? e : '') || 'Extra').replace(/^Extra\s+/i, '');
+                        const qty = e?.quantity || 1;
+                        const totalExtraPrice = (e?.unitPrice || e?.price || 0) * qty;
                         return (
                           <div
-                            key={e.id || eIdx}
+                            key={e?.id || `ord_extra_${eIdx}`}
                             className="flex items-center justify-between text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20"
                           >
                             <span className="flex items-center gap-1.5 min-w-0 truncate">
@@ -724,7 +724,7 @@ export default function OrdersView({
                       {/* 5. Empaque individual */}
                       {item.customization?.packaging && item.customization.packaging.price > 0 && (
                         <p className="text-[10px] text-blue-300 font-medium">
-                          📦 {item.customization.packaging.name}
+                          📦 {item.customization.packaging.name || 'Empaque'}
                         </p>
                       )}
 

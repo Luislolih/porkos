@@ -30,11 +30,11 @@ import Modal from '../../../components/ui/Modal';
 function getPapasText(customization) {
   const papasMod = customization?.selectedModifiers?.find(
     (m) =>
-      m.groupId === 'mod_papas' ||
-      m.groupId === 'mod_corte_papas' ||
-      m.groupName?.toLowerCase().includes('papa')
+      m?.groupId === 'mod_papas' ||
+      m?.groupId === 'mod_corte_papas' ||
+      m?.groupName?.toLowerCase()?.includes('papa')
   );
-  if (!papasMod) return null;
+  if (!papasMod || !papasMod.optionName) return null;
   const opt = papasMod.optionName.toLowerCase();
   if (opt.includes('hilo')) return 'AL HILO';
   if (opt.includes('sin')) return 'SIN PAPAS';
@@ -492,12 +492,12 @@ export default function CartView({
                     {item.customization?.selectedExtras?.length > 0 && (
                       <div className="space-y-1 pt-0.5">
                         {item.customization.selectedExtras.map((e, eIdx) => {
-                          const clean = e.name.replace(/^Extra\s+/i, '');
-                          const qty = e.quantity || 1;
-                          const totalPrice = (e.unitPrice || 0) * qty;
+                          const clean = (e?.name || e?.label || (typeof e === 'string' ? e : '') || 'Extra').replace(/^Extra\s+/i, '');
+                          const qty = e?.quantity || 1;
+                          const totalPrice = (e?.unitPrice || e?.price || 0) * qty;
                           return (
                             <div
-                              key={eIdx}
+                              key={e?.id || `cart_extra_${eIdx}`}
                               className="flex items-center justify-between text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20"
                             >
                               <span className="flex items-center gap-1.5 min-w-0 truncate">
@@ -522,7 +522,7 @@ export default function CartView({
                           Empaque:
                         </span>
                         <span className="font-semibold text-zinc-200">
-                          {item.customization.packaging.name} (+{formatCurrency(item.customization.packaging.price)})
+                          {item.customization.packaging.name || 'Empaque'} (+{formatCurrency(item.customization.packaging.price || 0)})
                         </span>
                       </div>
                     )}

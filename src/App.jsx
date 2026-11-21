@@ -41,7 +41,6 @@ function saveOrdersLocal(ordersList) {
 function MainApp() {
   const { canAccessModule, allowedModules } = useAuth();
   const [currentModule, setCurrentModule] = useState(MODULES.SALES);
-  const [autoOpenCart, setAutoOpenCart] = useState(false);
 
   // Derivar módulo activo protegido por rol (evita setState síncrono en effect)
   const activeModule = allowedModules?.length > 0 && !canAccessModule(currentModule)
@@ -357,7 +356,6 @@ function MainApp() {
       return;
     }
     loadOrderForEditing(order, tables);
-    setAutoOpenCart(true);
     setCurrentModule(MODULES.SALES);
   };
 
@@ -419,8 +417,6 @@ function MainApp() {
             }}
             onOrderUpdated={handleUpdateOrder}
             onReturnToOrders={() => setCurrentModule(MODULES.ORDERS)}
-            autoOpenCart={autoOpenCart}
-            onCartOpened={() => setAutoOpenCart(false)}
           />
         )}
 

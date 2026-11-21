@@ -23,8 +23,6 @@ export default function SalesView({
   onSettleTableOrder,
   onOrderUpdated,
   onReturnToOrders,
-  autoOpenCart = false,
-  onCartOpened,
 }) {
   const { user } = useAuth();
   const {
@@ -54,20 +52,24 @@ export default function SalesView({
   const [customizingProduct, setCustomizingProduct] = useState(null);
   const [editingCartItem, setEditingCartItem] = useState(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [isMobileCartOpen, setIsMobileCartOpen] = useState(() => Boolean(editingOrder || autoOpenCart));
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(() => Boolean(editingOrder));
   const [drawerDragY, setDrawerDragY] = useState(0);
   const [isDraggingDrawer, setIsDraggingDrawer] = useState(false);
   const drawerStartYRef = useRef(0);
+  const lastEditingOrderIdRef = useRef(null);
 
   // Al entrar a editar una comanda (desde Mesas o Pedidos), abrir automáticamente la comanda desplegada
   useEffect(() => {
-    if (editingOrder || autoOpenCart) {
-      setIsMobileCartOpen(true);
-      if (onCartOpened) {
-        onCartOpened();
+    if (editingOrder) {
+      const orderKey = editingOrder.orderNumber || editingOrder.id || 'editing';
+      if (lastEditingOrderIdRef.current !== orderKey) {
+        lastEditingOrderIdRef.current = orderKey;
+        setIsMobileCartOpen(true);
       }
+    } else {
+      lastEditingOrderIdRef.current = null;
     }
-  }, [editingOrder, autoOpenCart, onCartOpened]);
+  }, [editingOrder]);
 
   const handleDrawerTouchStart = (e) => {
     if (!e.touches || e.touches.length === 0) return;

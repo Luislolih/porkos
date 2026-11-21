@@ -72,8 +72,8 @@ export function getItemTicketDetails(customization) {
   // 4. EXTRAS: Cada extra en su propia línea para distinguirse con precisión
   if (customization.selectedExtras?.length > 0) {
     customization.selectedExtras.forEach((e) => {
-      const cleanName = e.name.replace(/^Extra\s+/i, '');
-      const qty = e.quantity || 1;
+      const cleanName = (e?.name || e?.label || (typeof e === 'string' ? e : '') || 'Extra').replace(/^Extra\s+/i, '');
+      const qty = e?.quantity || 1;
       lines.push({
         label: 'EXTRA',
         value: `${qty}x ${cleanName}`.toUpperCase(),
@@ -84,7 +84,8 @@ export function getItemTicketDetails(customization) {
 
   // 5. EMPAQUE / TAPER
   if (customization.packaging && customization.packaging.price > 0) {
-    const pkgName = customization.packaging.name.replace(/^Taper Térmico\s+/i, 'TAPER ');
+    const rawPkgName = customization.packaging.name || 'TAPER';
+    const pkgName = rawPkgName.replace(/^Taper Térmico\s+/i, 'TAPER ');
     lines.push({ label: 'EMPAQUE', value: pkgName.toUpperCase(), type: 'packaging' });
   }
 
