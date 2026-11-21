@@ -92,65 +92,44 @@ export default function SalesHeader({
         </div>
       </div>
 
-      {/* Lower bar: Modalidades + Mesa ('Elegir') + 'Nombre cliente' a la derecha */}
+      {/* Lower bar: Modalidades + Mesa (Botones cuadrados) + 'Nombre cliente' a la derecha */}
       {salesMode === SALES_MODES.RESTAURANT && (
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-black/40 p-1.5 rounded-xl border border-zinc-800/80">
-          {/* Modalidades */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none">
-            {modalitiesList.map((m) => {
-              const Icon = m.icon;
-              const isSelected = modality === m.id;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => {
-                    setModality(m.id);
-                    if (m.id !== ORDER_MODALITIES.MESA.id) {
-                      setSelectedTable(null);
-                    }
-                  }}
-                  className={`
-                    flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border
-                    ${
-                      isSelected
-                        ? 'bg-zinc-800 text-white border-zinc-700/60 shadow-xs font-bold'
-                        : 'bg-transparent text-zinc-400 hover:text-zinc-200 border-transparent hover:bg-zinc-800/40'
-                    }
-                  `}
-                >
-                  <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-[var(--color-porkos-orange)]' : 'text-zinc-500'}`} />
-                  <span>{m.label}</span>
-                </button>
-              );
-            })}
-          </div>
+        <div className="bg-black/40 p-2 rounded-xl border border-zinc-800/80 space-y-2">
+          {/* Fila superior: Modalidades y Nombre de cliente */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* Modalidades */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none">
+              {modalitiesList.map((m) => {
+                const Icon = m.icon;
+                const isSelected = modality === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setModality(m.id);
+                      if (m.id !== ORDER_MODALITIES.MESA.id) {
+                        setSelectedTable(null);
+                      }
+                    }}
+                    className={`
+                      flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border
+                      ${
+                        isSelected
+                          ? 'bg-zinc-800 text-white border-zinc-700/60 shadow-xs font-bold'
+                          : 'bg-transparent text-zinc-400 hover:text-zinc-200 border-transparent hover:bg-zinc-800/40'
+                      }
+                    `}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-[var(--color-porkos-orange)]' : 'text-zinc-500'}`} />
+                    <span>{m.label}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-          {/* Mesa ('Elegir') y 'Nombre cliente' a la derecha */}
-          <div className="flex items-center gap-2 flex-1 sm:flex-none justify-end">
-            {modality === ORDER_MODALITIES.MESA.id && (
-              <select
-                value={selectedTable?.id || ''}
-                onChange={(e) => {
-                  const table = tables.find((t) => t.id === e.target.value);
-                  setSelectedTable(table || null);
-                }}
-                className={`text-xs rounded-xl px-3 py-1.5 font-semibold focus:outline-none shrink-0 transition-all cursor-pointer border ${
-                  !selectedTable
-                    ? 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:border-zinc-600 focus:border-[var(--color-porkos-orange)]'
-                    : 'bg-zinc-900 border-zinc-700/80 text-white font-bold focus:border-[var(--color-porkos-orange)]'
-                }`}
-              >
-                <option value="">Seleccionar mesa</option>
-                {tables.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label} ({t.status === 'OCCUPIED' ? 'Ocupada' : 'Libre'})
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <div className="relative flex-1 sm:w-44">
+            {/* Nombre cliente */}
+            <div className="relative flex-1 sm:w-48 sm:flex-initial">
               <input
                 type="text"
                 value={customerName}
@@ -160,6 +139,81 @@ export default function SalesHeader({
               />
             </div>
           </div>
+
+          {/* Fila inferior si es MESA: Selector de mesas personalizado con botones cuadrados */}
+          {modality === ORDER_MODALITIES.MESA.id && (
+            <div className="flex items-center gap-2 pt-1.5 border-t border-zinc-800/60 w-full animate-in fade-in duration-150">
+              <div className="flex items-center gap-1.5 text-xs font-black text-zinc-400 shrink-0 uppercase tracking-wide">
+                <Utensils className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
+                <span className="hidden sm:inline">Mesas:</span>
+                <span className="sm:hidden">Mesa:</span>
+              </div>
+
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none flex-1 py-0.5">
+                {tables.length === 0 ? (
+                  <span className="text-xs text-zinc-500 italic">No hay mesas configuradas</span>
+                ) : (
+                  tables.map((t) => {
+                    const isSelected = selectedTable?.id === t.id;
+                    const isOccupied = t.status === 'OCCUPIED';
+                    const matchNum = t.label?.match(/\d+/);
+                    const shortText = matchNum ? `M${matchNum[0]}` : (t.label?.length > 4 ? t.label.slice(0, 4) : t.label);
+
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          // Un solo toque para cambiar de mesa al instante
+                          setSelectedTable(isSelected ? null : t);
+                        }}
+                        title={`${t.label} • ${isOccupied ? 'Mesa con comanda abierta' : 'Mesa libre'}`}
+                        className={`
+                          w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 flex flex-col items-center justify-center transition-all cursor-pointer border active:scale-90 select-none relative
+                          ${
+                            isSelected
+                              ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md shadow-orange-500/30 ring-2 ring-[var(--color-porkos-orange)]/50'
+                              : isOccupied
+                              ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:border-amber-400/80 hover:bg-amber-500/25'
+                              : 'bg-zinc-900/90 text-zinc-200 border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800'
+                          }
+                        `}
+                      >
+                        <span className="text-[11px] sm:text-xs font-black leading-tight tracking-tight">
+                          {shortText}
+                        </span>
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
+                            isSelected
+                              ? 'bg-black'
+                              : isOccupied
+                              ? 'bg-amber-400 animate-pulse'
+                              : 'bg-emerald-400'
+                          }`}
+                        />
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {selectedTable && (
+                <div className="shrink-0 flex items-center gap-1.5 pl-1.5 text-xs border-l border-zinc-800">
+                  <span className="font-extrabold text-[var(--color-porkos-orange)] text-xs hidden md:inline">
+                    {selectedTable.label}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTable(null)}
+                    className="text-[10px] text-zinc-400 hover:text-rose-400 font-bold px-1.5 py-0.5 rounded border border-zinc-800 hover:border-rose-500/40 cursor-pointer transition-colors"
+                    title="Deseleccionar mesa"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

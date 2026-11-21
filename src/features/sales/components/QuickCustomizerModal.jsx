@@ -127,7 +127,7 @@ function CustomizerForm({
     return isAssociatedInProduct || isAssociatedInPkg;
   });
 
-  const nonePackaging = { id: 'pkg_ninguno', name: 'Sin Empaque / Salón', price: 0 };
+  const nonePackaging = { id: 'pkg_ninguno', name: 'Sin empaque', price: 0 };
   const availablePackagings = [nonePackaging, ...associatedPaidPackagings];
   const hasPaidPackaging = associatedPaidPackagings.length > 0;
 
@@ -567,7 +567,7 @@ function CustomizerForm({
         {isBeverage && (
           <div className="flex flex-wrap gap-1.5">
             {(isJuice
-              ? ['Sin azúcar', 'Bajo azúcar', 'Con hielo', 'Sin hielo']
+              ? ['Sin azúcar', 'Bajo azúcar']
               : ['Con vaso', 'Sin vaso']
             ).map((chip) => {
               const isChipSelected = notes.toLowerCase().includes(chip.toLowerCase());

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { SALES_MODES, ORDER_MODALITIES } from '../../types/constants';
 import { useCart } from '../../context/useCart';
 import { useCatalog } from '../../context/useCatalog';
@@ -32,6 +32,36 @@ export default function SalesView({
   const [editingCartItem, setEditingCartItem] = useState(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+  const [drawerDragY, setDrawerDragY] = useState(0);
+  const [isDraggingDrawer, setIsDraggingDrawer] = useState(false);
+  const drawerStartYRef = useRef(0);
+
+  const handleDrawerTouchStart = (e) => {
+    if (!e.touches || e.touches.length === 0) return;
+    drawerStartYRef.current = e.touches[0].clientY;
+    setIsDraggingDrawer(true);
+  };
+
+  const handleDrawerTouchMove = (e) => {
+    if (!isDraggingDrawer || !e.touches || e.touches.length === 0) return;
+    const currentY = e.touches[0].clientY;
+    const deltaY = currentY - drawerStartYRef.current;
+    if (deltaY > 0) {
+      setDrawerDragY(deltaY);
+    } else {
+      setDrawerDragY(0);
+    }
+  };
+
+  const handleDrawerTouchEnd = () => {
+    if (!isDraggingDrawer) return;
+    setIsDraggingDrawer(false);
+    if (drawerDragY > 60) {
+      setIsMobileCartOpen(false);
+    }
+    setDrawerDragY(0);
+  };
+
   const [successToast, setSuccessToast] = useState(null);
 
   const { products, categories = [], packagings: catalogPackagings, recordProductSales } = useCatalog();
@@ -638,17 +668,30 @@ export default function SalesView({
       {isMobileCartOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end overscroll-contain">
           <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm touch-none"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm touch-none transition-opacity"
+            style={{ opacity: Math.max(0.2, 1 - drawerDragY / 300) }}
             onClick={() => setIsMobileCartOpen(false)}
           />
-          <div className="relative z-10 max-h-[88vh] h-full flex flex-col bg-[var(--color-porkos-surface)] rounded-t-3xl border-t border-[var(--color-porkos-border)] shadow-2xl overflow-hidden overscroll-contain">
-            {/* Tirador superior para cerrar o deslizar */}
+          <div
+            className="relative z-10 max-h-[88vh] h-full flex flex-col bg-[var(--color-porkos-surface)] rounded-t-3xl border-t border-[var(--color-porkos-border)] shadow-2xl overflow-hidden overscroll-contain"
+            style={{
+              transform: drawerDragY > 0 ? `translateY(${drawerDragY}px)` : undefined,
+              transition: isDraggingDrawer ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            {/* Tirador superior deslizante: arrastrar hacia abajo para cerrar o pulsar */}
             <div
-              className="w-full py-2.5 flex items-center justify-center cursor-pointer shrink-0 touch-none bg-black/30 border-b border-zinc-800/60"
+              className="w-full py-3 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing shrink-0 touch-none bg-black/40 border-b border-zinc-800/80 group select-none"
+              onTouchStart={handleDrawerTouchStart}
+              onTouchMove={handleDrawerTouchMove}
+              onTouchEnd={handleDrawerTouchEnd}
               onClick={() => setIsMobileCartOpen(false)}
-              title="Toca para cerrar"
+              title="Desliza hacia abajo o toca para cerrar la comanda"
             >
-              <div className="w-12 h-1 bg-zinc-600 rounded-full" />
+              <div className="w-16 h-1.5 bg-zinc-500 rounded-full group-hover:bg-[var(--color-porkos-orange)] transition-colors shadow-xs" />
+              <span className="text-[10px] text-zinc-500 group-hover:text-zinc-300 font-semibold mt-1">
+                Deslizar para cerrar
+              </span>
             </div>
 
             <div className="flex-1 overflow-hidden flex flex-col">

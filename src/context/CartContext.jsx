@@ -12,13 +12,26 @@ import {
   isProductDessert,
 } from '../utils/productCategories';
 
+const CART_DRAFT_KEY = 'porkos_cart_draft';
+
+const loadSavedCartDraft = () => {
+  try {
+    const raw = localStorage.getItem(CART_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch (e) {
+    console.warn('Error leyendo borrador de comanda desde localStorage:', e);
+    return null;
+  }
+};
+
 export function CartProvider({ children }) {
   const { products = [], packagings: catalogPackagings = [] } = useCatalog();
 
-  const [items, setItems] = useState([]);
-  const [modality, setModalityState] = useState(ORDER_MODALITIES.MESA.id);
-  const [selectedTable, setSelectedTable] = useState(null);
-  const [customerName, setCustomerName] = useState('');
+  // Carga inicial del borrador persistido en LocalStorage (recuperación ante cierre accidental)
+  const initialDraft = useMemo(() => loadSavedCartDraft(), []);
 
   // Tarifa por defecto de delivery (almacenada en localStorage y Firestore)
   const [defaultDeliveryFee, setDefaultDeliveryFee] = useState(() => {
@@ -30,20 +43,58 @@ export function CartProvider({ children }) {
     }
   });
 
-  const [customer, setCustomer] = useState({
-    name: '',
-    phone: '',
-    address: '',
-    reference: '',
-    deliveryFee: defaultDeliveryFee,
-  });
+  const [items, setItems] = useState(() => (Array.isArray(initialDraft?.items) ? initialDraft.items : []));
+  const [modality, setModalityState] = useState(() => initialDraft?.modality || ORDER_MODALITIES.MESA.id);
+  const [selectedTable, setSelectedTable] = useState(() => initialDraft?.selectedTable || null);
+  const [customerName, setCustomerName] = useState(() => initialDraft?.customerName || '');
 
-  const [packagings, setPackagings] = useState([]);
-  const [generalNotes, setGeneralNotes] = useState('');
-  const [discount, setDiscount] = useState(0);
+  const [customer, setCustomer] = useState(() => ({
+    name: initialDraft?.customer?.name || initialDraft?.customerName || '',
+    phone: initialDraft?.customer?.phone || '',
+    address: initialDraft?.customer?.address || '',
+    reference: initialDraft?.customer?.reference || '',
+    deliveryFee: initialDraft?.customer?.deliveryFee !== undefined ? initialDraft.customer.deliveryFee : defaultDeliveryFee,
+  }));
+
+  const [packagings, setPackagings] = useState(() => (Array.isArray(initialDraft?.packagings) ? initialDraft.packagings : []));
+  const [generalNotes, setGeneralNotes] = useState(() => initialDraft?.generalNotes || '');
+  const [discount, setDiscount] = useState(() => (typeof initialDraft?.discount === 'number' ? initialDraft.discount : 0));
 
   // Estado para edición de comanda activa existente
-  const [editingOrder, setEditingOrder] = useState(null);
+  const [editingOrder, setEditingOrder] = useState(() => initialDraft?.editingOrder || null);
+
+  // Autosave: sincronizar en tiempo real el borrador en LocalStorage ante cualquier cambio
+  useEffect(() => {
+    try {
+      const hasContent =
+        items.length > 0 ||
+        Boolean(customerName?.trim()) ||
+        Boolean(generalNotes?.trim()) ||
+        Boolean(selectedTable) ||
+        (packagings && packagings.length > 0) ||
+        Boolean(editingOrder);
+
+      if (hasContent) {
+        const draft = {
+          items,
+          modality,
+          selectedTable,
+          customerName,
+          customer,
+          packagings,
+          generalNotes,
+          discount,
+          editingOrder,
+          updatedAt: Date.now(),
+        };
+        localStorage.setItem(CART_DRAFT_KEY, JSON.stringify(draft));
+      } else {
+        localStorage.removeItem(CART_DRAFT_KEY);
+      }
+    } catch (err) {
+      console.warn('Error guardando borrador de comanda en localStorage:', err);
+    }
+  }, [items, modality, selectedTable, customerName, customer, packagings, generalNotes, discount, editingOrder]);
 
   const loadOrderForEditing = (order, availableTables = []) => {
     if (!order) return false;
@@ -560,6 +611,11 @@ export function CartProvider({ children }) {
     setDiscount(0);
     setEditingOrder(null);
     setSelectedTable(null);
+    try {
+      localStorage.removeItem(CART_DRAFT_KEY);
+    } catch {
+      // ignore
+    }
   };
 
   const addPackaging = (pkg) => {
