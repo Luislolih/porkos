@@ -851,12 +851,8 @@ export default function CartView({
                 isLoading={isSubmitting}
                 variant="primary"
                 size="md"
-                icon={hasKitchenItems ? Flame : Package}
-                className={`text-xs sm:text-sm font-black py-3 ${
-                  modality === 'MESA' && !selectedTable
-                    ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
-                    : 'bg-[var(--color-porkos-orange)] text-zinc-950 shadow-md shadow-orange-500/20'
-                }`}
+                icon={modality === 'MESA' && !selectedTable ? Utensils : hasKitchenItems ? Flame : Package}
+                className="text-xs sm:text-sm font-black py-3 bg-[var(--color-porkos-orange)] hover:bg-[var(--color-porkos-orange-hover)] text-zinc-950 shadow-md shadow-orange-500/20"
               >
                 {isSubmitting
                   ? 'Enviando...'

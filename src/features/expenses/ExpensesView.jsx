@@ -474,6 +474,7 @@ export default function ExpensesView() {
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
                 onClick={(e) => e.target.showPicker?.()}
+                style={{ colorScheme: 'dark' }}
                 className="bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1 text-white font-medium focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               />
               <span className="text-zinc-500">a</span>
@@ -482,6 +483,7 @@ export default function ExpensesView() {
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
                 onClick={(e) => e.target.showPicker?.()}
+                style={{ colorScheme: 'dark' }}
                 className="bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1 text-white font-medium focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               />
             </div>
@@ -667,6 +669,7 @@ export default function ExpensesView() {
               value={newDate}
               onChange={(e) => setNewDate(e.target.value)}
               onClick={(e) => e.target.showPicker?.()}
+              style={{ colorScheme: 'dark' }}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
             />
           </div>
@@ -772,6 +775,7 @@ export default function ExpensesView() {
                 value={editDate}
                 onChange={(e) => setEditDate(e.target.value)}
                 onClick={(e) => e.target.showPicker?.()}
+                style={{ colorScheme: 'dark' }}
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               />
             </div>

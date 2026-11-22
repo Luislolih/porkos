@@ -18,11 +18,25 @@ import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
 import EmptyState from '../../components/ui/EmptyState';
 import { isProductBeverage, isProductMarket } from '../../utils/productCategories';
+import { useCatalog } from '../../context/useCatalog';
 
 export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
+  const { products = [] } = useCatalog();
   const [mainMode, setMainMode] = useState('COCINA'); // 'COCINA' | 'ENTREGAS'
   const [activeTab, setActiveTab] = useState('PENDIENTE'); // 'PENDIENTE' | 'PREPARANDO' | 'LISTO' | 'KANBAN'
   const [, setTick] = useState(0);
+
+  const getItemThumbnail = (item) => {
+    if (item?.thumbnailUrl) return item.thumbnailUrl;
+    if (item?.image) return item.image;
+    if (!products || products.length === 0) return null;
+    const match = products.find(
+      (p) =>
+        (item?.productId && p.id === item.productId) ||
+        (item?.name && p.name && p.name.trim().toLowerCase() === item.name.trim().toLowerCase())
+    );
+    return match?.thumbnailUrl || match?.image || null;
+  };
 
   // Actualizar tiempos transcurridos en tiempo real cada 10 segundos
   useEffect(() => {
@@ -196,6 +210,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
               >
                 <ProductThumbnail
                   src={item.image}
+                  thumbnailUrl={getItemThumbnail(item)}
                   name={item.name}
                   isBeverage={isProductBeverage(item)}
                   className="w-13 h-13 sm:w-14 sm:h-14 rounded-xl"
@@ -240,12 +255,13 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
 
           {/* Bebidas asociadas a la comanda */}
           {beverageItems.length > 0 && (
-            <div className="space-y-1.5 bg-[#0C0C0F] p-2.5 rounded-2xl border border-[var(--color-porkos-border)]">
-              <span className="text-[10px] font-black text-cyan-300 uppercase tracking-wider block">
-                Bebidas del Pedido
+            <div className="space-y-2 bg-[#0C0C0F] p-2.5 sm:p-3 rounded-2xl border border-cyan-900/30">
+              <span className="text-[10px] font-black text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🥤</span>
+                <span>Bebidas a entregar ({beverageItems.reduce((acc, b) => acc + (b.quantity || 1), 0)})</span>
               </span>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {beverageItems.map((bev, bIdx) => {
                   const tempBadge =
                     bev.customization?.temperature === 'HELADA'
@@ -257,18 +273,29 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
                   return (
                     <div
                       key={bIdx}
-                      className="bg-[#141418] p-2 rounded-xl border border-zinc-800 flex items-center justify-between gap-2 text-xs"
+                      className="bg-[#141418] p-2 sm:p-2.5 rounded-xl border border-zinc-800/90 flex items-center justify-between gap-2.5 text-xs shadow-xs"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="bg-zinc-800 text-white border border-zinc-700 px-1.5 py-0.2 rounded font-black text-xs shrink-0">
-                          {bev.quantity}×
-                        </span>
-                        <div className="min-w-0">
-                          <p className="font-bold text-white truncate text-xs">
-                            {bev.name}
-                          </p>
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <ProductThumbnail
+                          src={bev.image}
+                          thumbnailUrl={getItemThumbnail(bev)}
+                          name={bev.name}
+                          isBeverage={true}
+                          className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl shrink-0"
+                          iconSize="w-5 h-5"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="bg-cyan-950/70 text-cyan-300 border border-cyan-800/50 px-1.5 py-0.5 rounded-md font-black text-xs shrink-0">
+                              {bev.quantity}×
+                            </span>
+                            <p className="font-black text-white text-xs sm:text-sm truncate">
+                              {bev.name}
+                            </p>
+                            <ItemConsumptionBadge item={bev} orderModality={order.modality} />
+                          </div>
                           {bev.customization?.itemNotes && (
-                            <p className="text-[10px] text-amber-300 italic truncate">
+                            <p className="text-[10px] text-amber-300 italic truncate mt-0.5">
                               &ldquo;{bev.customization.itemNotes}&rdquo;
                             </p>
                           )}
@@ -296,18 +323,36 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
 
           {/* Otros ítems */}
           {otherItems.length > 0 && (
-            <div className="p-2.5 rounded-xl bg-[#0C0C0F] border border-[var(--color-porkos-border)] space-y-1">
+            <div className="p-2.5 rounded-xl bg-[#0C0C0F] border border-[var(--color-porkos-border)] space-y-1.5">
               <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block">
                 Otros artículos a entregar:
               </span>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="space-y-1.5">
                 {otherItems.map((ot, otIdx) => (
-                  <span
+                  <div
                     key={otIdx}
-                    className="text-xs bg-zinc-900 text-zinc-300 border border-zinc-700 px-2 py-0.5 rounded-md font-bold"
+                    className="bg-[#141418] p-2 rounded-xl border border-zinc-800 flex items-center justify-between gap-2.5 text-xs"
                   >
-                    {ot.quantity}× {ot.name}
-                  </span>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <ProductThumbnail
+                        src={ot.image}
+                        thumbnailUrl={getItemThumbnail(ot)}
+                        name={ot.name}
+                        className="w-10 h-10 rounded-lg shrink-0"
+                        iconSize="w-5 h-5"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="bg-zinc-800 text-zinc-200 border border-zinc-700 px-1.5 py-0.5 rounded font-black text-xs shrink-0">
+                            {ot.quantity}×
+                          </span>
+                          <span className="font-bold text-white text-xs truncate">
+                            {ot.name}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -461,16 +506,33 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
             {items.map((item, idx) => (
               <div
                 key={idx}
-                className="bg-[#0C0C0F] p-2.5 rounded-xl border border-zinc-800 flex items-center justify-between gap-2"
+                className="bg-[#0C0C0F] p-2 sm:p-2.5 rounded-xl border border-zinc-800 flex items-center justify-between gap-2.5"
               >
-                <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                  <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-md font-black text-xs shrink-0">
-                    {item.quantity}×
-                  </span>
-                  <span className="font-bold text-white text-xs truncate">
-                    {item.name}
-                  </span>
-                  <ItemConsumptionBadge item={item} orderModality={order.modality} />
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <ProductThumbnail
+                    src={item.image}
+                    thumbnailUrl={getItemThumbnail(item)}
+                    name={item.name}
+                    isBeverage={isProductBeverage(item)}
+                    className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl shrink-0"
+                    iconSize="w-5 h-5"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-md font-black text-xs shrink-0">
+                        {item.quantity}×
+                      </span>
+                      <span className="font-bold text-white text-xs sm:text-sm truncate">
+                        {item.name}
+                      </span>
+                      <ItemConsumptionBadge item={item} orderModality={order.modality} />
+                    </div>
+                    {item.customization?.itemNotes && (
+                      <p className="text-[10px] text-amber-300 italic truncate mt-0.5">
+                        &ldquo;{item.customization.itemNotes}&rdquo;
+                      </p>
+                    )}
+                  </div>
                 </div>
                 {item.customization?.temperature && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 border border-zinc-700 shrink-0">

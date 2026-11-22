@@ -617,14 +617,18 @@ export default function DashboardView({ orders = [] }) {
                 type="date"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
-                className="bg-black/70 border border-zinc-700 rounded-lg px-2 py-1 text-white text-xs font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                onClick={(e) => e.target.showPicker?.()}
+                style={{ colorScheme: 'dark' }}
+                className="bg-black/70 border border-zinc-700 rounded-lg px-2 py-1 text-white text-xs font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               />
               <span className="text-zinc-400 font-semibold">Hasta:</span>
               <input
                 type="date"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
-                className="bg-black/70 border border-zinc-700 rounded-lg px-2 py-1 text-white text-xs font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                onClick={(e) => e.target.showPicker?.()}
+                style={{ colorScheme: 'dark' }}
+                className="bg-black/70 border border-zinc-700 rounded-lg px-2 py-1 text-white text-xs font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               />
             </div>
           ) : (

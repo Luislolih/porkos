@@ -33,10 +33,12 @@ export default function ProductThumbnail({
       ? Boolean(isDessert)
       : isProductDessert({ name: name || alt });
 
+  const roundedClass = className.includes('rounded') ? '' : 'rounded-xl';
+
   if (!effectiveSrc || hasError) {
     return (
       <div
-        className={`${className} rounded-xl border flex flex-col items-center justify-center shrink-0 shadow-inner transition-colors ${
+        className={`${className} ${roundedClass} border flex flex-col items-center justify-center shrink-0 shadow-inner transition-colors ${
           isDrink
             ? 'bg-zinc-900/90 text-sky-400 border-sky-500/25'
             : isCake
@@ -56,11 +58,13 @@ export default function ProductThumbnail({
   }
 
   return (
-    <div className={`relative ${className} shrink-0 overflow-hidden rounded-xl bg-zinc-900 border border-zinc-800/80 shadow-md`}>
+    <div className={`relative ${className} ${roundedClass} shrink-0 overflow-hidden bg-zinc-900 border border-zinc-800/80 shadow-md`}>
       {!isLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
           {isDrink ? (
             <CupSoda className={`${iconSize} text-sky-400/30`} />
+          ) : isCake ? (
+            <Cake className={`${iconSize} text-pink-400/30`} />
           ) : (
             <UtensilsCrossed className={`${iconSize} text-amber-400/30`} />
           )}
