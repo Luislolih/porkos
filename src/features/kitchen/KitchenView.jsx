@@ -11,8 +11,6 @@ import {
   LayoutGrid,
   CheckCircle2,
   ChefHat,
-  Bell,
-  BellRing,
 } from 'lucide-react';
 import { formatTime, formatElapsedTime, isOrderDelayed } from '../../utils/formatters';
 import { getItemTicketDetails } from '../../utils/ticketFormatter';
@@ -20,13 +18,11 @@ import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
 import EmptyState from '../../components/ui/EmptyState';
 import { isProductBeverage, isProductMarket } from '../../utils/productCategories';
-import { useNotifications } from '../../hooks/useNotifications';
 
 export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
   const [mainMode, setMainMode] = useState('COCINA'); // 'COCINA' | 'ENTREGAS'
   const [activeTab, setActiveTab] = useState('PENDIENTE'); // 'PENDIENTE' | 'PREPARANDO' | 'LISTO' | 'KANBAN'
   const [, setTick] = useState(0);
-  const { permission, requestPermission } = useNotifications();
 
   // Actualizar tiempos transcurridos en tiempo real cada 10 segundos
   useEffect(() => {
@@ -624,38 +620,12 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
           </div>
         )}
 
-        {/* Controles y resumen */}
-        <div className="flex items-center gap-2">
-          {/* Botón para solicitar Notificaciones PWA si aún no están concedidas */}
-          {permission === 'default' && (
-            <button
-              type="button"
-              onClick={requestPermission}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-orange-500/15 text-orange-400 border border-orange-500/30 hover:bg-orange-500/25 active:scale-95 touch-manipulation cursor-pointer"
-              title="Haz clic para autorizar notificaciones en pantalla de bloqueo y barra de estado"
-            >
-              <Bell className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Activar Alertas PWA</span>
-            </button>
-          )}
-
-          {permission === 'granted' && (
-            <div
-              className="hidden lg:flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2.5 py-1.5 rounded-xl"
-              title="Notificaciones del sistema activas"
-            >
-              <BellRing className="w-3.5 h-3.5" />
-              <span className="text-[11px]">Alertas PWA</span>
-            </div>
-          )}
-
-          {/* Resumen Total */}
-          <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-400">
-            <span>Total en curso:</span>
-            <strong className="text-white bg-zinc-800 border border-zinc-700 px-2.5 py-1 rounded-lg font-black">
-              {activeKitchenOrders.length + pendingDeliveries.length}
-            </strong>
-          </div>
+        {/* Resumen Total */}
+        <div className="flex items-center gap-2 text-xs text-zinc-400">
+          <span>Total en curso:</span>
+          <strong className="text-white bg-zinc-800 border border-zinc-700 px-2.5 py-1 rounded-lg font-black">
+            {activeKitchenOrders.length + pendingDeliveries.length}
+          </strong>
         </div>
       </div>
 

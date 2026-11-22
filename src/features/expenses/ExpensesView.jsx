@@ -473,14 +473,16 @@ export default function ExpensesView() {
                 type="date"
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
-                className="bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1 text-white font-medium focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                onClick={(e) => e.target.showPicker?.()}
+                className="bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1 text-white font-medium focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               />
               <span className="text-zinc-500">a</span>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
-                className="bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1 text-white font-medium focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                onClick={(e) => e.target.showPicker?.()}
+                className="bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1 text-white font-medium focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               />
             </div>
           )}
@@ -664,7 +666,8 @@ export default function ExpensesView() {
               required
               value={newDate}
               onChange={(e) => setNewDate(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
+              onClick={(e) => e.target.showPicker?.()}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
             />
           </div>
 
@@ -690,7 +693,7 @@ export default function ExpensesView() {
               required
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
-              placeholder="Ej. 10 bolsas de papas congeladas, 5 paquetes de pan..."
+              placeholder=""
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
@@ -768,7 +771,8 @@ export default function ExpensesView() {
                 required
                 value={editDate}
                 onChange={(e) => setEditDate(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
+                onClick={(e) => e.target.showPicker?.()}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               />
             </div>
 
@@ -794,6 +798,7 @@ export default function ExpensesView() {
                 required
                 value={editDesc}
                 onChange={(e) => setEditDesc(e.target.value)}
+                placeholder=""
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
               />
             </div>

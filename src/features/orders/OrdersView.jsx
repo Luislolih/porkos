@@ -898,7 +898,8 @@ export default function OrdersView({
                 required
                 value={manualDateTime}
                 onChange={(e) => setManualDateTime(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
+                onClick={(e) => e.target.showPicker?.()}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               />
             </div>
 

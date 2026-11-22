@@ -71,15 +71,16 @@ export default function SalesHeader({
           </button>
         </div>
 
-        {/* Barra de Búsqueda: Solo lupa, sin placeholder */}
+        {/* Barra de Búsqueda: Desktop con placeholder, mobile solo lupa */}
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#121216] border border-[var(--color-porkos-border)] hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] focus:ring-1 focus:ring-[var(--color-porkos-orange)]/30 rounded-2xl pl-10 pr-9 py-2.5 text-xs sm:text-sm text-zinc-100 font-medium transition-all focus:outline-none"
-            aria-label="Buscar"
+            placeholder="Buscar producto"
+            className="w-full bg-[#121216] border border-[var(--color-porkos-border)] hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] focus:ring-1 focus:ring-[var(--color-porkos-orange)]/30 rounded-2xl pl-10 pr-9 py-2.5 text-xs sm:text-sm text-zinc-100 placeholder:text-transparent md:placeholder:text-zinc-500 font-medium transition-all focus:outline-none"
+            aria-label="Buscar producto"
           />
           {searchQuery && (
             <button

@@ -861,7 +861,7 @@ export default function CartView({
                 {isSubmitting
                   ? 'Enviando...'
                   : modality === 'MESA' && !selectedTable
-                  ? 'Elegir mesa para enviar'
+                  ? 'Elegir mesa'
                   : selectedTable
                   ? (hasKitchenItems ? `Abrir (${selectedTable.label})` : `Enviar a ${selectedTable.label}`)
                   : hasKitchenItems
