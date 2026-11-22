@@ -60,6 +60,13 @@ export default function SalesView({
   const [isDraggingDrawer, setIsDraggingDrawer] = useState(false);
   const drawerStartYRef = useRef(0);
   const lastEditingOrderIdRef = useRef(null);
+  const toastTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   // Al entrar a editar una comanda (desde Mesas o Pedidos), abrir automáticamente la comanda desplegada
   useEffect(() => {
@@ -278,11 +285,14 @@ export default function SalesView({
     }
   };
 
-  const showToast = (message) => {
+  const showToast = (message, duration = 1200) => {
     setSuccessToast(message);
-    setTimeout(() => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = setTimeout(() => {
       setSuccessToast(null);
-    }, 2500);
+    }, duration);
   };
 
   // Crear la orden y enviar a cocina (con protección de concurrencia y doble clic)
@@ -552,11 +562,13 @@ export default function SalesView({
 
   return (
     <div className="relative pb-24 lg:pb-8">
-      {/* Toast Notification */}
+      {/* Toast Notification: Sutil, superior y ágil */}
       {successToast && (
         <Toast
           message={successToast}
           type="success"
+          position="top"
+          duration={1200}
           onClose={() => setSuccessToast(null)}
         />
       )}

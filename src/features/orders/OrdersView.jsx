@@ -18,24 +18,32 @@ import {
   UserCheck,
   Calendar,
   User,
+  Plus,
+  ShieldCheck,
   ClipboardList,
 } from 'lucide-react';
-import { formatCurrency, formatTime, formatDate, formatElapsedTime } from '../../utils/formatters';
+import { formatCurrency, formatTime, formatDate, formatElapsedTime, generateOrderNumber } from '../../utils/formatters';
 import { ORDER_STATUS, PAYMENT_STATUS } from '../../types/constants';
 import Modal from '../../components/ui/Modal';
 import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
-import PageHeader from '../../components/ui/PageHeader';
 import SearchInput from '../../components/ui/SearchInput';
 import Button from '../../components/ui/Button';
+import Toast from '../../components/ui/Toast';
+import { useAuth } from '../../context/useAuth';
 
 export default function OrdersView({
   orders = [],
+  tables = [],
   onEditOrderInSales,
   onUpdateOrder,
   onClearAllOrders,
+  onCreateOrder,
 }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'OWNER';
+
   const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'HISTORY'
   const [filterModality, setFilterModality] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,7 +52,89 @@ export default function OrdersView({
   const [tempCustomerName, setTempCustomerName] = useState('');
   const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
   const [, setTick] = useState(0);
+
+  // Modal para ingreso manual de pedidos pasados (Solo Admin)
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [manualDateTime, setManualDateTime] = useState(() => {
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - tzOffset).toISOString().slice(0, 16);
+  });
+  const [manualModality, setManualModality] = useState('MESA');
+  const [manualTableId, setManualTableId] = useState('');
+  const [manualCustomerName, setManualCustomerName] = useState('');
+  const [manualConcept, setManualConcept] = useState('');
+  const [manualAmount, setManualAmount] = useState('');
+  const [manualPaymentMethod, setManualPaymentMethod] = useState('EFECTIVO');
+  const [manualNotes, setManualNotes] = useState('');
+  const [isSavingManual, setIsSavingManual] = useState(false);
+
+  const handleCreateManualOrder = async (e) => {
+    e.preventDefault();
+    if (!isAdmin || !onCreateOrder) return;
+
+    const parsedAmount = Math.round(Math.max(0.01, parseFloat(manualAmount) || 0) * 100) / 100;
+    if (!parsedAmount) {
+      alert('Por favor ingresa un importe válido para el pedido.');
+      return;
+    }
+
+    setIsSavingManual(true);
+    try {
+      const orderDate = manualDateTime ? new Date(manualDateTime) : new Date();
+      const targetTable = tables.find((t) => t.id === manualTableId);
+
+      const newManualOrder = {
+        id: `ord_manual_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        orderNumber: generateOrderNumber(orders, 'P'),
+        modality: manualModality,
+        tableId: manualModality === 'MESA' ? (manualTableId || null) : null,
+        tableName: manualModality === 'MESA' ? (targetTable?.label || manualTableId || 'Mesa') : null,
+        customerName: manualCustomerName.trim() || (manualModality === 'DELIVERY' ? 'Cliente Delivery' : null),
+        customer: manualModality === 'DELIVERY' ? { name: manualCustomerName.trim() || 'Cliente Delivery' } : null,
+        items: [
+          {
+            itemId: `item_${Date.now()}`,
+            name: manualConcept.trim() || 'Consumo Registrado Manual',
+            quantity: 1,
+            unitPrice: parsedAmount,
+            subtotal: parsedAmount,
+            total: parsedAmount,
+          },
+        ],
+        subtotal: parsedAmount,
+        total: parsedAmount,
+        status: 'ENTREGADO',
+        paymentStatus: 'PAID',
+        payment: {
+          method: manualPaymentMethod,
+          amount: parsedAmount,
+          paidAt: orderDate,
+        },
+        generalNotes: manualNotes.trim() || 'Pedido histórico registrado manualmente por administrador',
+        createdAt: orderDate,
+        updatedAt: orderDate,
+        isManualPastOrder: true,
+        registeredBy: user?.displayName || user?.email?.split('@')[0] || 'Admin',
+      };
+
+      await onCreateOrder(newManualOrder);
+
+      setIsManualModalOpen(false);
+      setManualConcept('');
+      setManualAmount('');
+      setManualCustomerName('');
+      setManualNotes('');
+      setToastMessage(`Pedido ${newManualOrder.orderNumber} registrado con éxito`);
+    } catch (err) {
+      console.error('Error registrando pedido manual:', err);
+      alert('Hubo un error guardando el pedido manual.');
+    } finally {
+      setIsSavingManual(false);
+    }
+  };
 
   const handleSaveCustomerName = (order) => {
     if (!order) return;
@@ -149,29 +239,58 @@ export default function OrdersView({
 
   return (
     <div className="space-y-4 pb-20 lg:pb-6">
-      <PageHeader
-        title="Historial y Seguimiento"
-        subtitle="Monitorea comandas activas, revisa tickets y audita todas las ventas del restaurante."
-        icon={ClipboardList}
-        badge={
-          <span className="text-xs font-black px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700">
+      {toastMessage && (
+        <Toast
+          message={toastMessage}
+          type="success"
+          onClose={() => setToastMessage(null)}
+        />
+      )}
+
+      {/* Top Bar: Acciones */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-black px-2.5 py-1 rounded-full bg-zinc-900 text-zinc-300 border border-zinc-800 shadow-xs">
             {orders.length} comandas registradas
           </span>
-        }
-        actions={
-          onClearAllOrders && orders.length > 0 ? (
+          {isAdmin && (
+            <span className="flex items-center gap-1 text-[11px] font-bold text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
+              <ShieldCheck className="w-3 h-3 text-rose-400" />
+              Admin
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          {isAdmin && onCreateOrder && (
+            <Button
+              onClick={() => {
+                const now = new Date();
+                const tzOffset = now.getTimezoneOffset() * 60000;
+                setManualDateTime(new Date(now.getTime() - tzOffset).toISOString().slice(0, 16));
+                setIsManualModalOpen(true);
+              }}
+              icon={Plus}
+              size="sm"
+              className="text-xs font-black shadow-md shadow-orange-500/20"
+            >
+              Registrar Pedido Pasado
+            </Button>
+          )}
+
+          {onClearAllOrders && orders.length > 0 && (
             <button
               type="button"
               onClick={() => setIsConfirmClearOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-all cursor-pointer active:scale-95 shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-all cursor-pointer active:scale-95 shadow-xs"
               title="Eliminar historial completo de pedidos"
             >
               <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>Vaciar Historial</span>
+              <span>Vaciar</span>
             </button>
-          ) : undefined
-        }
-      />
+          )}
+        </div>
+      </div>
 
       {/* Barra de Filtros y Búsqueda */}
       <div className="bg-[#121215] p-3 sm:p-4 rounded-2xl border border-[var(--color-porkos-border)] space-y-3 shadow-sm">
@@ -760,6 +879,169 @@ export default function OrdersView({
           </div>
         )}
       </Modal>
+
+      {/* Modal Registrar Pedido Manual / Pasado (Solo Admin) */}
+      {isAdmin && (
+        <Modal
+          isOpen={isManualModalOpen}
+          onClose={() => !isSavingManual && setIsManualModalOpen(false)}
+          title="Registrar Pedido / Venta Pasada"
+          subtitle="Ingresa ventas históricas con fecha y hora exacta para regularizar caja y reportes"
+          maxWidth="max-w-lg"
+        >
+          <form onSubmit={handleCreateManualOrder} className="space-y-3.5 text-xs sm:text-sm">
+            {/* Fecha y Hora del Pedido */}
+            <div>
+              <label className="block text-zinc-300 font-bold mb-1">Fecha y Hora de la Venta *</label>
+              <input
+                type="datetime-local"
+                required
+                value={manualDateTime}
+                onChange={(e) => setManualDateTime(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
+              />
+            </div>
+
+            {/* Modalidad y Mesa */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-zinc-300 font-bold mb-1">Modalidad *</label>
+                <select
+                  value={manualModality}
+                  onChange={(e) => setManualModality(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
+                >
+                  <option value="MESA">Mesa (Salón)</option>
+                  <option value="PARA_LLEVAR">Para Llevar</option>
+                  <option value="CONSUMO_EXTERNO">Ir Comiendo</option>
+                  <option value="DELIVERY">Delivery</option>
+                  <option value="MARKET">Market</option>
+                </select>
+              </div>
+
+              {manualModality === 'MESA' ? (
+                <div>
+                  <label className="block text-zinc-300 font-bold mb-1">Mesa</label>
+                  <select
+                    value={manualTableId}
+                    onChange={(e) => setManualTableId(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
+                  >
+                    <option value="">Selecciona mesa...</option>
+                    {tables.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-zinc-300 font-bold mb-1">Nombre del Cliente</label>
+                  <input
+                    type="text"
+                    value={manualCustomerName}
+                    onChange={(e) => setManualCustomerName(e.target.value)}
+                    placeholder="Nombre (opcional)"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                  />
+                </div>
+              )}
+            </div>
+
+            {manualModality === 'MESA' && (
+              <div>
+                <label className="block text-zinc-300 font-bold mb-1">Nombre del Cliente</label>
+                <input
+                  type="text"
+                  value={manualCustomerName}
+                  onChange={(e) => setManualCustomerName(e.target.value)}
+                  placeholder="Nombre (opcional)"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                />
+              </div>
+            )}
+
+            {/* Concepto / Productos */}
+            <div>
+              <label className="block text-zinc-300 font-bold mb-1">Productos o Concepto *</label>
+              <input
+                type="text"
+                required
+                value={manualConcept}
+                onChange={(e) => setManualConcept(e.target.value)}
+                placeholder="Ej. 2x Hamburguesas Clásicas + 1x Gaseosa 500ml"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              />
+            </div>
+
+            {/* Importe y Método de Pago */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-zinc-300 font-bold mb-1">Total Pagado (S/) *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-[var(--color-porkos-orange)]">S/</span>
+                  <input
+                    type="number"
+                    step="0.10"
+                    required
+                    value={manualAmount}
+                    onChange={(e) => setManualAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-8 pr-3 py-2.5 text-white font-black text-base sm:text-sm focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-zinc-300 font-bold mb-1">Método de Pago *</label>
+                <select
+                  value={manualPaymentMethod}
+                  onChange={(e) => setManualPaymentMethod(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
+                >
+                  <option value="EFECTIVO">Efectivo</option>
+                  <option value="YAPE">Yape</option>
+                  <option value="PLIN">Plin</option>
+                  <option value="TARJETA">Tarjeta</option>
+                  <option value="TRANSFERENCIA">Transferencia</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Notas opcionales */}
+            <div>
+              <label className="block text-zinc-300 font-bold mb-1">Observaciones / Notas</label>
+              <input
+                type="text"
+                value={manualNotes}
+                onChange={(e) => setManualNotes(e.target.value)}
+                placeholder="Ej. Registro pasado del turno tarde..."
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-white font-medium focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              />
+            </div>
+
+            <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSavingManual}
+                onClick={() => setIsManualModalOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSavingManual}
+                isLoading={isSavingManual}
+                className="font-black bg-[var(--color-porkos-orange)] text-zinc-950"
+              >
+                Registrar Pedido
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* Confirmación para Vaciar Historial */}
       <ConfirmDialog

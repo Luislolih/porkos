@@ -555,9 +555,11 @@ function MainApp() {
         {activeModule === MODULES.ORDERS && (
           <OrdersView
             orders={orders}
+            tables={tables}
             onEditOrderInSales={handleLoadOrderForEditing}
             onUpdateOrder={handleUpdateOrder}
             onClearAllOrders={handleClearAllOrders}
+            onCreateOrder={handleOrderCreated}
           />
         )}
 

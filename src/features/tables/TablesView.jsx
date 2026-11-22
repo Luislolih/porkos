@@ -5,7 +5,6 @@ import { isProductMarket } from '../../utils/productCategories';
 import QuickPaymentModal from '../sales/components/QuickPaymentModal';
 import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
 import EmptyState from '../../components/ui/EmptyState';
-import PageHeader from '../../components/ui/PageHeader';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 
@@ -107,16 +106,13 @@ export default function TablesView({
 
   return (
     <div className="space-y-4 pb-20 lg:pb-6">
-      <PageHeader
-        title="Control de Salón y Mesas"
-        subtitle="Visualiza la ocupación en vivo, abre pedidos y cobra comandas de mesa."
-        icon={Utensils}
-        badge={
-          <span className="text-xs font-black px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700">
+      {tables.length > 0 && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-black px-2.5 py-1 rounded-full bg-zinc-900 text-zinc-300 border border-zinc-800 shadow-xs">
             {occupiedCount} ocupadas / {tables.length} totales
           </span>
-        }
-      />
+        </div>
+      )}
 
       {tables.length === 0 ? (
         <EmptyState

@@ -14,7 +14,6 @@ import {
   Grid2X2,
   Plus,
   Users,
-  Settings,
   Bell,
   RefreshCw,
 } from 'lucide-react';
@@ -26,7 +25,6 @@ import { APP_ROLES, ALL_MODULE_DEFINITIONS } from '../../types/roles';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
-import PageHeader from '../../components/ui/PageHeader';
 import Toast from '../../components/ui/Toast';
 
 function DeliverySettingsTab({ initialFee, onSave }) {
@@ -574,14 +572,6 @@ service cloud.firestore {
           onClose={() => setToastMessage(null)}
         />
       )}
-
-      {/* Header */}
-      <PageHeader
-        title="Configuración del Sistema"
-        subtitle="Administra mesas del salón, tarifas de delivery, roles de usuarios y base de datos"
-        icon={Settings}
-        badge="Administración"
-      />
 
       {/* Sub-Navegación compacta de Configuración */}
       <div className="bg-[var(--color-porkos-surface)] p-2 rounded-2xl border border-[var(--color-porkos-border)] flex items-center gap-1.5 overflow-x-auto scrollbar-none shadow-sm">

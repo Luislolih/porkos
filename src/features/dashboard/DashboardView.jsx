@@ -576,23 +576,9 @@ export default function DashboardView({ orders = [] }) {
 
   return (
     <div className="space-y-4 pb-20 lg:pb-6">
-      {/* Header con Selección de Rango y Comparativa */}
-      <div className="bg-[var(--color-porkos-surface)] p-3.5 sm:p-5 rounded-2xl border border-[var(--color-porkos-border)] space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
-                Panel Ejecutivo & Finanzas
-              </h2>
-              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-[var(--color-porkos-orange)] text-black uppercase">
-                PorkoApp Intelligence
-              </span>
-            </div>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              Control de ingresos, costos de insumos, margen neto real y simulador
-            </p>
-          </div>
-
+      {/* Selector de Rango y Controles */}
+      <div className="bg-[var(--color-porkos-surface)] p-3 sm:p-3.5 rounded-2xl border border-[var(--color-porkos-border)] space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
           {/* Selector de Rango de Fechas */}
           <div className="flex items-center gap-1.5 flex-wrap bg-black/50 p-1 rounded-xl border border-zinc-800 text-xs font-bold">
             {[

@@ -11,8 +11,6 @@ import {
   LayoutGrid,
   CheckCircle2,
   ChefHat,
-  Volume2,
-  VolumeX,
   Bell,
   BellRing,
 } from 'lucide-react';
@@ -22,29 +20,13 @@ import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
 import EmptyState from '../../components/ui/EmptyState';
 import { isProductBeverage, isProductMarket } from '../../utils/productCategories';
-import {
-  testChime,
-  isChimeEnabled,
-  setChimeEnabled,
-} from '../../utils/audioChime';
 import { useNotifications } from '../../hooks/useNotifications';
 
 export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
   const [mainMode, setMainMode] = useState('COCINA'); // 'COCINA' | 'ENTREGAS'
   const [activeTab, setActiveTab] = useState('PENDIENTE'); // 'PENDIENTE' | 'PREPARANDO' | 'LISTO' | 'KANBAN'
   const [, setTick] = useState(0);
-  const [soundEnabled, setSoundEnabled] = useState(isChimeEnabled);
   const { permission, requestPermission } = useNotifications();
-
-  // Alternar y probar el timbre sonoro
-  const toggleSound = () => {
-    const nextState = !soundEnabled;
-    setSoundEnabled(nextState);
-    setChimeEnabled(nextState);
-    if (nextState) {
-      testChime();
-    }
-  };
 
   // Actualizar tiempos transcurridos en tiempo real cada 10 segundos
   useEffect(() => {
@@ -642,32 +624,8 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
           </div>
         )}
 
-        {/* Controles de sonido y resumen */}
+        {/* Controles y resumen */}
         <div className="flex items-center gap-2">
-          {/* Botón de Timbre de Notificación */}
-          <button
-            type="button"
-            onClick={toggleSound}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border active:scale-95 touch-manipulation ${
-              soundEnabled
-                ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25'
-                : 'bg-zinc-900/60 text-zinc-500 border-zinc-800 hover:text-zinc-300'
-            }`}
-            title={soundEnabled ? 'Timbre de comanda activado (clic para silenciar)' : 'Timbre silenciado (clic para activar y probar)'}
-          >
-            {soundEnabled ? (
-              <>
-                <Volume2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="hidden sm:inline">Timbre ON</span>
-              </>
-            ) : (
-              <>
-                <VolumeX className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                <span className="hidden sm:inline">Silenciado</span>
-              </>
-            )}
-          </button>
-
           {/* Botón para solicitar Notificaciones PWA si aún no están concedidas */}
           {permission === 'default' && (
             <button
