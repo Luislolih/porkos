@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Clock, Plus, CheckCircle, ShoppingBag, Utensils, Edit3, Package } from 'lucide-react';
+import { Clock, Plus, CheckCircle, ShoppingBag, Utensils, Edit3, Package, ArrowRightLeft } from 'lucide-react';
 import { formatCurrency, formatElapsedTime } from '../../utils/formatters';
 import { isProductMarket } from '../../utils/productCategories';
 import QuickPaymentModal from '../sales/components/QuickPaymentModal';
 import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
 import EmptyState from '../../components/ui/EmptyState';
 import PageHeader from '../../components/ui/PageHeader';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 
 function orderRequiresKitchen(o) {
   return o.items?.some((i) => Boolean(i.requiresKitchen) && !isProductMarket(i));
@@ -17,8 +19,13 @@ export default function TablesView({
   onSelectTableForOrder,
   onCloseTable,
   onEditTableOrder,
+  onChangeTable,
 }) {
   const [closingOrder, setClosingOrder] = useState(null);
+  const [tableToMove, setTableToMove] = useState(null);
+  const [selectedTargetTable, setSelectedTargetTable] = useState(null);
+  const [isTransferringTable, setIsTransferringTable] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
   const [, setTick] = useState(0);
 
   // Re-evaluar tiempos transcurridos de mesas cada 15 segundos
@@ -46,24 +53,13 @@ export default function TablesView({
 
   // Cargar comanda unificada de mesa para editar antes del cierre
   const handleEditTable = (table, currentTableOrders) => {
-    const qualifyingOrders = currentTableOrders.filter((o) => {
-      if (o.status === 'ENTREGADO') return true;
-      if (orderRequiresKitchen(o)) return true;
-      return false;
-    });
+    if (!currentTableOrders || currentTableOrders.length === 0) return;
 
-    if (qualifyingOrders.length === 0) {
-      if (currentTableOrders.length > 0) {
-        alert('Los productos solicitados para esta mesa aún están en la sección de Entregas. Una vez que se marquen como entregados, podrás editar los detalles aquí.');
-      }
-      return;
-    }
-
-    const primaryOrder = qualifyingOrders[0];
-    const consolidatedItems = qualifyingOrders.flatMap((o) => (o.items ? o.items.map((i) => ({ ...i })) : []));
-    const consolidatedPackagings = qualifyingOrders.flatMap((o) => (o.packagings ? o.packagings.map((p) => ({ ...p })) : []));
-    const clientName = qualifyingOrders.find((o) => o.customerName)?.customerName || '';
-    const generalNotes = qualifyingOrders
+    const primaryOrder = currentTableOrders[0];
+    const consolidatedItems = currentTableOrders.flatMap((o) => (o.items ? o.items.map((i) => ({ ...i })) : []));
+    const consolidatedPackagings = currentTableOrders.flatMap((o) => (o.packagings ? o.packagings.map((p) => ({ ...p })) : []));
+    const clientName = currentTableOrders.find((o) => o.customerName)?.customerName || '';
+    const generalNotes = currentTableOrders
       .map((o) => o.generalNotes)
       .filter(Boolean)
       .join(' | ');
@@ -76,11 +72,29 @@ export default function TablesView({
       items: consolidatedItems,
       packagings: consolidatedPackagings,
       generalNotes,
-      mergedOrderNumbers: qualifyingOrders.map((o) => o.orderNumber),
+      mergedOrderNumbers: currentTableOrders.map((o) => o.orderNumber),
     };
 
     if (onEditTableOrder) {
       onEditTableOrder(tableOrderToEdit);
+    }
+  };
+
+  const handleConfirmTableTransfer = async () => {
+    if (!tableToMove || !selectedTargetTable || !onChangeTable) return;
+    setIsTransferringTable(true);
+    try {
+      const ok = await onChangeTable(tableToMove.id, selectedTargetTable);
+      if (ok) {
+        setToastMessage(`Pedido transferido de ${tableToMove.label} a ${selectedTargetTable.label}`);
+        setTimeout(() => setToastMessage(null), 3000);
+      }
+      setTableToMove(null);
+      setSelectedTargetTable(null);
+    } catch (err) {
+      console.error('Error transfiriendo mesa:', err);
+    } finally {
+      setIsTransferringTable(false);
     }
   };
 
@@ -184,6 +198,21 @@ export default function TablesView({
                       <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-zinc-800 text-amber-300 border border-amber-500/30">
                         {tableOrders.length} peds
                       </span>
+                    )}
+                    {isOccupied && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTableToMove(table);
+                          setSelectedTargetTable(null);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zinc-800 hover:bg-amber-500/20 text-zinc-300 hover:text-amber-300 border border-zinc-700/80 hover:border-amber-500/40 text-[10px] font-bold cursor-pointer transition-all active:scale-95 shadow-xs"
+                        title="Cambiar comanda de esta mesa a otra mesa"
+                      >
+                        <ArrowRightLeft className="w-3 h-3 text-[var(--color-porkos-orange)]" />
+                        <span>Cambiar Mesa</span>
+                      </button>
                     )}
                     <span
                       className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
@@ -328,6 +357,110 @@ export default function TablesView({
           total={closingOrder.total}
           onConfirmPayment={handleConfirmClosePayment}
         />
+      )}
+
+      {/* Notificación Toast */}
+      {toastMessage && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-black font-black text-xs px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-4">
+          <CheckCircle className="w-4 h-4 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Modal para Cambiar / Mover de Mesa */}
+      {tableToMove && (
+        <Modal
+          isOpen={Boolean(tableToMove)}
+          onClose={() => {
+            setTableToMove(null);
+            setSelectedTargetTable(null);
+          }}
+          title={`Cambiar de Mesa • ${tableToMove.label}`}
+          subtitle="Selecciona la nueva mesa a la que se transferirá el pedido"
+          maxWidth="max-w-md"
+        >
+          <div className="space-y-4">
+            <div className="p-3 bg-black/40 border border-zinc-800 rounded-xl flex items-center justify-between text-xs">
+              <span className="text-zinc-400">Mesa actual:</span>
+              <span className="font-black text-amber-400 text-sm">{tableToMove.label}</span>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block">
+                Selecciona la Nueva Mesa de Destino:
+              </label>
+
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-60 overflow-y-auto p-1 scrollbar-thin">
+                {tables
+                  .filter((t) => t.id !== tableToMove.id)
+                  .map((t) => {
+                    const isSelected = selectedTargetTable?.id === t.id;
+                    const isOccupied = t.status === 'OCCUPIED';
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setSelectedTargetTable(t)}
+                        className={`
+                          p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer select-none active:scale-95
+                          ${
+                            isSelected
+                              ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] font-black shadow-md shadow-orange-500/20'
+                              : isOccupied
+                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:border-amber-400'
+                              : 'bg-zinc-900 text-zinc-200 border-zinc-800 hover:border-zinc-600'
+                          }
+                        `}
+                      >
+                        <span className="text-xs font-black">{t.label}</span>
+                        <span className="text-[10px] font-bold opacity-80">
+                          {isOccupied ? 'Ocupada' : 'Libre'}
+                        </span>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {selectedTargetTable && (
+              <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-xl text-xs space-y-1">
+                <p className="text-zinc-300 font-semibold flex items-center gap-1.5">
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
+                  <span>Mover pedido de <strong>{tableToMove.label}</strong> a <strong>{selectedTargetTable.label}</strong></span>
+                </p>
+                {selectedTargetTable.status === 'OCCUPIED' && (
+                  <p className="text-amber-400 text-[11px] font-medium">
+                    ⚠️ {selectedTargetTable.label} ya tiene comanda abierta. Los consumos se consolidarán bajo esa mesa.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-2">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => {
+                  setTableToMove(null);
+                  setSelectedTargetTable(null);
+                }}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                disabled={!selectedTargetTable || isTransferringTable}
+                isLoading={isTransferringTable}
+                onClick={handleConfirmTableTransfer}
+                className="flex-1 font-black bg-[var(--color-porkos-orange)] text-zinc-950"
+              >
+                Confirmar Cambio
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

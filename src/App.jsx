@@ -449,7 +449,57 @@ function MainApp() {
     setCurrentModule(MODULES.SALES);
   };
 
-  // 9. Vaciar todo el historial de pedidos (Firestore + localStorage)
+  // 9. Cambiar mesa de todas las comandas activas de una mesa a otra (antes de cerrar)
+  const handleChangeTable = async (sourceTableId, targetTable) => {
+    if (!sourceTableId || !targetTable?.id) return false;
+    if (sourceTableId === targetTable.id) return false;
+
+    // Obtener todas las órdenes activas no pagadas de la mesa origen
+    const sourceOrders = orders.filter(
+      (o) => o.tableId === sourceTableId && o.paymentStatus !== 'PAID' && o.status !== 'CANCELADO'
+    );
+
+    if (sourceOrders.length === 0) {
+      alert('No hay comandas activas en esta mesa para transferir.');
+      return false;
+    }
+
+    // Actualización optimista local
+    setOrders((prev) => {
+      const updated = prev.map((o) => {
+        if (o.tableId === sourceTableId && o.paymentStatus !== 'PAID' && o.status !== 'CANCELADO') {
+          return {
+            ...o,
+            tableId: targetTable.id,
+            tableName: targetTable.label,
+            updatedAt: new Date(),
+          };
+        }
+        return o;
+      });
+      saveOrdersLocal(updated);
+      return updated;
+    });
+
+    // Persistir en Firestore para cada orden transferida
+    try {
+      for (const ord of sourceOrders) {
+        const updated = {
+          ...ord,
+          tableId: targetTable.id,
+          tableName: targetTable.label,
+          updatedAt: new Date(),
+        };
+        await saveOrderToFirestore(updated);
+      }
+      return true;
+    } catch (err) {
+      console.error('Error al transferir mesa en Firestore:', err);
+      return false;
+    }
+  };
+
+  // 10. Vaciar todo el historial de pedidos (Firestore + localStorage)
   const handleClearAllOrders = async () => {
     setOrders([]);
     try {
@@ -518,6 +568,7 @@ function MainApp() {
             onSelectTableForOrder={handleSelectTableForOrder}
             onCloseTable={handleCloseTable}
             onEditTableOrder={handleLoadOrderForEditing}
+            onChangeTable={handleChangeTable}
           />
         )}
 

@@ -66,6 +66,7 @@ export default function CartView({
     total,
     itemCount,
     modality,
+    setModality,
     selectedTable,
     setSelectedTable,
     customerName,
@@ -147,7 +148,9 @@ export default function CartView({
               <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 text-amber-300 font-bold min-w-0">
                   <Edit3 className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="truncate">Editando: <strong>{editingOrder.orderNumber}</strong></span>
+                  <span className="truncate">
+                    Editando: <strong>{editingOrder.tableName ? `${editingOrder.tableName} (${editingOrder.orderNumber})` : editingOrder.orderNumber}</strong>
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -160,6 +163,22 @@ export default function CartView({
                   Cancelar
                 </button>
               </div>
+
+              {/* Indicador dinámico de cambio de mesa */}
+              {editingOrder.tableId && modality === 'MESA' && selectedTable && editingOrder.tableId !== selectedTable.id && (
+                <div className="bg-orange-500/15 border border-orange-500/40 px-2.5 py-1.5 rounded-xl flex items-center justify-between text-[11px] text-orange-200 font-bold animate-in fade-in">
+                  <span>Mesa original: <strong className="text-zinc-300">{editingOrder.tableName}</strong></span>
+                  <span className="text-[var(--color-porkos-orange)] font-black">➔ Cambiando a {selectedTable.label}</span>
+                </div>
+              )}
+
+              {/* Indicador de cambio de modalidad */}
+              {editingOrder.modality === 'MESA' && modality !== 'MESA' && (
+                <div className="bg-blue-500/15 border border-blue-500/40 px-2.5 py-1.5 rounded-xl flex items-center justify-between text-[11px] text-blue-200 font-bold animate-in fade-in">
+                  <span>De {editingOrder.tableName || 'Mesa'}</span>
+                  <span className="text-blue-300 font-black">➔ Cambiando a {isTakeout ? 'Para Llevar' : isDelivery ? 'Delivery' : isIrComiendo ? 'Ir Comiendo' : 'Mesa'}</span>
+                </div>
+              )}
 
               {onCloseMobileCart && (
                 <button
@@ -174,13 +193,66 @@ export default function CartView({
             </div>
           )}
 
+          {/* Barra interactiva de Modalidad */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-400 font-bold text-[10px] uppercase tracking-wider">Modalidad:</span>
+              {selectedTable && modality === 'MESA' && (
+                <span className={`font-bold px-2 py-0.5 rounded-lg text-[10px] border ${
+                  isTableOccupied
+                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                    : 'bg-zinc-800 text-zinc-200 border-zinc-700/60'
+                }`}>
+                  {selectedTable.label} {isTableOccupied ? '(Abierta)' : '(Libre)'}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+              {[
+                { id: 'MESA', label: 'Mesa', icon: Utensils },
+                { id: 'PARA_LLEVAR', label: 'Llevar', icon: Store },
+                { id: 'CONSUMO_EXTERNO', label: 'Ir Comiendo', icon: Package },
+                { id: 'DELIVERY', label: 'Delivery', icon: Bike },
+              ].map((m) => {
+                const Icon = m.icon;
+                const isSelected = modality === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setModality(m.id);
+                      if (m.id !== 'MESA') setSelectedTable(null);
+                    }}
+                    className={`
+                      flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer border select-none active:scale-95 touch-manipulation
+                      ${
+                        isSelected
+                          ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] font-extrabold shadow-xs'
+                          : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 border-zinc-800/80 hover:bg-zinc-800/40'
+                      }
+                    `}
+                  >
+                    <Icon className="w-3 h-3" />
+                    <span>{m.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Selector de mesa con botones cuadrados (un solo clic) */}
           {modality === 'MESA' && (
             <div className="bg-[#121216] p-2.5 rounded-xl border border-[var(--color-porkos-border)] space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-zinc-300 font-bold flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
                   <Utensils className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
-                  <span>Mesa: <strong className={selectedTable ? 'text-[var(--color-porkos-orange)] font-black' : 'text-zinc-400'}>{selectedTable ? selectedTable.label : 'Elige una mesa'}</strong></span>
+                  <span>
+                    Mesa:{' '}
+                    <strong className={selectedTable ? 'text-[var(--color-porkos-orange)] font-black' : 'text-zinc-400'}>
+                      {selectedTable ? selectedTable.label : 'Elige una mesa'}
+                    </strong>
+                  </span>
                 </span>
                 {selectedTable && (
                   <button
@@ -200,6 +272,7 @@ export default function CartView({
                   tables.map((t) => {
                     const isSelected = selectedTable?.id === t.id;
                     const isOccupied = t.status === 'OCCUPIED';
+                    const isOrderOriginTable = editingOrder?.tableId === t.id;
                     const matchNum = t.label?.match(/\d+/);
                     const shortText = matchNum ? `M${matchNum[0]}` : (t.label?.length > 4 ? t.label.slice(0, 4) : t.label);
 
@@ -208,12 +281,14 @@ export default function CartView({
                         key={t.id}
                         type="button"
                         onClick={() => setSelectedTable(isSelected ? null : t)}
-                        title={`${t.label} • ${isOccupied ? 'Ocupada' : 'Libre'}`}
+                        title={`${t.label} • ${isOrderOriginTable ? 'Mesa de origen de esta comanda' : isOccupied ? 'Ocupada' : 'Libre'}`}
                         className={`
                           w-9 h-9 sm:w-10 sm:h-10 rounded-xl shrink-0 flex flex-col items-center justify-center transition-all cursor-pointer border active:scale-90 select-none relative touch-manipulation
                           ${
                             isSelected
                               ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] font-black shadow-md shadow-orange-500/20 ring-1 ring-[var(--color-porkos-orange)]'
+                              : isOrderOriginTable
+                              ? 'bg-amber-500/20 text-amber-200 border-amber-500/60 ring-1 ring-amber-500/40'
                               : isOccupied
                               ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:border-amber-400'
                               : 'bg-zinc-900 text-zinc-200 border-zinc-800 hover:border-zinc-700'
@@ -223,7 +298,7 @@ export default function CartView({
                         <span className="text-[11px] font-black leading-tight">{shortText}</span>
                         <span
                           className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
-                            isSelected ? 'bg-zinc-950' : isOccupied ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
+                            isSelected ? 'bg-zinc-950' : isOrderOriginTable ? 'bg-amber-300' : isOccupied ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
                           }`}
                         />
                       </button>
@@ -233,26 +308,6 @@ export default function CartView({
               </div>
             </div>
           )}
-
-          {/* Barra de Modalidad y Mesa */}
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider">Modalidad:</span>
-              <span className="font-bold px-2 py-0.5 rounded-lg text-[11px] bg-zinc-800 text-zinc-200 border border-zinc-700/60">
-                {isTakeout ? 'Para Llevar' : isDelivery ? 'Delivery' : isIrComiendo ? 'Ir Comiendo' : 'Mesa'}
-              </span>
-            </div>
-
-            {selectedTable && (
-              <span className={`font-bold px-2 py-0.5 rounded-lg text-[11px] border ${
-                isTableOccupied
-                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                  : 'bg-zinc-800 text-zinc-200 border-zinc-700/60'
-              }`}>
-                {selectedTable.label} {isTableOccupied ? '(Abierta)' : '(Libre)'}
-              </span>
-            )}
-          </div>
 
           {/* Nombre de cliente: siempre editable directamente */}
           <div className="relative flex items-center">
@@ -730,6 +785,10 @@ export default function CartView({
               >
                 {isSubmitting
                   ? 'Guardando cambios...'
+                  : modality === 'MESA' && selectedTable && editingOrder.tableId !== selectedTable.id
+                  ? `Guardar y Cambiar a ${selectedTable.label} • ${formatCurrency(total)}`
+                  : editingOrder.modality === 'MESA' && modality !== 'MESA'
+                  ? `Guardar como ${isTakeout ? 'Para Llevar' : isDelivery ? 'Delivery' : isIrComiendo ? 'Ir Comiendo' : 'Mesa'} • ${formatCurrency(total)}`
                   : `Guardar Comanda ${editingOrder.orderNumber} • ${formatCurrency(total)}`}
               </Button>
               <Button
