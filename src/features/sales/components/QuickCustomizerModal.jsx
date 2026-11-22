@@ -226,8 +226,10 @@ function CustomizerForm({
   );
   const packagingPrice = selectedPackaging?.price || 0;
   const autoCalculatedTotal = Math.round((product.price + extrasTotal + packagingPrice) * 100) / 100;
-  const isCustomPriceActive = manualPriceInput !== '' && !isNaN(parseFloat(manualPriceInput)) && parseFloat(manualPriceInput) >= 0;
-  const currentTotal = isCustomPriceActive ? Math.round(parseFloat(manualPriceInput) * 100) / 100 : autoCalculatedTotal;
+  const parsedManual = parseFloat(manualPriceInput);
+  const hasValidManual = manualPriceInput !== '' && !isNaN(parsedManual) && parsedManual >= 0;
+  const isCustomPriceActive = hasValidManual && Math.abs(parsedManual - autoCalculatedTotal) > 0.001;
+  const currentTotal = hasValidManual ? Math.round(parsedManual * 100) / 100 : autoCalculatedTotal;
 
   // Confirmar
   const handleConfirm = () => {
@@ -716,8 +718,8 @@ function CustomizerForm({
             PRECIO
           </span>
           {isCustomPriceActive && (
-            <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-lg font-black">
-              Manual S/ {parseFloat(manualPriceInput).toFixed(2)}
+            <span className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+              manual
             </span>
           )}
         </div>

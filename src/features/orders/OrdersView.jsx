@@ -1711,11 +1711,20 @@ export default function OrdersView({
                       <div className="w-48 shrink-0">
                         <div className="flex items-center justify-between mb-1">
                           <label className="text-[11px] font-black text-zinc-300 uppercase tracking-wider">PRECIO</label>
-                          {isPriceCustomized && (
-                            <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 py-0.2 rounded font-bold">
-                              Manual
-                            </span>
-                          )}
+                          {(() => {
+                            const defaultPrice = selectedProductObj
+                              ? Math.round(((selectedProductObj.price || 0) + (getPackagingForProduct(selectedProductObj, manualModality)?.price || 0)) * 100) / 100
+                              : null;
+                            const isDifferent = isPriceCustomized && defaultPrice !== null && Math.abs((parseFloat(itemPrice) || 0) - defaultPrice) > 0.001;
+                            if (isDifferent) {
+                              return (
+                                <span className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded">
+                                  manual
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                         <div className="flex items-center gap-1.5">
                           <button
