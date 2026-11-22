@@ -1,6 +1,9 @@
-import { Utensils, Store, Search, Users, Bike, ShoppingBag } from 'lucide-react';
+import { useState } from 'react';
+import { Utensils, Store, Search, Users, Bike, ShoppingBag, User, X, Bell, BellOff } from 'lucide-react';
 import { SALES_MODES, ORDER_MODALITIES } from '../../../types/constants';
 import { useCart } from '../../../context/useCart';
+import { useNotifications } from '../../../hooks/useNotifications';
+import NotificationModal from '../../../components/ui/NotificationModal';
 
 export default function SalesHeader({
   salesMode,
@@ -9,6 +12,8 @@ export default function SalesHeader({
   setSearchQuery,
   tables = [],
 }) {
+  const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
+  const { isGranted, isDenied } = useNotifications();
   const {
     modality,
     setModality,
@@ -20,17 +25,17 @@ export default function SalesHeader({
 
   const modalitiesList = [
     { id: ORDER_MODALITIES.MESA.id, label: 'Mesa', icon: Users },
-    { id: ORDER_MODALITIES.PARA_LLEVAR.id, label: 'Llevar', icon: ShoppingBag },
-    { id: ORDER_MODALITIES.CONSUMO_EXTERNO.id, label: 'Ir comiendo', icon: Utensils },
+    { id: ORDER_MODALITIES.PARA_LLEVAR.id, label: 'Para Llevar', icon: ShoppingBag },
+    { id: ORDER_MODALITIES.CONSUMO_EXTERNO.id, label: 'Ir Comiendo', icon: Utensils },
     { id: ORDER_MODALITIES.DELIVERY.id, label: 'Delivery', icon: Bike },
   ];
 
   return (
-    <div className="space-y-2">
-      {/* Upper bar: Mode Selector (RESTAURANTE vs MARKET) + Lupa al costado en la misma fila */}
-      <div className="flex items-center gap-2">
-        {/* Toggle Mode */}
-        <div className="flex bg-zinc-900/90 p-1 rounded-xl border border-zinc-800 shrink-0">
+    <div className="space-y-2.5">
+      {/* Top Bar: Selector de Modo (Restaurante vs Market) + Barra de Búsqueda Rápida */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Toggle Mode Segmented Control */}
+        <div className="flex bg-[#121216] p-1 rounded-2xl border border-[var(--color-porkos-border)] shrink-0 shadow-xs">
           <button
             type="button"
             onClick={() => {
@@ -38,17 +43,18 @@ export default function SalesHeader({
               setModality(ORDER_MODALITIES.MESA.id);
             }}
             className={`
-              flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer
+              flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-95 touch-manipulation
               ${
                 salesMode === SALES_MODES.RESTAURANT
-                  ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-[var(--color-porkos-orange)] text-zinc-950 shadow-md shadow-orange-500/20'
+                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
               }
             `}
           >
             <Utensils className="w-3.5 h-3.5" />
-            <span>RESTAURANTE</span>
+            <span className="tracking-wide">RESTAURANTE</span>
           </button>
+
           <button
             type="button"
             onClick={() => {
@@ -57,48 +63,81 @@ export default function SalesHeader({
               setSelectedTable(null);
             }}
             className={`
-              flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer
+              flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-95 touch-manipulation
               ${
                 salesMode === SALES_MODES.MARKET
-                  ? 'bg-blue-600 text-white font-black shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
               }
             `}
           >
             <Store className="w-3.5 h-3.5" />
-            <span>MARKET</span>
+            <span className="tracking-wide">MARKET</span>
           </button>
         </div>
 
-        {/* Solo la Lupa al costado para no quitar espacio vertical */}
+        {/* Barra de Búsqueda */}
         <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar..."
-            className="w-full bg-black/60 border border-zinc-800 rounded-xl pl-9 pr-7 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
+            placeholder="Buscar hamburguesa, bebida, insumo..."
+            className="w-full bg-[#121216] border border-[var(--color-porkos-border)] hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] focus:ring-1 focus:ring-[var(--color-porkos-orange)]/30 rounded-2xl pl-10 pr-9 py-2.5 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 font-medium transition-all focus:outline-none"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs font-bold cursor-pointer"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              title="Borrar búsqueda"
+              aria-label="Borrar búsqueda"
             >
-              ✕
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
+
+        {/* Acceso Directo de Notificaciones en Pantalla de Ventas */}
+        <button
+          type="button"
+          onClick={() => setIsNotifModalOpen(true)}
+          className={`flex items-center gap-1.5 px-3 py-2.5 rounded-2xl text-xs font-bold border transition-all cursor-pointer shrink-0 active:scale-95 shadow-xs ${
+            isGranted
+              ? 'bg-[#121216] text-zinc-300 hover:text-white border-[var(--color-porkos-border)] hover:border-emerald-500/40'
+              : isDenied
+              ? 'bg-rose-950/40 text-rose-300 border-rose-500/40 hover:bg-rose-950/60'
+              : 'bg-orange-500/15 text-[var(--color-porkos-orange)] border-orange-500/40 hover:bg-orange-500/25'
+          }`}
+          title="Centro de Alertas y Notificaciones"
+        >
+          <div className="relative">
+            {isDenied ? (
+              <BellOff className="w-4 h-4 text-rose-400 shrink-0" />
+            ) : (
+              <Bell className="w-4 h-4 shrink-0" />
+            )}
+            {isGranted && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-black" />
+            )}
+            {!isGranted && !isDenied && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-400 ring-2 ring-black animate-ping" />
+            )}
+          </div>
+          <span className="hidden sm:inline font-black text-xs">
+            {isGranted ? 'Alertas ON' : isDenied ? 'Bloqueado' : 'Activar Alertas'}
+          </span>
+        </button>
       </div>
 
-      {/* Lower bar: Modalidades + Mesa (Botones cuadrados) + 'Nombre cliente' a la derecha */}
+      {/* Control de Operación en Restaurante: Modalidades de atención y Mesas */}
       {salesMode === SALES_MODES.RESTAURANT && (
-        <div className="bg-black/40 p-2 rounded-xl border border-zinc-800/80 space-y-2">
-          {/* Fila superior: Modalidades y Nombre de cliente */}
+        <div className="bg-[#121216] p-2.5 sm:p-3 rounded-2xl border border-[var(--color-porkos-border)] space-y-2.5 shadow-sm">
+          {/* Fila 1: Chips de Modalidades + Input de Cliente */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             {/* Modalidades */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none">
               {modalitiesList.map((m) => {
                 const Icon = m.icon;
                 const isSelected = modality === m.id;
@@ -113,37 +152,52 @@ export default function SalesHeader({
                       }
                     }}
                     className={`
-                      flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border
+                      flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border select-none active:scale-95 touch-manipulation
                       ${
                         isSelected
-                          ? 'bg-zinc-800 text-white border-zinc-700/60 shadow-xs font-bold'
-                          : 'bg-transparent text-zinc-400 hover:text-zinc-200 border-transparent hover:bg-zinc-800/40'
+                          ? 'bg-zinc-800 text-white border-zinc-600 shadow-xs'
+                          : 'bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 border-zinc-800/80 hover:bg-zinc-800/40'
                       }
                     `}
                   >
-                    <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-[var(--color-porkos-orange)]' : 'text-zinc-500'}`} />
+                    <Icon
+                      className={`w-3.5 h-3.5 ${
+                        isSelected ? 'text-[var(--color-porkos-orange)]' : 'text-zinc-500'
+                      }`}
+                    />
                     <span>{m.label}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Nombre cliente */}
-            <div className="relative flex-1 sm:w-48 sm:flex-initial">
+            {/* Nombre del Cliente */}
+            <div className="relative flex-1 sm:w-56 sm:flex-initial min-w-[140px]">
+              <User className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
               <input
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Nombre"
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-medium"
+                placeholder="Nombre del cliente..."
+                className="w-full bg-[#0E0E11] border border-zinc-800 hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] rounded-xl pl-8 pr-7 py-1.5 text-xs text-white placeholder-zinc-500 font-medium focus:outline-none transition-colors"
               />
+              {customerName && (
+                <button
+                  type="button"
+                  onClick={() => setCustomerName('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 p-0.5 rounded cursor-pointer"
+                  title="Borrar nombre"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Fila inferior si es MESA: Selector de mesas personalizado con botones cuadrados */}
+          {/* Fila 2 (Solo si es MESA): Botones de selección rápida de mesa */}
           {modality === ORDER_MODALITIES.MESA.id && (
-            <div className="flex items-center gap-2 pt-1.5 border-t border-zinc-800/60 w-full animate-in fade-in duration-150">
-              <div className="flex items-center gap-1.5 text-xs font-black text-zinc-400 shrink-0 uppercase tracking-wide">
+            <div className="flex items-center gap-2 pt-2 border-t border-[var(--color-porkos-border)]/80 w-full animate-fade-in-smooth">
+              <div className="flex items-center gap-1.5 text-[11px] font-black text-zinc-400 shrink-0 uppercase tracking-wider">
                 <Utensils className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
                 <span className="hidden sm:inline">Mesas:</span>
                 <span className="sm:hidden">Mesa:</span>
@@ -157,25 +211,26 @@ export default function SalesHeader({
                     const isSelected = selectedTable?.id === t.id;
                     const isOccupied = t.status === 'OCCUPIED';
                     const matchNum = t.label?.match(/\d+/);
-                    const shortText = matchNum ? `M${matchNum[0]}` : (t.label?.length > 4 ? t.label.slice(0, 4) : t.label);
+                    const shortText = matchNum
+                      ? `M${matchNum[0]}`
+                      : t.label?.length > 4
+                      ? t.label.slice(0, 4)
+                      : t.label;
 
                     return (
                       <button
                         key={t.id}
                         type="button"
-                        onClick={() => {
-                          // Un solo toque para cambiar de mesa al instante
-                          setSelectedTable(isSelected ? null : t);
-                        }}
-                        title={`${t.label} • ${isOccupied ? 'Mesa con comanda abierta' : 'Mesa libre'}`}
+                        onClick={() => setSelectedTable(isSelected ? null : t)}
+                        title={`${t.label} • ${isOccupied ? 'Mesa con comanda activa' : 'Mesa libre'}`}
                         className={`
-                          w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 flex flex-col items-center justify-center transition-all cursor-pointer border active:scale-90 select-none relative
+                          w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 flex flex-col items-center justify-center transition-all cursor-pointer border active:scale-90 select-none relative touch-manipulation
                           ${
                             isSelected
-                              ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md shadow-orange-500/30 ring-2 ring-[var(--color-porkos-orange)]/50'
+                              ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] font-black shadow-md shadow-orange-500/25 ring-2 ring-[var(--color-porkos-orange)]/40'
                               : isOccupied
                               ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:border-amber-400/80 hover:bg-amber-500/25'
-                              : 'bg-zinc-900/90 text-zinc-200 border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800'
+                              : 'bg-zinc-900 text-zinc-200 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800'
                           }
                         `}
                       >
@@ -185,7 +240,7 @@ export default function SalesHeader({
                         <span
                           className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
                             isSelected
-                              ? 'bg-black'
+                              ? 'bg-zinc-950'
                               : isOccupied
                               ? 'bg-amber-400 animate-pulse'
                               : 'bg-emerald-400'
@@ -198,17 +253,17 @@ export default function SalesHeader({
               </div>
 
               {selectedTable && (
-                <div className="shrink-0 flex items-center gap-1.5 pl-1.5 text-xs border-l border-zinc-800">
+                <div className="shrink-0 flex items-center gap-1.5 pl-2 text-xs border-l border-zinc-800">
                   <span className="font-extrabold text-[var(--color-porkos-orange)] text-xs hidden md:inline">
                     {selectedTable.label}
                   </span>
                   <button
                     type="button"
                     onClick={() => setSelectedTable(null)}
-                    className="text-[10px] text-zinc-400 hover:text-rose-400 font-bold px-1.5 py-0.5 rounded border border-zinc-800 hover:border-rose-500/40 cursor-pointer transition-colors"
+                    className="text-[10px] text-zinc-400 hover:text-rose-400 font-bold px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-rose-500/40 cursor-pointer transition-colors"
                     title="Deseleccionar mesa"
                   >
-                    ✕
+                    Quitar
                   </button>
                 </div>
               )}
@@ -216,6 +271,12 @@ export default function SalesHeader({
           )}
         </div>
       )}
+
+      {/* Modal de Control de Notificaciones */}
+      <NotificationModal
+        isOpen={isNotifModalOpen}
+        onClose={() => setIsNotifModalOpen(false)}
+      />
     </div>
   );
 }

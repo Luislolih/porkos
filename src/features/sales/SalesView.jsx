@@ -14,7 +14,9 @@ import { getNextOrderNumber } from '../../utils/orderNumber';
 import { isProductBeverage, isProductMarket, isProductFood, isProductDessert, isProductSnack } from '../../utils/productCategories';
 import { sanitizeText, sanitizeNotes } from '../../utils/security';
 import { useAuth } from '../../context/useAuth';
-import { CheckCircle2, UtensilsCrossed, Edit3 } from 'lucide-react';
+import Toast from '../../components/ui/Toast';
+import EmptyState from '../../components/ui/EmptyState';
+import { UtensilsCrossed, Edit3 } from 'lucide-react';
 
 export default function SalesView({
   onOrderCreated,
@@ -552,10 +554,11 @@ export default function SalesView({
     <div className="relative pb-24 lg:pb-8">
       {/* Toast Notification */}
       {successToast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-black font-bold text-xs px-4 py-2 rounded-xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-4">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{successToast}</span>
-        </div>
+        <Toast
+          message={successToast}
+          type="success"
+          onClose={() => setSuccessToast(null)}
+        />
       )}
 
       {/* Main Grid Layout */}
@@ -622,21 +625,23 @@ export default function SalesView({
           </div>
 
           {filteredAndSortedProducts.length === 0 && (
-            <div className="py-12 text-center text-zinc-500 bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-8 max-w-md mx-auto my-4 space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-[var(--color-porkos-orange)] border border-orange-500/20 flex items-center justify-center mx-auto">
-                <UtensilsCrossed className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <p className="font-bold text-sm text-white">
-                  {products.length === 0 ? 'Tu catálogo está vacío' : 'No se encontraron productos'}
-                </p>
-                <p className="text-xs text-zinc-400">
-                  {products.length === 0
-                    ? 'Agrega productos en el menú Catálogo.'
-                    : 'Prueba otro término de búsqueda.'}
-                </p>
-              </div>
-            </div>
+            <EmptyState
+              icon={UtensilsCrossed}
+              title={products.length === 0 ? 'El catálogo está vacío' : 'No se encontraron productos'}
+              description={
+                products.length === 0
+                  ? 'Agrega productos en el módulo de Catálogo para empezar a vender.'
+                  : 'No hay productos que coincidan con la búsqueda o categoría seleccionada.'
+              }
+              action={
+                searchQuery
+                  ? {
+                      label: 'Limpiar búsqueda',
+                      onClick: () => setSearchQuery(''),
+                    }
+                  : undefined
+              }
+            />
           )}
         </div>
 

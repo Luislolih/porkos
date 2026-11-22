@@ -14,13 +14,19 @@ import {
   Grid2X2,
   Plus,
   Users,
+  Settings,
+  Bell,
 } from 'lucide-react';
 import CatalogView from '../catalog/CatalogView';
+import NotificationsSettingsTab from './NotificationsSettingsTab';
 import { useAuth } from '../../context/useAuth';
 import { useCart } from '../../context/useCart';
 import { APP_ROLES, ALL_MODULE_DEFINITIONS } from '../../types/roles';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import PageHeader from '../../components/ui/PageHeader';
+import Toast from '../../components/ui/Toast';
 
 function DeliverySettingsTab({ initialFee, onSave }) {
   const [deliveryFeeInput, setDeliveryFeeInput] = useState(initialFee);
@@ -35,7 +41,7 @@ function DeliverySettingsTab({ initialFee, onSave }) {
 
   return (
     <div className="space-y-4 max-w-3xl">
-      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-6 space-y-5">
+      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-6 space-y-5 shadow-sm">
         <div className="flex items-center gap-3 pb-3 border-b border-zinc-800">
           <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
             <Bike className="w-6 h-6" />
@@ -67,7 +73,7 @@ function DeliverySettingsTab({ initialFee, onSave }) {
                 value={deliveryFeeInput}
                 onChange={(e) => setDeliveryFeeInput(e.target.value)}
                 placeholder="5.00"
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-base text-white font-extrabold placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-base text-white font-extrabold placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
           </div>
@@ -75,7 +81,7 @@ function DeliverySettingsTab({ initialFee, onSave }) {
           {/* Accesos rápidos a tarifas comunes */}
           <div>
             <span className="block text-[11px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">
-              Valores Rápidos:
+              Valores Rápidos Frecuentes:
             </span>
             <div className="flex flex-wrap gap-2">
               {['3.00', '4.00', '5.00', '6.00', '7.00', '8.00', '10.00'].map((val) => (
@@ -86,7 +92,7 @@ function DeliverySettingsTab({ initialFee, onSave }) {
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                     Number(deliveryFeeInput) === Number(val)
                       ? 'bg-emerald-500 text-black border-emerald-400 font-black shadow-md shadow-emerald-500/20 scale-105'
-                      : 'bg-black/40 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+                      : 'bg-zinc-900 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
                   }`}
                 >
                   S/ {val}
@@ -118,6 +124,9 @@ function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDelet
   const [labelInput, setLabelInput] = useState('');
   const [capacityInput, setCapacityInput] = useState('4');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Confirm delete table dialog
+  const [tableToDelete, setTableToDelete] = useState(null);
 
   const openAddModal = () => {
     const nextNum = tablesList.length > 0 ? Math.max(...tablesList.map((t) => Number(t.number) || 0)) + 1 : 1;
@@ -166,20 +175,18 @@ function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDelet
     }
   };
 
-  const handleDelete = async (table) => {
-    if (confirm(`¿Estás seguro de eliminar ${table.label}? Esta acción afectará el salón y la asignación de comandas.`)) {
-      if (onDeleteTable) {
-        await onDeleteTable(table.id);
-      }
-    }
+  const handleConfirmDeleteTable = async () => {
+    if (!tableToDelete || !onDeleteTable) return;
+    await onDeleteTable(tableToDelete.id);
+    setTableToDelete(null);
   };
 
   const sortedTables = [...tablesList].sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
 
   return (
-    <div className="space-y-3.5 max-w-5xl">
+    <div className="space-y-4 max-w-5xl">
       {/* Barra de acción compacta de mesas */}
-      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3">
+      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3 shadow-sm">
         <div className="flex items-center gap-2">
           <Grid2X2 className="w-4 h-4 text-[var(--color-porkos-orange)]" />
           <span className="font-extrabold text-sm text-white">
@@ -187,14 +194,15 @@ function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDelet
           </span>
         </div>
 
-        <button
+        <Button
           type="button"
           onClick={openAddModal}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-md shadow-orange-500/20 cursor-pointer active:scale-95 transition-all"
+          icon={Plus}
+          size="sm"
+          className="text-xs font-black shadow-md shadow-orange-500/20"
         >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>Agregar Mesa</span>
-        </button>
+          Agregar Mesa
+        </Button>
       </div>
 
       {/* Lista de Mesas en DB */}
@@ -202,7 +210,7 @@ function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDelet
         {sortedTables.map((table) => (
           <div
             key={table.id}
-            className="bg-[#141414] border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-md hover:border-zinc-700 transition-all"
+            className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-sm hover:border-zinc-700 transition-all"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2.5">
@@ -222,15 +230,15 @@ function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDelet
                 <button
                   type="button"
                   onClick={() => openEditModal(table)}
-                  className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 cursor-pointer transition-colors"
+                  className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 cursor-pointer transition-colors active:scale-95 touch-manipulation"
                   title="Editar mesa"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDelete(table)}
-                  className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-950/40 text-zinc-400 hover:text-rose-400 border border-zinc-700 hover:border-rose-500/40 cursor-pointer transition-colors"
+                  onClick={() => setTableToDelete(table)}
+                  className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-950/40 text-zinc-400 hover:text-rose-400 border border-zinc-700 hover:border-rose-500/40 cursor-pointer transition-colors active:scale-95 touch-manipulation"
                   title="Eliminar mesa de la base de datos"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -239,8 +247,8 @@ function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDelet
             </div>
 
             <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[11px]">
-              <span className="text-zinc-500">ID en base de datos:</span>
-              <span className="font-mono text-zinc-400">{table.id}</span>
+              <span className="text-zinc-500">ID Base de Datos:</span>
+              <span className="font-mono text-zinc-400 text-[10px]">{table.id}</span>
             </div>
           </div>
         ))}
@@ -260,12 +268,13 @@ function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDelet
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
           title={editingTable ? 'Editar Mesa de Salón' : 'Nueva Mesa de Salón'}
+          subtitle="Configura el número, nombre visible y capacidad de la mesa"
           maxWidth="max-w-md"
         >
-          <form onSubmit={handleSave} className="space-y-4">
+          <form onSubmit={handleSave} className="space-y-4 text-xs sm:text-sm">
             <div>
               <label className="block text-xs font-bold text-zinc-300 mb-1.5">
-                Número de Mesa
+                Número de Mesa *
               </label>
               <input
                 type="number"
@@ -278,21 +287,21 @@ function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDelet
                     setLabelInput(`Mesa ${e.target.value}`);
                   }
                 }}
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
                 placeholder="Ej: 4"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-zinc-300 mb-1.5">
-                Nombre / Identificador
+                Nombre / Identificador *
               </label>
               <input
                 type="text"
                 required
                 value={labelInput}
                 onChange={(e) => setLabelInput(e.target.value)}
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
                 placeholder="Ej: Mesa 4 o Terraza 1"
               />
             </div>
@@ -308,7 +317,7 @@ function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDelet
                 required
                 value={capacityInput}
                 onChange={(e) => setCapacityInput(e.target.value)}
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
                 placeholder="4"
               />
             </div>
@@ -316,23 +325,33 @@ function TablesSettingsTab({ tablesList = [], onAddTable, onUpdateTable, onDelet
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 onClick={() => setIsAddModalOpen(false)}
-                className="text-xs"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 disabled={isSaving}
-                className="text-xs font-bold bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black px-4"
+                isLoading={isSaving}
               >
-                {isSaving ? 'Guardando...' : editingTable ? 'Guardar Cambios' : 'Crear Mesa'}
+                {editingTable ? 'Guardar Cambios' : 'Crear Mesa'}
               </Button>
             </div>
           </form>
         </Modal>
       )}
+
+      {/* Confirm Dialog Eliminar Mesa */}
+      <ConfirmDialog
+        isOpen={Boolean(tableToDelete)}
+        onClose={() => setTableToDelete(null)}
+        onConfirm={handleConfirmDeleteTable}
+        title={`¿Eliminar ${tableToDelete?.label}?`}
+        message="Esta acción afectará el mapa del salón y no se podrá asignar nuevas comandas a esta mesa."
+        confirmText="Sí, Eliminar Mesa"
+        variant="danger"
+      />
     </div>
   );
 }
@@ -344,7 +363,7 @@ export default function SettingsView({
   onUpdateTable,
   onDeleteTable,
 }) {
-  const [activeTab, setActiveTab] = useState('catalog'); // 'catalog' | 'tables' | 'delivery' | 'users' | 'system'
+  const [activeTab, setActiveTab] = useState('tables'); // 'tables' | 'delivery' | 'users' | 'system' | 'catalog'
   const [isConfirmOrdersClearOpen, setIsConfirmOrdersClearOpen] = useState(false);
   const [isClearingOrders, setIsClearingOrders] = useState(false);
 
@@ -370,8 +389,11 @@ export default function SettingsView({
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newRole, setNewRole] = useState('COORDINADOR');
   const [isAddingUser, setIsAddingUser] = useState(false);
-  const [editingUser, setEditingUser] = useState(null); // { email, displayName, role }
+  const [editingUser, setEditingUser] = useState(null);
   const [isSavingEditUser, setIsSavingEditUser] = useState(false);
+
+  // Dialog revocar usuario
+  const [userToRevoke, setUserToRevoke] = useState(null);
 
   // Lista unificada garantizando que el usuario en sesión actual siempre aparezca
   const displayUsers = useMemo(() => {
@@ -386,7 +408,6 @@ export default function SettingsView({
     return list;
   }, [authorizedUsers, currentUser]);
 
-  // Copiado de reglas
   const [copiedRules, setCopiedRules] = useState(false);
 
   // Permisos de roles en edición
@@ -399,7 +420,11 @@ export default function SettingsView({
   });
 
   const [isSavingPerms, setIsSavingPerms] = useState(false);
-  const [permToast, setPermToast] = useState(null);
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToastMessage({ text: msg, type });
+  };
 
   const handleAddUserSubmit = async (e) => {
     e.preventDefault();
@@ -428,7 +453,7 @@ export default function SettingsView({
 
     const cleanName = editingUser.displayName?.trim();
     if (!cleanName) {
-      showToast('⚠️ Ingresa un Nombre y Apellido');
+      showToast('⚠️ Ingresa un Nombre y Apellido', 'warning');
       return;
     }
 
@@ -439,20 +464,19 @@ export default function SettingsView({
       role: editingUser.role || 'CAJERO',
     });
 
-    showToast(`Usuario ${editingUser.email} actualizado a "${cleanName}"`);
+    showToast(`Usuario ${editingUser.email} actualizado`);
     setEditingUser(null);
     setIsSavingEditUser(false);
   };
 
-  const handleRemoveUser = async (email) => {
-    if (confirm(`¿Revocar acceso al usuario ${email}?`)) {
-      await removeAuthorizedUser(email);
-      showToast(`Acceso revocado a ${email}`);
-    }
+  const handleConfirmRevokeUser = async () => {
+    if (!userToRevoke) return;
+    await removeAuthorizedUser(userToRevoke);
+    showToast(`Acceso revocado a ${userToRevoke}`);
+    setUserToRevoke(null);
   };
 
   const toggleModuleForRole = (roleId, moduleId) => {
-    // Si es ADMIN y módulo es settings, siempre mantener
     setEditingPermissions((prev) => {
       const current = prev[roleId] || APP_ROLES[roleId].defaultModules;
       const exists = current.includes(moduleId);
@@ -468,70 +492,45 @@ export default function SettingsView({
     setIsSavingPerms(true);
     await updateRolePermissions(editingPermissions);
     setIsSavingPerms(false);
-    showToast('Configuración de vistas por rol guardada con éxito');
-  };
-
-  const showToast = (msg) => {
-    setPermToast(msg);
-    setTimeout(() => setPermToast(null), 3000);
+    showToast('Configuración de vistas por rol guardada');
   };
 
   const firestoreRulesText = `rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // 1. Verificación obligatoria de autenticación con Google Auth
     function isAuthenticated() {
       return request.auth != null && request.auth.token.email != null;
     }
-
-    // Usuarios y Roles de Acceso
     match /users/{userEmail} {
       allow read, write: if isAuthenticated();
     }
-
-    // Órdenes y Comandas: Sincronización en tiempo real (Caja, Cocina, Entregas)
     match /orders/{orderId} {
       allow read, write: if isAuthenticated();
     }
-
-    // Mesas de Salón
     match /tables/{tableId} {
       allow read, write: if isAuthenticated();
     }
-
-    // Catálogo Operativo (Carta, Market, Cremas, Extras, Empaques)
     match /products/{productId} {
       allow read, write: if isAuthenticated();
     }
-
     match /categories/{categoryId} {
       allow read, write: if isAuthenticated();
     }
-
     match /creams/{creamId} {
       allow read, write: if isAuthenticated();
     }
-
     match /extras/{extraId} {
       allow read, write: if isAuthenticated();
     }
-
     match /packagings/{packagingId} {
       allow read, write: if isAuthenticated();
     }
-
-    // Gastos y Egresos Operativos
     match /expenses/{expenseId} {
       allow read, write: if isAuthenticated();
     }
-
-    // Configuraciones Generales
     match /app_config/{configId} {
       allow read, write: if isAuthenticated();
     }
-
-    // Bloqueo total para accesos anónimos o públicos sin autenticación
     match /{document=**} {
       allow read, write: if false;
     }
@@ -545,36 +544,32 @@ service cloud.firestore {
   };
 
   return (
-    <div className="space-y-4 pb-20 lg:pb-6">
-      {permToast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-black font-bold text-xs px-4 py-2 rounded-xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-4">
-          <Check className="w-4 h-4 stroke-[3]" />
-          <span>{permToast}</span>
-        </div>
+    <div className="space-y-4 pb-20 lg:pb-8">
+      {toastMessage && (
+        <Toast
+          message={toastMessage.text}
+          type={toastMessage.type}
+          onClose={() => setToastMessage(null)}
+        />
       )}
 
-      {/* Sub-Navegación compacta de Configuración */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-        <button
-          type="button"
-          onClick={() => setActiveTab('catalog')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap border ${
-            activeTab === 'catalog'
-              ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-md'
-              : 'bg-zinc-900/90 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
-          }`}
-        >
-          <UtensilsCrossed className="w-3.5 h-3.5" />
-          <span>Catálogo</span>
-        </button>
+      {/* Header */}
+      <PageHeader
+        title="Configuración del Sistema"
+        subtitle="Administra mesas del salón, tarifas de delivery, roles de usuarios y base de datos"
+        icon={Settings}
+        badge="Administración"
+      />
 
+      {/* Sub-Navegación compacta de Configuración */}
+      <div className="bg-[var(--color-porkos-surface)] p-2 rounded-2xl border border-[var(--color-porkos-border)] flex items-center gap-1.5 overflow-x-auto scrollbar-none shadow-sm">
         <button
           type="button"
           onClick={() => setActiveTab('tables')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap border ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'tables'
-              ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-md'
-              : 'bg-zinc-900/90 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+              ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-md shadow-orange-500/15'
+              : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
           }`}
         >
           <Grid2X2 className="w-3.5 h-3.5" />
@@ -584,10 +579,10 @@ service cloud.firestore {
         <button
           type="button"
           onClick={() => setActiveTab('delivery')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap border ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'delivery'
-              ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-md'
-              : 'bg-zinc-900/90 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+              ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-md shadow-orange-500/15'
+              : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
           }`}
         >
           <Bike className="w-3.5 h-3.5" />
@@ -597,34 +592,57 @@ service cloud.firestore {
         <button
           type="button"
           onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap border ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'users'
-              ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-md'
-              : 'bg-zinc-900/90 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+              ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-md shadow-orange-500/15'
+              : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
           }`}
         >
           <ShieldCheck className="w-3.5 h-3.5" />
-          <span>Usuarios & Roles</span>
+          <span>Usuarios & Roles ({displayUsers.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('notifications')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'notifications'
+              ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-md shadow-orange-500/15'
+              : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+          }`}
+        >
+          <Bell className="w-3.5 h-3.5" />
+          <span>Notificaciones PWA</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('system')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap border ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'system'
-              ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-md'
-              : 'bg-zinc-900/90 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+              ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-md shadow-orange-500/15'
+              : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
           }`}
         >
           <Database className="w-3.5 h-3.5" />
-          <span>Cloud & BD</span>
+          <span>Cloud & Base de Datos</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('catalog')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'catalog'
+              ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-md shadow-orange-500/15'
+              : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+          }`}
+        >
+          <UtensilsCrossed className="w-3.5 h-3.5" />
+          <span>Catálogo</span>
         </button>
       </div>
 
-      {/* 1. Vista de Catálogo */}
-      {activeTab === 'catalog' && <CatalogView />}
-
-      {/* 2. Vista de Mesas de Salón (Base de Datos) */}
+      {/* 1. Vista de Mesas de Salón */}
       {activeTab === 'tables' && (
         <TablesSettingsTab
           tablesList={tablesList}
@@ -634,7 +652,7 @@ service cloud.firestore {
         />
       )}
 
-      {/* 3. Vista de Tarifas & Configuración de Delivery */}
+      {/* 2. Vista de Tarifas de Delivery */}
       {activeTab === 'delivery' && (
         <DeliverySettingsTab
           key={defaultDeliveryFee}
@@ -643,11 +661,11 @@ service cloud.firestore {
         />
       )}
 
-      {/* 3. Vista de Usuarios & Roles Blindados */}
+      {/* 3. Vista de Usuarios & Roles */}
       {activeTab === 'users' && (
         <div className="space-y-4">
-          {/* Card 1: Perfil del Operador en Turno (Sesión Actual) */}
-          <div className="bg-gradient-to-r from-zinc-900 via-[#18181b] to-black border border-zinc-800 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+          {/* Card 1: Perfil de Sesión Actual */}
+          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
             <div className="flex items-center gap-3.5 min-w-0">
               <div className="w-12 h-12 rounded-2xl bg-orange-500/20 text-[var(--color-porkos-orange)] border border-orange-500/40 flex items-center justify-center font-black text-lg shrink-0">
                 {(currentUser?.displayName || currentUser?.email || 'U')[0].toUpperCase()}
@@ -674,6 +692,7 @@ service cloud.firestore {
               type="button"
               icon={Pencil}
               size="sm"
+              variant="outline"
               onClick={() => {
                 setEditingUser({
                   email: currentUser?.email || '',
@@ -688,7 +707,7 @@ service cloud.firestore {
           </div>
 
           {/* Card 2: Registrar Nuevo Usuario por Email */}
-          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-4">
+          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-bold text-white">
               <UserPlus className="w-4 h-4 text-[var(--color-porkos-orange)]" />
               <span>Registrar Nuevo Usuario y Asignar Rol</span>
@@ -705,7 +724,7 @@ service cloud.firestore {
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="ejemplo@porkos.pe"
-                  className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
                 />
               </div>
 
@@ -719,7 +738,7 @@ service cloud.firestore {
                   value={newDisplayName}
                   onChange={(e) => setNewDisplayName(e.target.value)}
                   placeholder="Ej. Juan Pérez"
-                  className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
                 />
               </div>
 
@@ -730,7 +749,7 @@ service cloud.firestore {
                 <select
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value)}
-                  className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
                 >
                   <option value="ADMIN">ADMIN (Acceso Total)</option>
                   <option value="COORDINADOR">COORDINADOR(A)</option>
@@ -743,19 +762,20 @@ service cloud.firestore {
                 <Button
                   type="submit"
                   disabled={isAddingUser}
+                  isLoading={isAddingUser}
                   icon={UserPlus}
                   size="md"
                   fullWidth
                   className="text-xs font-black py-2.5"
                 >
-                  {isAddingUser ? 'Guardando...' : 'Asignar'}
+                  Asignar
                 </Button>
               </div>
             </form>
           </div>
 
           {/* Card 3: Lista de Usuarios Registrados */}
-          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-3">
+          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-bold text-white">
                 <UserCheck className="w-4 h-4 text-emerald-400" />
@@ -772,14 +792,14 @@ service cloud.firestore {
               </div>
             ) : (
               <div className="divide-y divide-zinc-800/80 overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs whitespace-nowrap">
                   <thead>
-                    <tr className="text-zinc-500 text-[10px] uppercase font-black">
-                      <th className="py-2 pr-4">Nombre y Apellido</th>
-                      <th className="py-2 px-4">Email</th>
-                      <th className="py-2 px-4">Rol Asignado</th>
-                      <th className="py-2 px-4">Vistas Permitidas</th>
-                      <th className="py-2 pl-4 text-right">Acción</th>
+                    <tr className="text-zinc-500 text-[10px] uppercase font-black border-b border-zinc-800/80">
+                      <th className="py-2.5 pr-4">Nombre y Apellido</th>
+                      <th className="py-2.5 px-4">Email</th>
+                      <th className="py-2.5 px-4">Rol Asignado</th>
+                      <th className="py-2.5 px-4">Vistas Permitidas</th>
+                      <th className="py-2.5 pl-4 text-right">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800/60">
@@ -790,14 +810,12 @@ service cloud.firestore {
 
                       return (
                         <tr key={u.email} className="hover:bg-black/30 transition-colors">
-                          <td className="py-2.5 pr-4 font-bold text-white whitespace-nowrap">
-                            {u.displayName ? (
-                              <span>{u.displayName}</span>
-                            ) : (
+                          <td className="py-3 pr-4 font-bold text-white">
+                            {u.displayName || (
                               <span className="text-zinc-500 italic font-normal text-[11px]">Sin nombre configurado</span>
                             )}
                           </td>
-                          <td className="py-2.5 px-4 font-mono text-zinc-300">
+                          <td className="py-3 px-4 font-mono text-zinc-300">
                             {u.email}
                             {isMe && (
                               <span className="ml-2 text-[10px] text-emerald-400 bg-emerald-950/40 px-1.5 py-0.2 rounded font-sans font-bold">
@@ -805,21 +823,21 @@ service cloud.firestore {
                               </span>
                             )}
                           </td>
-                          <td className="py-2.5 px-4">
+                          <td className="py-3 px-4">
                             <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${roleConfig.badgeClass}`}>
                               {roleConfig.name}
                             </span>
                           </td>
-                          <td className="py-2.5 px-4 text-zinc-400">
+                          <td className="py-3 px-4 text-zinc-400">
                             <div className="flex flex-wrap gap-1 max-w-md">
                               {allowed.map((modId) => (
-                                <span key={modId} className="bg-zinc-800/80 text-zinc-300 px-1.5 py-0.2 rounded text-[10px]">
+                                <span key={modId} className="bg-zinc-800 text-zinc-300 px-1.5 py-0.2 rounded text-[10px] font-semibold">
                                   {modId}
                                 </span>
                               ))}
                             </div>
                           </td>
-                          <td className="py-2.5 pl-4 text-right whitespace-nowrap space-x-1">
+                          <td className="py-3 pl-4 text-right space-x-1">
                             <button
                               type="button"
                               onClick={() => {
@@ -829,15 +847,15 @@ service cloud.firestore {
                                   role: u.role || 'CAJERO',
                                 });
                               }}
-                              className="text-zinc-400 hover:text-[var(--color-porkos-orange)] p-1.5 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
-                              title="Editar nombre y rol de este usuario"
+                              className="text-zinc-400 hover:text-[var(--color-porkos-orange)] p-1.5 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer active:scale-95 touch-manipulation"
+                              title="Editar usuario"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleRemoveUser(u.email)}
-                              className="text-zinc-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+                              onClick={() => setUserToRevoke(u.email)}
+                              className="text-zinc-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer active:scale-95 touch-manipulation"
                               title="Revocar acceso"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -853,7 +871,7 @@ service cloud.firestore {
           </div>
 
           {/* Card: Configuración de Vistas por Rol */}
-          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-4">
+          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2 text-sm font-bold text-white">
                 <Lock className="w-4 h-4 text-[var(--color-porkos-orange)]" />
@@ -863,11 +881,12 @@ service cloud.firestore {
                 type="button"
                 onClick={handleSavePermissions}
                 disabled={isSavingPerms}
+                isLoading={isSavingPerms}
                 size="sm"
                 icon={Check}
                 className="text-xs font-bold"
               >
-                {isSavingPerms ? 'Guardando...' : 'Guardar Vistas por Rol'}
+                Guardar Vistas
               </Button>
             </div>
 
@@ -877,12 +896,10 @@ service cloud.firestore {
                 const activeMods = editingPermissions[roleId] || role.defaultModules;
 
                 return (
-                  <div key={roleId} className="bg-black/50 p-3.5 rounded-xl border border-zinc-800 space-y-2.5">
-                    <div className="flex items-center justify-between pb-1.5 border-b border-zinc-800">
-                      <div>
-                        <h4 className="font-extrabold text-xs text-white">{role.name}</h4>
-                        <p className="text-[10px] text-zinc-500">{role.description}</p>
-                      </div>
+                  <div key={roleId} className="bg-zinc-900/80 p-3.5 rounded-xl border border-zinc-800 space-y-2.5">
+                    <div className="pb-1.5 border-b border-zinc-800">
+                      <h4 className="font-extrabold text-xs text-white">{role.name}</h4>
+                      <p className="text-[10px] text-zinc-500">{role.description}</p>
                     </div>
 
                     <div className="space-y-1">
@@ -892,7 +909,7 @@ service cloud.firestore {
                           <label
                             key={mod.id}
                             className={`flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer transition-all ${
-                              isChecked ? 'bg-zinc-800/80 text-white font-bold' : 'text-zinc-500 hover:text-zinc-300'
+                              isChecked ? 'bg-zinc-800 text-white font-bold' : 'text-zinc-500 hover:text-zinc-300'
                             }`}
                           >
                             <span>{mod.label}</span>
@@ -911,103 +928,75 @@ service cloud.firestore {
               })}
             </div>
           </div>
-
-          {/* Card: Blindaje Backend en Base de Datos (Firestore Rules) */}
-          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2 text-sm font-bold text-white">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Reglas de Seguridad Backend (Firestore Rules)</span>
-              </div>
-              <Button
-                type="button"
-                onClick={handleCopyRules}
-                size="sm"
-                icon={copiedRules ? Check : Copy}
-                variant="outline"
-                className="text-xs font-bold border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
-              >
-                {copiedRules ? '¡Copiado!' : 'Copiar firestore.rules para Firebase Console'}
-              </Button>
-            </div>
-
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Tu aplicación está protegida en dos niveles: en la interfaz (bloqueando menús y vistas) y en el backend (impidiendo lecturas o escrituras a nivel de red y base de datos con reglas que validan el email del usuario).
-            </p>
-
-            <pre className="bg-black/80 border border-zinc-800 p-3 rounded-xl text-[11px] font-mono text-zinc-300 overflow-x-auto max-h-56 scrollbar-thin">
-              {firestoreRulesText}
-            </pre>
-          </div>
         </div>
       )}
 
-      {/* 3. Vista de Infraestructura Cloud */}
+      {/* 4. Vista de Infraestructura Cloud & BD */}
       {activeTab === 'system' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
-          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 space-y-3">
+          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-bold text-white">
               <Database className="w-4 h-4 text-emerald-400" />
               <span>Infraestructura Cloud</span>
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800/80">
+              <div className="flex justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800/80">
                 <span className="text-zinc-400">Firebase Auth:</span>
-                <span className="text-emerald-400 font-bold">Conectado</span>
+                <span className="text-emerald-400 font-bold">Conectado (Google OAuth)</span>
               </div>
-              <div className="flex justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800/80">
+              <div className="flex justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800/80">
                 <span className="text-zinc-400">Cloud Firestore:</span>
-                <span className="text-emerald-400 font-bold">Activo</span>
+                <span className="text-emerald-400 font-bold">Sincronización en Tiempo Real</span>
               </div>
-              <div className="flex justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800/80">
+              <div className="flex justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800/80">
                 <span className="text-zinc-400">Proyecto Firebase:</span>
                 <span className="text-white font-mono">porkos-ac37d</span>
               </div>
-              <div className="flex justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800/80">
+              <div className="flex justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800/80">
                 <span className="text-zinc-400">Tarifa Delivery Base:</span>
                 <span className="text-emerald-400 font-bold">S/ {Number(defaultDeliveryFee).toFixed(2)}</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 space-y-3">
+          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-bold text-white">
               <ShieldCheck className="w-4 h-4 text-[var(--color-porkos-orange)]" />
-              <span>Roles Oficiales</span>
+              <span>Roles Oficiales del Sistema</span>
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className="p-2.5 rounded-xl bg-black/40 border border-zinc-800/80 flex justify-between">
+              <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800/80 flex justify-between">
                 <span className="text-rose-400 font-bold">ADMIN:</span>
                 <span className="text-zinc-400">Acceso total y configuración</span>
               </div>
-              <div className="p-2.5 rounded-xl bg-black/40 border border-zinc-800/80 flex justify-between">
+              <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800/80 flex justify-between">
                 <span className="text-amber-400 font-bold">COORDINADOR(A):</span>
-                <span className="text-zinc-400">Todo excepto Ajustes</span>
+                <span className="text-zinc-400">Operaciones completas sin ajustes</span>
               </div>
-              <div className="p-2.5 rounded-xl bg-black/40 border border-zinc-800/80 flex justify-between">
+              <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800/80 flex justify-between">
                 <span className="text-orange-400 font-bold">COCINA:</span>
-                <span className="text-zinc-400">Vista exclusiva de KDS</span>
+                <span className="text-zinc-400">Vista KDS de preparación</span>
               </div>
-              <div className="p-2.5 rounded-xl bg-black/40 border border-zinc-800/80 flex justify-between">
+              <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800/80 flex justify-between">
                 <span className="text-blue-400 font-bold">CAJERO:</span>
-                <span className="text-zinc-400">Ventas, mesas y pedidos</span>
+                <span className="text-zinc-400">Ventas, salón y pedidos</span>
               </div>
             </div>
           </div>
 
           {/* Mantenimiento de Datos y Pedidos */}
           {onClearAllOrders && (
-            <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 space-y-3 md:col-span-2">
-              <div className="flex items-center justify-between">
+            <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-3 md:col-span-2 shadow-sm">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
                     <Trash2 className="w-4 h-4 text-rose-400" />
-                    <span>Reinicio & Mantenimiento de Comandas</span>
+                    <span>Mantenimiento de Comandas</span>
                   </h4>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    Elimina todo el historial de pedidos de la base de datos y de tu navegador para registrar datos limpios desde cero.
+                    Elimina todo el historial de pedidos de Firestore y de tu navegador para registrar datos limpios.
                   </p>
                 </div>
 
@@ -1022,50 +1011,70 @@ service cloud.firestore {
               </div>
             </div>
           )}
-        </div>
-      )}
 
-      {/* Modal Confirmación de Vaciar Pedidos */}
-      {isConfirmOrdersClearOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-xs"
-            onClick={() => !isClearingOrders && setIsConfirmOrdersClearOpen(false)}
-          />
-          <div className="relative bg-[#141414] border border-zinc-800 rounded-2xl p-5 max-w-md w-full space-y-4 z-10 shadow-2xl">
-            <h3 className="text-base font-black text-white">¿Vaciar todo el historial de pedidos?</h3>
-            <p className="text-xs text-zinc-300">
-              Esta acción eliminará todas las órdenes registradas en Firestore y en el almacenamiento local. Las mesas quedarán disponibles y podrás empezar desde cero.
-            </p>
-            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
-              <button
+          {/* Reglas de Seguridad Backend */}
+          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-3 md:col-span-2 shadow-sm">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 text-sm font-bold text-white">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>Reglas de Seguridad Backend (Firestore Rules)</span>
+              </div>
+              <Button
                 type="button"
-                disabled={isClearingOrders}
-                onClick={() => setIsConfirmOrdersClearOpen(false)}
-                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-zinc-800 text-zinc-300 hover:text-white cursor-pointer"
+                onClick={handleCopyRules}
+                size="sm"
+                icon={copiedRules ? Check : Copy}
+                variant="outline"
+                className="text-xs font-bold border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
               >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={isClearingOrders}
-                onClick={async () => {
-                  setIsClearingOrders(true);
-                  try {
-                    await onClearAllOrders();
-                    setIsConfirmOrdersClearOpen(false);
-                  } finally {
-                    setIsClearingOrders(false);
-                  }
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 cursor-pointer"
-              >
-                {isClearingOrders ? 'Eliminando...' : 'Sí, Vaciar Pedidos'}
-              </button>
+                {copiedRules ? '¡Copiado!' : 'Copiar firestore.rules'}
+              </Button>
             </div>
+
+            <pre className="bg-black/80 border border-zinc-800 p-3 rounded-xl text-[11px] font-mono text-zinc-300 overflow-x-auto max-h-56 scrollbar-thin">
+              {firestoreRulesText}
+            </pre>
           </div>
         </div>
       )}
+
+      {/* 5. Vista de Notificaciones PWA */}
+      {activeTab === 'notifications' && <NotificationsSettingsTab />}
+
+      {/* 6. Vista de Catálogo */}
+      {activeTab === 'catalog' && <CatalogView />}
+
+      {/* Modal Confirmación de Vaciar Pedidos */}
+      <ConfirmDialog
+        isOpen={isConfirmOrdersClearOpen}
+        onClose={() => !isClearingOrders && setIsConfirmOrdersClearOpen(false)}
+        onConfirm={async () => {
+          setIsClearingOrders(true);
+          try {
+            await onClearAllOrders();
+            setIsConfirmOrdersClearOpen(false);
+            showToast('Historial de comandas vaciado con éxito');
+          } finally {
+            setIsClearingOrders(false);
+          }
+        }}
+        title="¿Vaciar todo el historial de pedidos?"
+        message="Esta acción eliminará todas las órdenes registradas en Firestore y en el almacenamiento local. Las mesas quedarán disponibles."
+        confirmText={isClearingOrders ? 'Eliminando...' : 'Sí, Vaciar Pedidos'}
+        variant="danger"
+        isLoading={isClearingOrders}
+      />
+
+      {/* Confirm Dialog Revocar Usuario */}
+      <ConfirmDialog
+        isOpen={Boolean(userToRevoke)}
+        onClose={() => setUserToRevoke(null)}
+        onConfirm={handleConfirmRevokeUser}
+        title={`¿Revocar acceso a ${userToRevoke}?`}
+        message="El usuario ya no podrá iniciar sesión ni acceder a los módulos del sistema."
+        confirmText="Sí, Revocar Acceso"
+        variant="danger"
+      />
 
       {/* Modal Dedicado para Editar Usuario y Nombre */}
       <Modal
@@ -1076,7 +1085,7 @@ service cloud.firestore {
         maxWidth="max-w-md"
       >
         {editingUser && (
-          <form onSubmit={handleSaveEditUser} className="space-y-4">
+          <form onSubmit={handleSaveEditUser} className="space-y-4 text-xs sm:text-sm">
             <div className="space-y-1">
               <label className="text-xs font-bold text-zinc-400 block">
                 Email de acceso (Google / Gmail)
@@ -1092,7 +1101,7 @@ service cloud.firestore {
             <div className="space-y-1">
               <label className="text-xs font-bold text-white flex items-center justify-between">
                 <span>Nombre y Apellido *</span>
-                <span className="text-[10px] text-[var(--color-porkos-orange)] font-medium">Aparecerá en comandas</span>
+                <span className="text-[10px] text-[var(--color-porkos-orange)] font-medium">Aparece en comandas</span>
               </label>
               <input
                 type="text"
@@ -1101,7 +1110,7 @@ service cloud.firestore {
                 value={editingUser.displayName || ''}
                 onChange={(e) => setEditingUser((prev) => (prev ? { ...prev, displayName: e.target.value } : null))}
                 placeholder="Ej. Luis Loli"
-                className="w-full bg-black/80 border border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] shadow-inner"
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)]"
               />
             </div>
 
@@ -1112,7 +1121,7 @@ service cloud.firestore {
               <select
                 value={editingUser.role || 'CAJERO'}
                 onChange={(e) => setEditingUser((prev) => (prev ? { ...prev, role: e.target.value } : null))}
-                className="w-full bg-black/80 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
               >
                 <option value="ADMIN">ADMIN (Acceso Total)</option>
                 <option value="COORDINADOR">COORDINADOR(A) (Todo menos Ajustes)</option>
@@ -1125,21 +1134,18 @@ service cloud.firestore {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
                 disabled={isSavingEditUser}
                 onClick={() => setEditingUser(null)}
-                className="text-xs border-zinc-700 text-zinc-300 hover:text-white"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 disabled={isSavingEditUser}
+                isLoading={isSavingEditUser}
                 icon={Check}
-                size="sm"
-                className="text-xs font-black"
               >
-                {isSavingEditUser ? 'Guardando...' : 'Guardar Cambios'}
+                Guardar Cambios
               </Button>
             </div>
           </form>

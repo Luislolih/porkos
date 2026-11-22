@@ -10,4 +10,13 @@ createRoot(document.getElementById('root')).render(
       <App />
     </ErrorBoundary>
   </StrictMode>,
-)
+);
+
+// Registrar Service Worker para modo offline PWA
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('Registro de Service Worker:', err?.message);
+    });
+  });
+}

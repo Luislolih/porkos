@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Utensils, Package, ShoppingBag } from 'lucide-react';
+import { Utensils, Package, ShoppingBag, Plus, Minus } from 'lucide-react';
 import Modal from '../../../components/ui/Modal';
 import { formatCurrency } from '../../../utils/formatters';
 import { useCatalog } from '../../../context/useCatalog';
@@ -89,7 +89,6 @@ function CustomizerForm({
     if (initialCustomization?.creamsDetail?.selected) {
       return initialCustomization.creamsDetail.selected;
     }
-    // Por defecto SIN cremas marcadas (el usuario las elige tocando cada caja)
     return [];
   });
 
@@ -147,7 +146,6 @@ function CustomizerForm({
       const match = availablePackagings.find((p) => p.id === initialCustomization.packaging.id);
       if (match) return match;
     }
-    // Solo si es para llevar o delivery, seleccionar por defecto el packaging asociado al producto
     const isTakeoutOrDelivery =
       consumptionType === 'PARA_LLEVAR' ||
       modality === 'PARA_LLEVAR' ||
@@ -158,7 +156,6 @@ function CustomizerForm({
       return associatedPaidPackagings[0];
     }
 
-    // En mesas, ir comiendo o cualquier otra modalidad: permitir elegir pero NO poner por defecto
     return nonePackaging;
   });
 
@@ -295,12 +292,12 @@ function CustomizerForm({
   };
 
   return (
-    <div className="space-y-3 pb-1 text-xs">
+    <div className="space-y-3.5 pb-2 text-xs">
       {/* Selector de Destino / Tipo de Pedido (Mesa / Ir Comiendo / Llevar) */}
       {modality !== 'DELIVERY' && (
-        <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-          <span className="text-xs font-black text-white uppercase tracking-wider block">
-            Tipo de Pedido
+        <div className="space-y-2 bg-[#0C0C0F] p-3 sm:p-3.5 rounded-2xl border border-[var(--color-porkos-border)]">
+          <span className="text-[11px] font-black text-zinc-300 uppercase tracking-wider block">
+            Destino del Producto
           </span>
           <div className="grid grid-cols-3 gap-2">
             {[
@@ -318,9 +315,9 @@ function CustomizerForm({
               },
               {
                 id: 'PARA_LLEVAR',
-                label: 'Llevar',
+                label: 'Para Llevar',
                 icon: ShoppingBag,
-                activeClass: 'bg-amber-500 text-black border-amber-400 shadow-md ring-1 ring-amber-400/50 font-black',
+                activeClass: 'bg-amber-500 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400/50 font-black',
               },
             ].map((opt) => {
               const isSelected = consumptionType === opt.id;
@@ -338,15 +335,15 @@ function CustomizerForm({
                     }
                   }}
                   className={`
-                    min-h-[44px] rounded-xl font-bold text-xs sm:text-sm border transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 touch-manipulation
+                    min-h-[44px] rounded-xl font-bold text-xs sm:text-sm border transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 touch-manipulation select-none
                     ${
                       isSelected
                         ? opt.activeClass
-                        : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                        : 'bg-[#141418] text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-200'
                     }
                   `}
                 >
-                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                  <Icon className="w-4 h-4 shrink-0" />
                   <span>{opt.label}</span>
                 </button>
               );
@@ -354,13 +351,14 @@ function CustomizerForm({
           </div>
         </div>
       )}
+
       {/* 1. ENSALADA */}
       {hasSalad && (
-        <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-          <span className="text-xs font-black text-white uppercase tracking-wider block">
+        <div className="space-y-2 bg-[#0C0C0F] p-3 sm:p-3.5 rounded-2xl border border-[var(--color-porkos-border)]">
+          <span className="text-[11px] font-black text-zinc-300 uppercase tracking-wider block">
             1. Ensalada
           </span>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-2">
             {[
               { mode: 'CON_ENSALADA', label: 'CON ENSALADA' },
               { mode: 'SIN_ENSALADA', label: 'SIN ENSALADA' },
@@ -372,11 +370,11 @@ function CustomizerForm({
                   type="button"
                   onClick={() => setSaladMode(sOpt.mode)}
                   className={`
-                    min-h-[56px] sm:min-h-[60px] rounded-xl font-black text-sm sm:text-base border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
+                    min-h-[48px] rounded-xl font-black text-xs sm:text-sm border transition-all active:scale-95 cursor-pointer flex items-center justify-center select-none touch-manipulation
                     ${
                       isSelected
-                        ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] shadow-md'
-                        : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                        ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] shadow-md shadow-orange-500/20'
+                        : 'bg-[#141418] text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-200'
                     }
                   `}
                 >
@@ -390,11 +388,11 @@ function CustomizerForm({
 
       {/* 2. PAPAS */}
       {hasPapasModifier && (
-        <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-          <span className="text-xs font-black text-white uppercase tracking-wider block">
-            2. Papas
+        <div className="space-y-2 bg-[#0C0C0F] p-3 sm:p-3.5 rounded-2xl border border-[var(--color-porkos-border)]">
+          <span className="text-[11px] font-black text-zinc-300 uppercase tracking-wider block">
+            2. Tipo de Papas
           </span>
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-3 gap-2">
             {[
               { id: 'fritas', label: 'FRITAS' },
               { id: 'al_hilo', label: 'AL HILO' },
@@ -410,11 +408,11 @@ function CustomizerForm({
                     setSelectedModifiers((prev) => ({ ...prev, mod_papas: pOpt.id }))
                   }
                   className={`
-                    min-h-[56px] sm:min-h-[60px] rounded-xl font-black text-xs sm:text-sm border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
+                    min-h-[48px] rounded-xl font-black text-xs sm:text-sm border transition-all active:scale-95 cursor-pointer flex items-center justify-center select-none touch-manipulation
                     ${
                       isSelected
-                        ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] shadow-md'
-                        : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                        ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] shadow-md shadow-orange-500/20'
+                        : 'bg-[#141418] text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-200'
                     }
                   `}
                 >
@@ -428,53 +426,56 @@ function CustomizerForm({
 
       {/* 3. CREMAS */}
       {availableCreams.length > 0 && (
-        <div className="space-y-2 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
+        <div className="space-y-2 bg-[#0C0C0F] p-3 sm:p-3.5 rounded-2xl border border-[var(--color-porkos-border)]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+            <span className="text-[11px] font-black text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
               3. Cremas ({selectedCreams.length})
             </span>
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => setSelectedCreams(availableCreams.map((c) => c.id))}
-                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 cursor-pointer"
+                className="text-xs font-bold px-3 py-1.5 rounded-xl bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 hover:border-zinc-700 cursor-pointer active:scale-95"
               >
                 Todas
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedCreams([])}
-                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-rose-400 border border-zinc-700 cursor-pointer"
+                className="text-xs font-bold px-3 py-1.5 rounded-xl bg-zinc-900 text-zinc-400 hover:text-rose-400 border border-zinc-800 hover:border-rose-500/30 cursor-pointer active:scale-95"
               >
                 Ninguna
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {availableCreams.map((cream) => {
               const isSelected = selectedCreams.includes(cream.id);
-              const short = cream.shortName || cream.name.slice(0, 4).toUpperCase();
+              const label = cream.shortName || cream.name;
+
               return (
                 <button
                   key={cream.id}
                   type="button"
                   onClick={() => toggleCream(cream.id)}
                   className={`
-                    min-h-[58px] sm:min-h-[66px] rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer relative
+                    min-h-[52px] sm:min-h-[58px] p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer relative select-none touch-manipulation
                     ${
                       isSelected
-                        ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] shadow-md shadow-orange-500/20'
-                        : 'bg-zinc-900/90 text-white border-zinc-800 hover:border-zinc-700'
+                        ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] shadow-md shadow-orange-500/20 font-black'
+                        : 'bg-[#141418] text-zinc-300 border-zinc-800 hover:border-zinc-700'
                     }
                   `}
                 >
                   <span
-                    className={`w-2.5 h-2.5 rounded-full border ${isSelected ? 'border-black/40' : 'border-white/30'}`}
-                    style={{ backgroundColor: cream.color }}
+                    className={`w-2.5 h-2.5 rounded-full border shrink-0 ${
+                      isSelected ? 'border-black/50' : 'border-white/30'
+                    }`}
+                    style={{ backgroundColor: cream.color || '#fff' }}
                   />
-                  <span className="text-sm sm:text-base font-black tracking-wider leading-none">
-                    {short}
+                  <span className="text-xs sm:text-sm font-black tracking-tight leading-none text-center truncate max-w-full">
+                    {label}
                   </span>
                 </button>
               );
@@ -483,15 +484,15 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 4. EXTRAS DINÁMICOS CON CANTIDADES (1x, 2x, 3x...) */}
+      {/* 4. EXTRAS DINÁMICOS CON CANTIDADES */}
       {compatibleExtras.length > 0 && (
-        <div className="space-y-2 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
+        <div className="space-y-2 bg-[#0C0C0F] p-3 sm:p-3.5 rounded-2xl border border-[var(--color-porkos-border)]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-white uppercase tracking-wider block">
-              4. Extras
+            <span className="text-[11px] font-black text-zinc-300 uppercase tracking-wider block">
+              4. Extras Disponibles
             </span>
             {selectedExtras.length > 0 && (
-              <span className="text-[11px] font-black text-[var(--color-porkos-orange)]">
+              <span className="text-xs font-black text-[var(--color-porkos-orange)]">
                 +{formatCurrency(extrasTotal)} ({selectedExtras.reduce((acc, e) => acc + (e.quantity || 1), 0)} u.)
               </span>
             )}
@@ -509,31 +510,30 @@ function CustomizerForm({
                 <div
                   key={ext.id}
                   className={`
-                    p-2.5 sm:p-3 rounded-xl border-2 flex items-center justify-between gap-2.5 transition-all
+                    p-2.5 sm:p-3 rounded-xl border flex items-center justify-between gap-2.5 transition-all
                     ${
                       isSelected
-                        ? 'bg-zinc-900 border-[var(--color-porkos-orange)] shadow-md'
-                        : 'bg-zinc-900/70 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                        ? 'bg-[#141418] border-[var(--color-porkos-orange)] shadow-sm'
+                        : 'bg-[#141418]/60 text-zinc-300 border-zinc-800 hover:border-zinc-700'
                     }
                   `}
                 >
-                  {/* Nombre y Precio unitario o subtotal */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`text-sm sm:text-base font-extrabold truncate ${isSelected ? 'text-white' : 'text-zinc-200'}`}>
+                      <span className={`text-xs sm:text-sm font-extrabold truncate ${isSelected ? 'text-white' : 'text-zinc-200'}`}>
                         {cleanName}
                       </span>
                       {isSelected && (
-                        <span className="bg-[var(--color-porkos-orange)] text-black px-1.5 py-0.2 rounded text-[11px] font-black shrink-0">
+                        <span className="bg-[var(--color-porkos-orange)] text-zinc-950 px-1.5 py-0.2 rounded text-[10px] font-black shrink-0">
                           {qty}x
                         </span>
                       )}
                     </div>
-                    <div className="text-xs font-semibold mt-0.5">
+                    <div className="text-[11px] font-semibold mt-0.5">
                       {isSelected ? (
                         <span className="text-[var(--color-porkos-orange)] font-black">
                           +{formatCurrency(subtotalExtra)}{' '}
-                          <span className="text-zinc-400 font-normal text-[11px]">
+                          <span className="text-zinc-400 font-normal">
                             ({qty}× {formatCurrency(ext.price)})
                           </span>
                         </span>
@@ -543,37 +543,37 @@ function CustomizerForm({
                     </div>
                   </div>
 
-                  {/* Controles Stepper: Añadir o Disminuir / Incrementar */}
                   <div className="flex items-center gap-1 shrink-0">
                     {isSelected ? (
-                      <div className="flex items-center bg-black/80 rounded-xl border border-zinc-700 p-0.5 shadow-xs">
+                      <div className="flex items-center bg-[#0C0C0F] rounded-xl border border-zinc-700 p-0.5 shadow-xs">
                         <button
                           type="button"
                           onClick={() => removeExtraUnit(ext.id)}
-                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-black text-sm flex items-center justify-center transition-all cursor-pointer active:scale-90"
-                          title="Quitar una unidad"
+                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-black text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer active:scale-90 touch-manipulation"
+                          title="Quitar unidad"
                         >
-                          -
+                          <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="w-7 sm:w-8 text-center font-black text-xs sm:text-sm text-white">
+                        <span className="w-7 sm:w-8 text-center font-black text-xs sm:text-sm text-white select-none">
                           {qty}
                         </span>
                         <button
                           type="button"
                           onClick={() => addExtraUnit(ext)}
-                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black font-black text-sm flex items-center justify-center transition-all cursor-pointer active:scale-90 shadow-xs"
-                          title="Añadir otra unidad"
+                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[var(--color-porkos-orange)] hover:bg-[var(--color-porkos-orange-hover)] text-zinc-950 font-black text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer active:scale-90 shadow-xs touch-manipulation"
+                          title="Añadir unidad"
                         >
-                          +
+                          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                         </button>
                       </div>
                     ) : (
                       <button
                         type="button"
                         onClick={() => addExtraUnit(ext)}
-                        className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-[var(--color-porkos-orange)] text-zinc-300 hover:text-black font-black text-xs transition-all cursor-pointer active:scale-95 border border-zinc-700 hover:border-transparent flex items-center gap-1 shadow-xs"
+                        className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-[var(--color-porkos-orange)] text-zinc-200 hover:text-zinc-950 font-bold text-xs transition-all cursor-pointer active:scale-95 border border-zinc-700 hover:border-transparent flex items-center gap-1 shadow-xs touch-manipulation"
                       >
-                        <span>+ Agregar</span>
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Agregar</span>
                       </button>
                     )}
                   </div>
@@ -586,11 +586,11 @@ function CustomizerForm({
 
       {/* 5. PACKAGING / EMPAQUE */}
       {hasPaidPackaging && (
-        <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-          <span className="text-xs font-black text-white uppercase tracking-wider block">
+        <div className="space-y-2 bg-[#0C0C0F] p-3 sm:p-3.5 rounded-2xl border border-[var(--color-porkos-border)]">
+          <span className="text-[11px] font-black text-zinc-300 uppercase tracking-wider block">
             5. Packaging / Empaque
           </span>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {availablePackagings.map((pkg) => {
               const isSelected = selectedPackaging?.id === pkg.id;
               return (
@@ -599,17 +599,19 @@ function CustomizerForm({
                   type="button"
                   onClick={() => setSelectedPackaging(pkg)}
                   className={`
-                    min-h-[54px] sm:min-h-[60px] p-2.5 rounded-xl border-2 flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer
+                    min-h-[48px] p-2 rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 cursor-pointer touch-manipulation select-none
                     ${
                       isSelected
-                        ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md'
-                        : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                        ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] font-black shadow-md'
+                        : 'bg-[#141418] text-zinc-300 border-zinc-800 hover:border-zinc-700'
                     }
                   `}
                 >
-                  <span className="text-xs sm:text-sm font-bold leading-tight truncate">{pkg.name}</span>
-                  <span className={`text-[11px] ${isSelected ? 'text-black font-extrabold' : 'text-zinc-500 font-semibold'}`}>
-                    {pkg.price > 0 ? `+${formatCurrency(pkg.price)}` : 'Gratis'}
+                  <span className="text-xs font-bold leading-tight truncate w-full text-center">
+                    {pkg.name}
+                  </span>
+                  <span className={`text-[10px] ${isSelected ? 'text-zinc-950 font-black' : 'text-zinc-500 font-semibold'}`}>
+                    {pkg.price > 0 ? `+${formatCurrency(pkg.price)}` : 'Incluido'}
                   </span>
                 </button>
               );
@@ -620,11 +622,11 @@ function CustomizerForm({
 
       {/* 6. TEMPERATURA */}
       {hasTemperature && (
-        <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-          <span className="text-xs font-black text-white uppercase tracking-wider block">
+        <div className="space-y-2 bg-[#0C0C0F] p-3 sm:p-3.5 rounded-2xl border border-[var(--color-porkos-border)]">
+          <span className="text-[11px] font-black text-zinc-300 uppercase tracking-wider block">
             6. Temperatura
           </span>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-2">
             {[
               { id: 'HELADA', label: '❄️ Helada' },
               { id: 'SIN_HELAR', label: '🌡️ Sin Helar' },
@@ -634,11 +636,11 @@ function CustomizerForm({
                 type="button"
                 onClick={() => setTemperature(tOpt.id)}
                 className={`
-                  min-h-[54px] sm:min-h-[58px] rounded-xl font-black text-sm sm:text-base border-2 transition-all active:scale-95 cursor-pointer flex items-center justify-center
+                  min-h-[48px] rounded-xl font-black text-xs sm:text-sm border transition-all active:scale-95 cursor-pointer flex items-center justify-center select-none touch-manipulation
                   ${
                     temperature === tOpt.id
-                      ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] shadow-md'
-                      : 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                      ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] shadow-md'
+                      : 'bg-[#141418] text-zinc-300 border-zinc-800 hover:border-zinc-700'
                   }
                 `}
               >
@@ -649,19 +651,15 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 7. NOTA RÁPIDA (En comida solo campo de escritura sin opciones por defecto) */}
-      <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800 space-y-2">
-        <span className="text-xs font-black text-white uppercase tracking-wider block">
-          7. Nota rápida
+      {/* 7. NOTA RÁPIDA */}
+      <div className="bg-[#0C0C0F] p-3 sm:p-3.5 rounded-2xl border border-[var(--color-porkos-border)] space-y-2">
+        <span className="text-[11px] font-black text-zinc-300 uppercase tracking-wider block">
+          7. Nota Especial
         </span>
 
-        {/* Chips de atajo rápido únicamente para bebidas / jugos */}
         {isBeverage && (
           <div className="flex flex-wrap gap-1.5">
-            {(isJuice
-              ? ['Sin azúcar', 'Bajo azúcar']
-              : ['Con vaso', 'Sin vaso']
-            ).map((chip) => {
+            {(isJuice ? ['Sin azúcar', 'Bajo azúcar'] : ['Con vaso', 'Sin vaso']).map((chip) => {
               const isChipSelected = notes.toLowerCase().includes(chip.toLowerCase());
               return (
                 <button
@@ -677,10 +675,10 @@ function CustomizerForm({
                       setNotes(updated);
                     }
                   }}
-                  className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer active:scale-95 ${
+                  className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border transition-all cursor-pointer active:scale-95 select-none ${
                     isChipSelected
-                      ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-sm'
-                      : 'bg-black/60 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                      ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-transparent shadow-xs font-black'
+                      : 'bg-[#141418] text-zinc-300 border-zinc-800 hover:border-zinc-700'
                   }`}
                 >
                   {chip}
@@ -694,17 +692,17 @@ function CustomizerForm({
           type="text"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder={isBeverage ? 'Indicación para despacho...' : 'Indicación para cocina...'}
-          className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3.5 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
+          placeholder={isBeverage ? 'Indicación para despacho (ej. vaso extra)...' : 'Indicación para cocina (ej. carne bien cocida)...'}
+          className="w-full bg-[#141418] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
         />
       </div>
 
-      {/* BOTÓN CONFIRMAR FLOTANTE */}
-      <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 z-20 shadow-2xl">
+      {/* Botón flotante de confirmación sticky */}
+      <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#121215]/95 backdrop-blur-md border-t border-[var(--color-porkos-border)] z-20 shadow-2xl">
         <button
           type="button"
           onClick={handleConfirm}
-          className="w-full bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black font-black text-sm sm:text-base py-3.5 sm:py-4 px-4 rounded-xl flex items-center justify-center gap-2 shadow-xl shadow-orange-500/20 active:scale-[0.98] transition-all cursor-pointer"
+          className="w-full bg-[var(--color-porkos-orange)] hover:bg-[var(--color-porkos-orange-hover)] text-zinc-950 font-black text-sm sm:text-base py-3.5 sm:py-4 px-4 rounded-xl flex items-center justify-center gap-2 shadow-xl shadow-orange-500/20 active:scale-[0.98] transition-all cursor-pointer touch-manipulation"
         >
           <span>{initialCustomization ? 'Guardar Cambios' : 'Añadir a la Comanda'}</span>
           <span>•</span>
@@ -732,7 +730,7 @@ export default function QuickCustomizerModal({
       onClose={onClose}
       title={
         initialCustomization
-          ? `Modificar: ${product.name}`
+          ? `Personalizar: ${product.name}`
           : product.name
       }
       subtitle={`Precio base: ${formatCurrency(product.price)}`}

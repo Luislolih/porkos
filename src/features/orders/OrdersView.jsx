@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
-  Search,
   Eye,
   Clock,
   CheckCircle2,
@@ -19,11 +18,17 @@ import {
   UserCheck,
   Calendar,
   User,
+  ClipboardList,
 } from 'lucide-react';
 import { formatCurrency, formatTime, formatDate, formatElapsedTime } from '../../utils/formatters';
 import { ORDER_STATUS, PAYMENT_STATUS } from '../../types/constants';
 import Modal from '../../components/ui/Modal';
 import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import EmptyState from '../../components/ui/EmptyState';
+import PageHeader from '../../components/ui/PageHeader';
+import SearchInput from '../../components/ui/SearchInput';
+import Button from '../../components/ui/Button';
 
 export default function OrdersView({
   orders = [],
@@ -58,15 +63,13 @@ export default function OrdersView({
     setEditingCustomerNameOrder(null);
   };
 
-  // Actualizar tiempos transcurridos en tiempo real cada 20 segundos
   useEffect(() => {
-    const timer = setInterval(() => setTick((t) => t + 1), 20000);
+    const timer = setInterval(() => setTick((t) => t + 1), 15000);
     return () => clearInterval(timer);
   }, []);
 
   const filteredOrders = useMemo(() => {
     const list = orders.filter((o) => {
-      // Filtro por pestaña (Activas vs Historial)
       if (activeTab === 'ACTIVE') {
         const isActive = o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO';
         if (!isActive) return false;
@@ -75,7 +78,6 @@ export default function OrdersView({
         if (!isHistory) return false;
       }
 
-      // Filtro por Modalidad
       if (filterModality !== 'ALL') {
         if (filterModality === 'MESA' && o.modality !== 'MESA') return false;
         if (filterModality === 'DELIVERY' && o.modality !== 'DELIVERY') return false;
@@ -83,7 +85,6 @@ export default function OrdersView({
         if (filterModality === 'MARKET' && o.modality !== 'MARKET') return false;
       }
 
-      // Búsqueda por texto
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchesNum = o.orderNumber?.toLowerCase().includes(query);
@@ -96,7 +97,6 @@ export default function OrdersView({
       return true;
     });
 
-    // Ordenar de forma consistente: más recientes al inicio
     return list.sort((a, b) => {
       const timeA = a.createdAt?.getTime ? a.createdAt.getTime() : new Date(a.createdAt || 0).getTime();
       const timeB = b.createdAt?.getTime ? b.createdAt.getTime() : new Date(b.createdAt || 0).getTime();
@@ -118,17 +118,17 @@ export default function OrdersView({
   const getModalityIcon = (mod) => {
     switch (mod) {
       case 'MESA':
-        return <Utensils className="w-3.5 h-3.5 text-blue-400" />;
+        return <Utensils className="w-4 h-4 text-blue-400" />;
       case 'DELIVERY':
-        return <Bike className="w-3.5 h-3.5 text-emerald-400" />;
+        return <Bike className="w-4 h-4 text-emerald-400" />;
       case 'PARA_LLEVAR':
-        return <ShoppingBag className="w-3.5 h-3.5 text-amber-400" />;
+        return <ShoppingBag className="w-4 h-4 text-amber-400" />;
       case 'CONSUMO_EXTERNO':
-        return <Utensils className="w-3.5 h-3.5 text-purple-400" />;
+        return <Utensils className="w-4 h-4 text-purple-400" />;
       case 'MARKET':
-        return <Store className="w-3.5 h-3.5 text-purple-400" />;
+        return <Store className="w-4 h-4 text-purple-400" />;
       default:
-        return <Package className="w-3.5 h-3.5 text-zinc-400" />;
+        return <Package className="w-4 h-4 text-zinc-400" />;
     }
   };
 
@@ -148,13 +148,36 @@ export default function OrdersView({
   };
 
   return (
-    <div className="space-y-3 pb-20 lg:pb-6">
-      {/* Filters Bar */}
-      <div className="bg-[var(--color-porkos-surface)] p-3 sm:p-4 rounded-2xl border border-[var(--color-porkos-border)] space-y-3">
-        {/* Top: Tabs & Search */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+    <div className="space-y-4 pb-20 lg:pb-6">
+      <PageHeader
+        title="Historial y Seguimiento"
+        subtitle="Monitorea comandas activas, revisa tickets y audita todas las ventas del restaurante."
+        icon={ClipboardList}
+        badge={
+          <span className="text-xs font-black px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700">
+            {orders.length} comandas registradas
+          </span>
+        }
+        actions={
+          onClearAllOrders && orders.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setIsConfirmClearOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-all cursor-pointer active:scale-95 shadow-xs"
+              title="Eliminar historial completo de pedidos"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Vaciar Historial</span>
+            </button>
+          ) : undefined
+        }
+      />
+
+      {/* Barra de Filtros y Búsqueda */}
+      <div className="bg-[#121215] p-3 sm:p-4 rounded-2xl border border-[var(--color-porkos-border)] space-y-3 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           {/* Segmented Control / Tabs */}
-          <div className="flex bg-black/60 p-1 rounded-xl border border-zinc-800 shrink-0">
+          <div className="flex bg-[#0C0C0F] p-1 rounded-xl border border-zinc-800 shrink-0">
             {[
               { id: 'ALL', label: 'Todas', count: orders.length },
               { id: 'ACTIVE', label: 'En Curso', count: activeCount },
@@ -167,20 +190,18 @@ export default function OrdersView({
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={`
-                    px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5
+                    px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 active:scale-95 touch-manipulation select-none
                     ${
                       isSelected
-                        ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                        : 'text-zinc-400 hover:text-white'
+                        ? 'bg-[var(--color-porkos-orange)] text-zinc-950 font-black shadow-sm'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
                     }
                   `}
                 >
                   <span>{tab.label}</span>
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      isSelected
-                        ? 'bg-black text-white font-extrabold'
-                        : 'bg-zinc-800 text-zinc-400'
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                      isSelected ? 'bg-zinc-950 text-white' : 'bg-zinc-800 text-zinc-300'
                     }`}
                   >
                     {tab.count}
@@ -190,45 +211,21 @@ export default function OrdersView({
             })}
           </div>
 
-          {/* Search bar & Vaciar Historial */}
-          <div className="flex items-center gap-2 flex-1 max-w-md">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar pedido, cliente, mesa..."
-                className="w-full bg-black/50 border border-zinc-800 rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white text-xs cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {onClearAllOrders && orders.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setIsConfirmClearOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 cursor-pointer transition-all shrink-0 active:scale-95"
-                title="Eliminar todo el historial de pedidos"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Vaciar Historial</span>
-              </button>
-            )}
+          {/* Search bar */}
+          <div className="flex-1 max-w-md">
+            <SearchInput
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onClear={() => setSearchQuery('')}
+              placeholder="Buscar comanda, cliente, mesa..."
+              size="sm"
+            />
           </div>
         </div>
 
         {/* Filter Pills: Modalidad */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none text-xs">
-          <span className="text-zinc-500 font-semibold text-[11px] shrink-0 mr-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none text-xs pt-1 border-t border-[var(--color-porkos-border)]">
+          <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider shrink-0 mr-1">
             Modalidad:
           </span>
           {[
@@ -245,11 +242,11 @@ export default function OrdersView({
                 type="button"
                 onClick={() => setFilterModality(m.id)}
                 className={`
-                  px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border
+                  px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer border active:scale-95 touch-manipulation
                   ${
                     isSelected
-                      ? 'bg-zinc-800 text-white border-zinc-600 font-bold shadow-xs'
-                      : 'bg-zinc-900/60 text-zinc-400 border-zinc-800/80 hover:text-white'
+                      ? 'bg-zinc-800 text-white border-zinc-600 font-black shadow-xs'
+                      : 'bg-[#141418] text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-white'
                   }
                 `}
               >
@@ -261,14 +258,25 @@ export default function OrdersView({
       </div>
 
       {/* Orders List / Cards */}
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {filteredOrders.length === 0 ? (
-          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl py-12 text-center text-zinc-500">
-            <p className="font-bold text-sm text-zinc-400">No se encontraron pedidos</p>
-            <p className="text-xs text-zinc-600 mt-1">
-              Prueba cambiando los filtros o la búsqueda
-            </p>
-          </div>
+          <EmptyState
+            icon={ClipboardList}
+            title="No se encontraron pedidos"
+            description={
+              searchQuery
+                ? 'No hay resultados que coincidan con la búsqueda actual.'
+                : 'No hay pedidos en la categoría o filtro seleccionado.'
+            }
+            action={
+              searchQuery
+                ? {
+                    label: 'Limpiar búsqueda',
+                    onClick: () => setSearchQuery(''),
+                  }
+                : undefined
+            }
+          />
         ) : (
           filteredOrders.map((order) => {
             const statusConf = ORDER_STATUS[order.status] || {};
@@ -290,18 +298,17 @@ export default function OrdersView({
                   }
                 }}
                 className={`
-                  group bg-[#141414] hover:bg-[#181818] border rounded-2xl p-3 sm:p-4 transition-all cursor-pointer flex flex-col gap-2.5 hover:border-zinc-700 active:scale-[0.99] shadow-sm
+                  group bg-[#121216] hover:bg-[#16161B] border rounded-2xl p-3.5 sm:p-4 transition-all duration-120 cursor-pointer flex flex-col gap-2.5 active:scale-[0.99] shadow-sm
                   ${
                     !isFinished
-                      ? 'border-zinc-800 hover:border-[var(--color-porkos-orange)]/50'
-                      : 'border-zinc-800/80 opacity-90'
+                      ? 'border-[var(--color-porkos-border)] hover:border-[var(--color-porkos-orange)]/60'
+                      : 'border-[var(--color-porkos-border)]/70 opacity-90'
                   }
                 `}
-                title="Toca para ver el seguimiento y detalle del pedido"
+                title="Toca para ver el detalle y seguimiento del pedido"
               >
-                {/* Fila 1: Cabecera con Número de Orden, Modalidad, Fechas y Total */}
+                {/* Cabecera del pedido */}
                 <div className="flex flex-wrap items-center justify-between gap-2.5">
-                  {/* Izquierda: Icono + Número + Modalidad / Mesa */}
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
                       className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border ${
@@ -320,7 +327,7 @@ export default function OrdersView({
                         <h4 className="font-black text-sm sm:text-base text-white group-hover:text-[var(--color-porkos-orange)] transition-colors">
                           {order.orderNumber}
                         </h4>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
                           {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Para Llevar' : order.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : order.modality === 'DELIVERY' ? 'Delivery' : 'Market Directo')}
                         </span>
                       </div>
@@ -341,12 +348,12 @@ export default function OrdersView({
                                 if (e.key === 'Enter') handleSaveCustomerName(order);
                                 if (e.key === 'Escape') setEditingCustomerNameOrder(null);
                               }}
-                              className="bg-zinc-900 border border-zinc-700 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] font-bold w-28"
+                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] font-bold w-32"
                             />
                             <button
                               type="button"
                               onClick={() => handleSaveCustomerName(order)}
-                              className="p-1 rounded bg-[var(--color-porkos-orange)] text-black cursor-pointer"
+                              className="p-1 rounded bg-[var(--color-porkos-orange)] text-zinc-950 cursor-pointer font-bold"
                             >
                               <Check className="w-3 h-3" />
                             </button>
@@ -366,8 +373,8 @@ export default function OrdersView({
                               setEditingCustomerNameOrder(order.orderNumber);
                               setTempCustomerName(order.customerName || order.customer?.name || '');
                             }}
-                            className="group/cust inline-flex items-center gap-1 cursor-pointer text-amber-400 hover:text-amber-300 font-bold truncate"
-                            title="Clic para editar nombre del cliente"
+                            className="group/cust inline-flex items-center gap-1 cursor-pointer text-amber-300 hover:text-amber-200 font-bold truncate"
+                            title="Clic para editar el nombre del cliente"
                           >
                             <User className="w-3 h-3 text-zinc-500 group-hover/cust:text-amber-300 shrink-0" />
                             <span>{order.customerName || order.customer?.name || 'Cliente'}</span>
@@ -384,9 +391,8 @@ export default function OrdersView({
                     </div>
                   </div>
 
-                  {/* Derecha: Fecha/Hora, Estados y Monto Total */}
+                  {/* Derecha: Badges de Estado y Total */}
                   <div className="flex items-center gap-3 shrink-0 ml-auto">
-                    {/* Badges de Estado */}
                     <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-1.5">
                       <span
                         className={`text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full border whitespace-nowrap ${
@@ -404,7 +410,6 @@ export default function OrdersView({
                       </span>
                     </div>
 
-                    {/* Monto Total y Hora */}
                     <div className="text-right pl-2 border-l border-zinc-800 shrink-0">
                       <div className="font-black text-base sm:text-lg text-white group-hover:text-[var(--color-porkos-orange)] transition-colors">
                         {formatCurrency(order.total)}
@@ -420,16 +425,16 @@ export default function OrdersView({
                   </div>
                 </div>
 
-                {/* Fila 2: Chips visuales de Productos ordenados (Scannable Items) */}
-                <div className="bg-black/40 rounded-xl p-2 sm:p-2.5 border border-zinc-900 flex flex-wrap items-center gap-1.5">
+                {/* Chips de Productos */}
+                <div className="bg-[#0C0C0F] rounded-xl p-2 sm:p-2.5 border border-zinc-900 flex flex-wrap items-center gap-1.5">
                   {order.items && order.items.length > 0 ? (
                     <>
                       {order.items.slice(0, 5).map((item, idx) => (
                         <span
                           key={idx}
-                          className="inline-flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 text-zinc-200 px-2 py-1 rounded-lg text-xs"
+                          className="inline-flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 text-zinc-200 px-2.5 py-1 rounded-lg text-xs"
                         >
-                          <span className="font-extrabold text-[var(--color-porkos-orange)]">
+                          <span className="font-black text-[var(--color-porkos-orange)]">
                             {item.quantity}×
                           </span>
                           <span className="font-semibold text-zinc-300 truncate max-w-[130px] sm:max-w-[180px]">
@@ -439,7 +444,7 @@ export default function OrdersView({
                         </span>
                       ))}
                       {order.items.length > 5 && (
-                        <span className="inline-flex items-center text-[11px] font-bold text-zinc-400 bg-zinc-800/80 px-2 py-1 rounded-lg border border-zinc-700">
+                        <span className="inline-flex items-center text-[11px] font-bold text-zinc-400 bg-zinc-800 px-2 py-1 rounded-lg border border-zinc-700">
                           +{order.items.length - 5} más
                         </span>
                       )}
@@ -449,31 +454,29 @@ export default function OrdersView({
                   )}
 
                   {order.deliveryFee > 0 && (
-                    <span className="inline-flex items-center gap-1 bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 px-2 py-1 rounded-lg text-[11px] font-bold">
-                      <Bike className="w-3 h-3 text-emerald-400" />
+                    <span className="inline-flex items-center gap-1 bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 px-2.5 py-1 rounded-lg text-[11px] font-bold">
+                      <Bike className="w-3.5 h-3.5 text-emerald-400" />
                       Delivery ({formatCurrency(order.deliveryFee)})
                     </span>
                   )}
                 </div>
 
-                {/* Fila 3: Barra inferior con tiempo transcurrido, notas y botones de acción */}
-                <div className="flex items-center justify-between gap-2 pt-1 border-t border-zinc-900 text-xs">
-                  {/* Tiempo transcurrido / Notas */}
+                {/* Barra inferior */}
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--color-porkos-border)]/60 text-xs">
                   <div className="flex items-center gap-2 text-zinc-500 text-[11px] min-w-0">
-                    <span className="inline-flex items-center gap-1 bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-800 text-zinc-400 font-medium">
+                    <span className="inline-flex items-center gap-1 bg-[#0C0C0F] px-2 py-0.5 rounded-md border border-zinc-800 text-zinc-400 font-medium">
                       <Clock className="w-3 h-3 text-zinc-500" />
                       {formatElapsedTime(order.createdAt)}
                     </span>
-                    {order.notes && (
-                      <span className="truncate italic text-amber-400/90 max-w-[200px] sm:max-w-xs">
-                        &ldquo;{order.notes}&rdquo;
+                    {order.generalNotes && (
+                      <span className="truncate italic text-amber-300 max-w-[200px] sm:max-w-xs">
+                        &ldquo;{order.generalNotes}&rdquo;
                       </span>
                     )}
                   </div>
 
-                  {/* Acciones */}
                   <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                    {/* Botón Editar Comanda si está permitido */}
+                    {/* Botón Editar Comanda */}
                     {((order.status !== 'ENTREGADO' && order.status !== 'CANCELADO') ||
                       ((order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID' && order.status !== 'CANCELADO')) ? (
                       onEditOrderInSales && (
@@ -483,7 +486,7 @@ export default function OrdersView({
                             e.stopPropagation();
                             onEditOrderInSales(order);
                           }}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800/80 hover:bg-[var(--color-porkos-orange)] text-zinc-300 hover:text-black text-xs font-bold transition-all cursor-pointer active:scale-95"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-[var(--color-porkos-orange)] text-zinc-200 hover:text-zinc-950 text-xs font-bold transition-all cursor-pointer active:scale-95 border border-zinc-700"
                           title="Editar comanda"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -507,7 +510,7 @@ export default function OrdersView({
                         e.stopPropagation();
                         setSelectedOrder(order);
                       }}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800/80 group-hover:bg-[var(--color-porkos-orange)] text-zinc-300 group-hover:text-black text-xs font-bold transition-all cursor-pointer active:scale-95"
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-zinc-800 group-hover:bg-[var(--color-porkos-orange)] text-zinc-200 group-hover:text-zinc-950 text-xs font-bold transition-all cursor-pointer active:scale-95 border border-zinc-700"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       <span>Detalle</span>
@@ -520,23 +523,23 @@ export default function OrdersView({
         )}
       </div>
 
-      {/* Modal de Seguimiento y Detalle de la Orden */}
+      {/* Modal de Detalle de Orden */}
       <Modal
         isOpen={Boolean(selectedOrder)}
         onClose={() => setSelectedOrder(null)}
-        title={`Seguimiento: ${selectedOrder?.orderNumber}`}
+        title={`Detalle de Comanda: ${selectedOrder?.orderNumber}`}
         subtitle={`Modalidad: ${selectedOrder?.tableName || (selectedOrder?.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : selectedOrder?.modality)}`}
         maxWidth="max-w-xl"
       >
         {selectedOrder && (
           <div className="space-y-4 text-xs">
-            {/* Timeline de Seguimiento */}
-            <div className="bg-black/60 p-3 sm:p-4 rounded-2xl border border-zinc-800 space-y-2.5">
+            {/* Timeline */}
+            <div className="bg-[#0C0C0F] p-3.5 rounded-2xl border border-[var(--color-porkos-border)] space-y-2.5">
               <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
-                Estado del Pedido
+                Progreso del Pedido
               </span>
 
-              <div className="grid grid-cols-4 gap-1 sm:gap-2">
+              <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                 {[
                   { id: 'PENDIENTE', label: '1. Recibido', icon: Clock },
                   { id: 'PREPARANDO', label: '2. Cocina', icon: Flame },
@@ -553,70 +556,27 @@ export default function OrdersView({
                       key={step.id}
                       className={`p-2 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all ${
                         isCurrent
-                          ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md'
+                          ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] font-black shadow-md'
                           : isDone
                           ? 'bg-zinc-800 text-emerald-400 border-emerald-500/30 font-bold'
                           : 'bg-zinc-900/60 text-zinc-600 border-zinc-800'
                       }`}
                     >
                       <StepIcon className="w-3.5 h-3.5" />
-                      <span className="text-[10px] leading-tight">{step.label}</span>
+                      <span className="text-[10px] leading-tight font-bold">{step.label}</span>
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            {/* Datos del Cliente y Modalidad */}
-            <div className="bg-black/40 p-3 rounded-xl border border-zinc-800/80 flex items-center justify-between text-xs">
+            {/* Datos del Cliente y Registro */}
+            <div className="bg-[#0C0C0F] p-3 rounded-2xl border border-[var(--color-porkos-border)] flex items-center justify-between text-xs">
               <div className="flex-1 pr-3">
-                <span className="text-zinc-500 text-[10px] block">Cliente:</span>
-                {editingCustomerNameOrder === selectedOrder.orderNumber ? (
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <input
-                      type="text"
-                      autoFocus
-                      value={tempCustomerName}
-                      onChange={(e) => setTempCustomerName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveCustomerName(selectedOrder);
-                        if (e.key === 'Escape') setEditingCustomerNameOrder(null);
-                      }}
-                      placeholder="Nombre"
-                      className="bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] font-bold w-full max-w-[200px]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleSaveCustomerName(selectedOrder)}
-                      className="p-1.5 rounded-lg bg-[var(--color-porkos-orange)] text-black font-bold hover:bg-orange-400 cursor-pointer"
-                      title="Guardar nombre"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingCustomerNameOrder(null)}
-                      className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
-                      title="Cancelar"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    onClick={() => {
-                      setEditingCustomerNameOrder(selectedOrder.orderNumber);
-                      setTempCustomerName(selectedOrder.customerName || selectedOrder.customer?.name || '');
-                    }}
-                    className="group/cust inline-flex items-center gap-1.5 cursor-pointer mt-0.5"
-                    title="Clic para editar el nombre del cliente"
-                  >
-                    <span className="font-bold text-white text-sm group-hover/cust:text-[var(--color-porkos-orange)] transition-colors">
-                      {selectedOrder.customerName || selectedOrder.customer?.name || 'Cliente en Salón'}
-                    </span>
-                    <Edit3 className="w-3 h-3 text-zinc-500 group-hover/cust:text-[var(--color-porkos-orange)] transition-colors" />
-                  </div>
-                )}
+                <span className="text-zinc-500 text-[10px] font-bold block uppercase tracking-wider">Cliente:</span>
+                <span className="font-extrabold text-white text-sm">
+                  {selectedOrder.customerName || selectedOrder.customer?.name || 'Cliente en Salón'}
+                </span>
                 {selectedOrder.customer?.phone && (
                   <p className="text-[11px] text-zinc-400">Tel: {selectedOrder.customer.phone}</p>
                 )}
@@ -628,7 +588,7 @@ export default function OrdersView({
               </div>
 
               <div className="text-right">
-                <span className="text-zinc-500 text-[10px] block">Hora de registro:</span>
+                <span className="text-zinc-500 text-[10px] font-bold block uppercase tracking-wider">Registrado:</span>
                 <span className="font-bold text-zinc-200">
                   {formatTime(selectedOrder.createdAt)}
                 </span>
@@ -638,14 +598,14 @@ export default function OrdersView({
               </div>
             </div>
 
-            {/* Historial sutil: Responsable que ingresó la comanda */}
-            <div className="bg-zinc-900/60 px-3 py-2 rounded-xl border border-zinc-800/80 flex items-center justify-between text-xs">
+            {/* Ingresado por */}
+            <div className="bg-[#0C0C0F] px-3.5 py-2.5 rounded-xl border border-[var(--color-porkos-border)] flex items-center justify-between text-xs">
               <div className="flex items-center gap-2 text-zinc-400">
                 <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span className="text-[11px]">
-                  Ingresado por:{' '}
+                  Operador:{' '}
                   <strong className="text-zinc-200 font-bold">
-                    {selectedOrder.createdBy?.name || selectedOrder.createdBy?.email?.split('@')[0] || 'Caja / Mostrador'}
+                    {selectedOrder.createdBy?.name || selectedOrder.createdBy?.email?.split('@')[0] || 'Caja'}
                   </strong>
                 </span>
               </div>
@@ -656,47 +616,43 @@ export default function OrdersView({
               )}
             </div>
 
-            {/* Detalle de Productos y Opciones */}
-            <div className="bg-black/50 p-3 rounded-xl space-y-2 border border-zinc-800">
-              <h5 className="font-bold text-white uppercase tracking-wider text-[11px]">
-                Productos del Pedido ({selectedOrder.items?.length || 0})
+            {/* Productos */}
+            <div className="bg-[#0C0C0F] p-3 rounded-2xl space-y-2 border border-[var(--color-porkos-border)]">
+              <h5 className="font-black text-white uppercase tracking-wider text-[11px]">
+                Platos y Artículos ({selectedOrder.items?.length || 0})
               </h5>
-              <div className="space-y-2 max-h-56 overflow-y-auto">
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5 scrollbar-none">
                 {selectedOrder.items?.map((item, idx) => (
                   <div
                     key={idx}
-                    className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/60 flex justify-between items-start text-xs"
+                    className="p-2.5 rounded-xl bg-[#141418] border border-zinc-800 flex justify-between items-start text-xs"
                   >
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-extrabold text-white">
+                        <span className="font-black text-white">
                           {item.quantity}× {item.name}
                         </span>
                         <ItemConsumptionBadge item={item} orderModality={selectedOrder.modality} />
                       </div>
 
-                      {/* 1. Ensalada */}
                       {item.customization?.saladSummary && (
-                        <p className="text-[10px] text-emerald-400 font-medium">
+                        <p className="text-[10px] text-emerald-400 font-semibold">
                           • {item.customization.saladSummary}
                         </p>
                       )}
 
-                      {/* 2. Papas y Modificadores */}
                       {item.customization?.selectedModifiers?.map((m) => (
                         <p key={m.groupId} className="text-[10px] text-zinc-400">
                           • {m.optionName}
                         </p>
                       ))}
 
-                      {/* 3. Cremas (solo si existen y no es market vacío) */}
                       {item.customization?.creamsSummary && item.customization.creamsSummary.trim() !== '' && (
-                        <p className="text-[11px] text-orange-400 font-semibold">
+                        <p className="text-[11px] text-[var(--color-porkos-orange)] font-bold">
                           Cremas: {item.customization.creamsSummary}
                         </p>
                       )}
 
-                      {/* 4. Extras en líneas separadas */}
                       {item.customization?.selectedExtras?.map((e, eIdx) => {
                         const clean = (e?.name || e?.label || (typeof e === 'string' ? e : '') || 'Extra').replace(/^Extra\s+/i, '');
                         const qty = e?.quantity || 1;
@@ -707,7 +663,7 @@ export default function OrdersView({
                             className="flex items-center justify-between text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20"
                           >
                             <span className="flex items-center gap-1.5 min-w-0 truncate">
-                              <span className="bg-amber-400 text-black px-1.5 py-0.2 rounded text-[10px] font-black shrink-0">
+                              <span className="bg-amber-400 text-zinc-950 px-1.5 py-0.2 rounded text-[10px] font-black shrink-0">
                                 {qty}x
                               </span>
                               <span className="truncate">{clean}</span>
@@ -721,21 +677,18 @@ export default function OrdersView({
                         );
                       })}
 
-                      {/* 5. Empaque individual */}
                       {item.customization?.packaging && item.customization.packaging.price > 0 && (
                         <p className="text-[10px] text-blue-300 font-medium">
                           📦 {item.customization.packaging.name || 'Empaque'}
                         </p>
                       )}
 
-                      {/* 6. Temperatura */}
                       {item.customization?.temperature && (
                         <p className="text-[10px] text-cyan-300 font-bold">
                           {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
                         </p>
                       )}
 
-                      {/* 7. Nota */}
                       {item.customization?.itemNotes && (
                         <p className="text-[10px] text-amber-300 italic">
                           &ldquo;{item.customization.itemNotes}&rdquo;
@@ -743,7 +696,7 @@ export default function OrdersView({
                       )}
                     </div>
 
-                    <span className="font-extrabold text-white text-xs shrink-0 ml-2">
+                    <span className="font-black text-white text-xs shrink-0 ml-2">
                       {formatCurrency(item.subtotal)}
                     </span>
                   </div>
@@ -751,15 +704,15 @@ export default function OrdersView({
               </div>
             </div>
 
-            {/* Totales y Pago */}
-            <div className="space-y-1.5 pt-2 border-t border-zinc-800 font-semibold text-xs">
+            {/* Totales */}
+            <div className="space-y-1.5 pt-2 border-t border-[var(--color-porkos-border)] font-semibold text-xs">
               <div className="flex justify-between text-zinc-400">
                 <span>Subtotal:</span>
                 <span>{formatCurrency(selectedOrder.subtotal)}</span>
               </div>
               {selectedOrder.packagingsTotal > 0 && (
                 <div className="flex justify-between text-zinc-400">
-                  <span>Empaques / Tapers:</span>
+                  <span>Empaques / Tápers:</span>
                   <span>{formatCurrency(selectedOrder.packagingsTotal)}</span>
                 </div>
               )}
@@ -769,7 +722,7 @@ export default function OrdersView({
                   <span>{formatCurrency(selectedOrder.deliveryFee)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-white font-extrabold text-sm pt-1 border-t border-zinc-800">
+              <div className="flex justify-between text-white font-black text-base pt-1.5 border-t border-zinc-800">
                 <span>Total:</span>
                 <span className="text-[var(--color-porkos-orange)]">
                   {formatCurrency(selectedOrder.total)}
@@ -777,23 +730,25 @@ export default function OrdersView({
               </div>
             </div>
 
-            {/* Acciones de la Comanda: Edición permitida antes de entrega o si es mesa abierta antes del cierre */}
-            <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 z-20 flex items-center justify-between flex-wrap gap-2 shadow-2xl">
+            {/* Acciones */}
+            <div className="pt-2 border-t border-[var(--color-porkos-border)] flex items-center justify-between gap-2">
               {((selectedOrder.status !== 'ENTREGADO' && selectedOrder.status !== 'CANCELADO') ||
                 ((selectedOrder.modality === 'MESA' || Boolean(selectedOrder.tableId)) && selectedOrder.paymentStatus !== 'PAID' && selectedOrder.status !== 'CANCELADO')) ? (
                 onEditOrderInSales && (
-                  <button
+                  <Button
                     type="button"
+                    variant="primary"
+                    size="md"
                     onClick={() => {
                       const orderToEdit = selectedOrder;
                       setSelectedOrder(null);
                       onEditOrderInSales(orderToEdit);
                     }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20 transition-all cursor-pointer ml-auto active:scale-95"
+                    icon={Edit3}
+                    className="ml-auto"
                   >
-                    <Edit3 className="w-4 h-4 stroke-[2.5]" />
-                    <span>Editar Comanda</span>
-                  </button>
+                    Editar en Ventas
+                  </Button>
                 )
               ) : (
                 <div className="flex items-center gap-1.5 text-zinc-500 text-xs font-semibold ml-auto py-1">
@@ -806,49 +761,28 @@ export default function OrdersView({
         )}
       </Modal>
 
-
-      {/* Modal de Confirmación para Vaciar Historial */}
-      <Modal
+      {/* Confirmación para Vaciar Historial */}
+      <ConfirmDialog
         isOpen={isConfirmClearOpen}
         onClose={() => !isClearing && setIsConfirmClearOpen(false)}
+        onConfirm={async () => {
+          setIsClearing(true);
+          try {
+            if (onClearAllOrders) {
+              await onClearAllOrders();
+            }
+            setIsConfirmClearOpen(false);
+          } finally {
+            setIsClearing(false);
+          }
+        }}
         title="¿Vaciar todo el historial de pedidos?"
-        subtitle="Esta acción eliminará todas las comandas registradas en la nube y localmente."
-        maxWidth="max-w-md"
-      >
-        <div className="space-y-4">
-          <p className="text-xs sm:text-sm text-zinc-300">
-            Se eliminarán permanentemente <strong className="text-white font-black">{orders.length} pedidos</strong>. Tu caja y comandas quedarán en cero para poder registrar nuevos pedidos limpios.
-          </p>
-          <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
-            <button
-              type="button"
-              disabled={isClearing}
-              onClick={() => setIsConfirmClearOpen(false)}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-zinc-800 text-zinc-300 hover:text-white cursor-pointer"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              disabled={isClearing}
-              onClick={async () => {
-                setIsClearing(true);
-                try {
-                  if (onClearAllOrders) {
-                    await onClearAllOrders();
-                  }
-                  setIsConfirmClearOpen(false);
-                } finally {
-                  setIsClearing(false);
-                }
-              }}
-              className="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 cursor-pointer transition-all active:scale-95"
-            >
-              {isClearing ? 'Vaciando...' : 'Sí, Vaciar Historial'}
-            </button>
-          </div>
-        </div>
-      </Modal>
+        message={`Se eliminarán permanentemente ${orders.length} pedidos registrados tanto en la nube como localmente. Esta acción no se puede deshacer.`}
+        confirmText="Sí, vaciar historial"
+        cancelText="Conservar pedidos"
+        variant="danger"
+        isLoading={isClearing}
+      />
     </div>
   );
 }

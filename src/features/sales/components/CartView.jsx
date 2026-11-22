@@ -19,13 +19,13 @@ import {
   X,
 } from 'lucide-react';
 import { useCart } from '../../../context/useCart';
-import { useCatalog } from '../../../context/useCatalog';
 import { formatCurrency } from '../../../utils/formatters';
 import { isProductMarket } from '../../../utils/productCategories';
 import { resolveItemConsumptionType } from '../../../types/constants';
 import Button from '../../../components/ui/Button';
 import ProductThumbnail from '../../../components/ui/ProductThumbnail';
 import Modal from '../../../components/ui/Modal';
+import ConfirmDialog from '../../../components/ui/ConfirmDialog';
 
 function getPapasText(customization) {
   const papasMod = customization?.selectedModifiers?.find(
@@ -72,17 +72,15 @@ export default function CartView({
     customer,
     setCustomer,
     packagings: orderPackagings,
-    addPackaging,
     removePackaging,
     generalNotes,
     setGeneralNotes,
     editingOrder,
     cancelEditingOrder,
   } = useCart();
-  const { packagings: catalogPackagings } = useCatalog();
   const [isTablePickerOpen, setIsTablePickerOpen] = useState(false);
+  const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
 
-  const availablePackagings = (catalogPackagings || []).filter((p) => p.active && p.id !== 'pkg_ninguno');
   const hasKitchenItems = items.some((item) => Boolean(item.requiresKitchen) && !isProductMarket(item));
   const isTableOccupied = selectedTable?.status === 'OCCUPIED';
   const isTakeout = modality === 'PARA_LLEVAR';
@@ -90,19 +88,25 @@ export default function CartView({
   const isIrComiendo = modality === 'CONSUMO_EXTERNO';
 
   return (
-    <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl">
+    <div className="bg-[#121215] border border-[var(--color-porkos-border)] rounded-2xl sm:rounded-3xl flex flex-col h-full overflow-hidden shadow-2xl">
       {/* Header */}
-      <div className="p-3.5 border-b border-[var(--color-porkos-border)] flex items-center justify-between bg-black/30">
+      <div className="p-3.5 sm:p-4 border-b border-[var(--color-porkos-border)] flex items-center justify-between bg-[#15151A] shrink-0">
         <div className="flex items-center gap-2">
           {isMarketMode ? (
-            <Store className="w-5 h-5 text-blue-400" />
+            <Store className="w-5 h-5 text-blue-400 shrink-0" />
           ) : (
-            <ShoppingBag className="w-5 h-5 text-[var(--color-porkos-orange)]" />
+            <ShoppingBag className="w-5 h-5 text-[var(--color-porkos-orange)] shrink-0" />
           )}
-          <h3 className="font-bold text-sm sm:text-base text-white">
-            {isMarketMode ? 'Caja Market' : 'Comanda Restaurante'}
+          <h3 className="font-black text-sm sm:text-base text-white tracking-tight">
+            {isMarketMode ? 'Caja Market' : 'Comanda Actual'}
           </h3>
-          <span className={`font-extrabold text-xs px-2 py-0.5 rounded-full ${isMarketMode ? 'bg-blue-950 text-blue-300 border border-blue-800' : 'bg-zinc-800 text-zinc-300'}`}>
+          <span
+            className={`font-black text-xs px-2.5 py-0.5 rounded-full ${
+              isMarketMode
+                ? 'bg-blue-950 text-blue-300 border border-blue-800'
+                : 'bg-zinc-800 text-zinc-200 border border-zinc-700/80'
+            }`}
+          >
             {itemCount}
           </span>
         </div>
@@ -111,12 +115,23 @@ export default function CartView({
           {items.length > 0 && (
             <button
               type="button"
-              onClick={clearCart}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 hover:border-rose-500/60 shadow-xs cursor-pointer transition-all active:scale-95"
-              title="Vaciar comanda y eliminar todos los productos añadidos"
+              onClick={() => setIsConfirmClearOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-rose-300 hover:text-rose-200 hover:bg-rose-500/15 border border-transparent hover:border-rose-500/30 transition-all cursor-pointer active:scale-95"
+              title="Vaciar comanda"
             >
               <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>Limpiar</span>
+              <span className="hidden sm:inline">Vaciar</span>
+            </button>
+          )}
+
+          {onCloseMobileCart && (
+            <button
+              type="button"
+              onClick={onCloseMobileCart}
+              className="lg:hidden p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+              aria-label="Cerrar comanda"
+            >
+              <X className="w-5 h-5" />
             </button>
           )}
         </div>
@@ -124,14 +139,14 @@ export default function CartView({
 
       {/* Target status bar: Mesa / Para Llevar / Delivery / Cliente (SOLO en Restaurante) */}
       {!isMarketMode && (
-        <div className="px-3.5 py-2.5 bg-black/40 border-b border-[var(--color-porkos-border)] space-y-2">
+        <div className="px-3.5 py-2.5 bg-[#0D0D10] border-b border-[var(--color-porkos-border)] space-y-2 shrink-0">
           {/* Banner de Edición de Comanda Activa */}
           {editingOrder && (
-            <div className="space-y-1.5 animate-in fade-in">
+            <div className="space-y-1.5 animate-fade-in-smooth">
               <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2 text-amber-300 font-bold">
+                <div className="flex items-center gap-2 text-amber-300 font-bold min-w-0">
                   <Edit3 className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Editando Comanda: <strong>{editingOrder.orderNumber}</strong></span>
+                  <span className="truncate">Editando: <strong>{editingOrder.orderNumber}</strong></span>
                 </div>
                 <button
                   type="button"
@@ -139,9 +154,9 @@ export default function CartView({
                     cancelEditingOrder();
                     if (onCancelEditing) onCancelEditing();
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold border border-zinc-700 cursor-pointer active:scale-95"
+                  className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold border border-zinc-700 cursor-pointer active:scale-95 shrink-0"
                 >
-                  Cancelar y Volver
+                  Cancelar
                 </button>
               </div>
 
@@ -152,7 +167,7 @@ export default function CartView({
                   className="w-full py-1.5 px-3 rounded-lg bg-zinc-900 border border-zinc-700/80 hover:border-[var(--color-porkos-orange)] text-[var(--color-porkos-orange)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all"
                 >
                   <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>Añadir más productos del menú</span>
+                  <span>Añadir más productos de la carta</span>
                 </button>
               )}
             </div>
@@ -160,7 +175,7 @@ export default function CartView({
 
           {/* Selector de mesa con botones cuadrados (un solo clic) */}
           {modality === 'MESA' && (
-            <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800 space-y-1.5">
+            <div className="bg-[#121216] p-2.5 rounded-xl border border-[var(--color-porkos-border)] space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-zinc-300 font-bold flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
                   <Utensils className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
@@ -194,10 +209,10 @@ export default function CartView({
                         onClick={() => setSelectedTable(isSelected ? null : t)}
                         title={`${t.label} • ${isOccupied ? 'Ocupada' : 'Libre'}`}
                         className={`
-                          w-9 h-9 sm:w-10 sm:h-10 rounded-xl shrink-0 flex flex-col items-center justify-center transition-all cursor-pointer border active:scale-90 select-none relative
+                          w-9 h-9 sm:w-10 sm:h-10 rounded-xl shrink-0 flex flex-col items-center justify-center transition-all cursor-pointer border active:scale-90 select-none relative touch-manipulation
                           ${
                             isSelected
-                              ? 'bg-[var(--color-porkos-orange)] text-black border-[var(--color-porkos-orange)] font-black shadow-md shadow-orange-500/20 ring-1 ring-[var(--color-porkos-orange)]'
+                              ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] font-black shadow-md shadow-orange-500/20 ring-1 ring-[var(--color-porkos-orange)]'
                               : isOccupied
                               ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:border-amber-400'
                               : 'bg-zinc-900 text-zinc-200 border-zinc-800 hover:border-zinc-700'
@@ -207,7 +222,7 @@ export default function CartView({
                         <span className="text-[11px] font-black leading-tight">{shortText}</span>
                         <span
                           className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
-                            isSelected ? 'bg-black' : isOccupied ? 'bg-amber-400' : 'bg-emerald-400'
+                            isSelected ? 'bg-zinc-950' : isOccupied ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
                           }`}
                         />
                       </button>
@@ -218,51 +233,29 @@ export default function CartView({
             </div>
           )}
 
-          {/* Barra de Modalidad */}
+          {/* Barra de Modalidad y Mesa */}
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5">
-              <span className="text-zinc-500 font-medium text-[11px] uppercase tracking-wider">Modalidad:</span>
-              <span className="font-bold px-2 py-0.5 rounded-md text-[11px] bg-zinc-800 text-zinc-200 border border-zinc-700/70">
-                {isTakeout ? '📦 Para Llevar' : isDelivery ? '🛵 Delivery' : isIrComiendo ? '🍽️ Ir Comiendo' : '🍽️ Mesa'}
+              <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider">Modalidad:</span>
+              <span className="font-bold px-2 py-0.5 rounded-lg text-[11px] bg-zinc-800 text-zinc-200 border border-zinc-700/60">
+                {isTakeout ? 'Para Llevar' : isDelivery ? 'Delivery' : isIrComiendo ? 'Ir Comiendo' : 'Mesa'}
               </span>
             </div>
 
             {selectedTable && (
-              <span className={`font-bold px-2 py-0.5 rounded-md text-[11px] border ${
+              <span className={`font-bold px-2 py-0.5 rounded-lg text-[11px] border ${
                 isTableOccupied
                   ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                  : 'bg-zinc-800 text-zinc-200 border-zinc-700/70'
+                  : 'bg-zinc-800 text-zinc-200 border-zinc-700/60'
               }`}>
                 {selectedTable.label} {isTableOccupied ? '(Abierta)' : '(Libre)'}
               </span>
             )}
           </div>
 
-          {/* Atajos para PARA LLEVAR (Empaques dinámicos) */}
-          {isTakeout && availablePackagings.length > 0 && (
-            <div className="bg-zinc-900/80 border border-zinc-800 p-2 rounded-xl flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 text-[11px] text-zinc-300 font-semibold">
-                <ShoppingBag className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                <span>Empaque para recojo:</span>
-              </div>
-              <div className="flex items-center gap-1 flex-wrap">
-                {availablePackagings.map((pkg) => (
-                  <button
-                    key={pkg.id}
-                    type="button"
-                    onClick={() => addPackaging({ id: pkg.id, name: pkg.name, price: pkg.price })}
-                    className="px-2 py-0.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-[10px] font-bold text-zinc-200 border border-zinc-700 cursor-pointer active:scale-95"
-                  >
-                    + {pkg.name} ({formatCurrency(pkg.price)})
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Nombre de cliente: siempre editable directamente haciendo clic */}
+          {/* Nombre de cliente: siempre editable directamente */}
           <div className="relative flex items-center">
-            <User className="w-3.5 h-3.5 absolute left-2.5 text-zinc-400 pointer-events-none" />
+            <User className="w-3.5 h-3.5 absolute left-3 text-zinc-400 pointer-events-none" />
             <input
               type="text"
               value={customerName || customer.name || ''}
@@ -271,8 +264,8 @@ export default function CartView({
                 setCustomerName(val);
                 setCustomer((prev) => ({ ...prev, name: val }));
               }}
-              placeholder="Nombre"
-              className="w-full bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] rounded-xl pl-8 pr-7 py-2 text-xs text-white placeholder-zinc-500 font-semibold focus:outline-none transition-colors"
+              placeholder="Nombre del cliente..."
+              className="w-full bg-[#121216] border border-zinc-800 hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] rounded-xl pl-8 pr-7 py-2 text-xs text-white placeholder-zinc-500 font-semibold focus:outline-none transition-colors"
             />
             {(customerName || customer.name) && (
               <button
@@ -302,7 +295,7 @@ export default function CartView({
                   <button
                     type="button"
                     onClick={() => removePackaging(pkg.packagingId)}
-                    className="hover:text-rose-400 text-zinc-400 font-extrabold cursor-pointer ml-0.5"
+                    className="hover:text-rose-400 text-zinc-400 font-black cursor-pointer ml-0.5"
                   >
                     ✕
                   </button>
@@ -314,21 +307,21 @@ export default function CartView({
       )}
 
       {/* Items list */}
-      <div className="flex-1 overflow-y-auto p-3.5 space-y-3 overscroll-contain">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-3.5 space-y-2.5 overscroll-contain">
         {items.length === 0 ? (
-          <div className="h-48 flex flex-col items-center justify-center text-center text-zinc-500">
+          <div className="h-56 flex flex-col items-center justify-center text-center p-6 text-zinc-500">
             {isMarketMode ? (
               <Store className="w-10 h-10 mb-2 opacity-30 text-blue-400" />
             ) : (
-              <ShoppingBag className="w-10 h-10 mb-2 opacity-30" />
+              <ShoppingBag className="w-10 h-10 mb-2 opacity-30 text-[var(--color-porkos-orange)]" />
             )}
-            <p className="text-xs font-semibold">
+            <p className="text-xs sm:text-sm font-bold text-zinc-300">
               {isMarketMode ? 'Caja sin productos' : 'Comanda vacía'}
             </p>
-            <p className="text-[11px] text-zinc-600 mt-0.5">
+            <p className="text-[11px] text-zinc-500 mt-1 max-w-xs">
               {isMarketMode
-                ? 'Toca cualquier producto para cobrarlo al instante'
-                : 'Toca un producto para comandar (da clic sobre él para cambiar opciones)'}
+                ? 'Toca cualquier producto del catálogo para cobrarlo al instante'
+                : 'Selecciona productos de la carta para añadirlos a la comanda'}
             </p>
           </div>
         ) : (
@@ -351,16 +344,15 @@ export default function CartView({
             return (
               <div
                 key={item.itemId}
-                className="bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700/80 rounded-xl p-3 space-y-2 transition-colors"
+                className="bg-[#0E0E12] border border-[var(--color-porkos-border)] hover:border-zinc-700/80 rounded-2xl p-3 space-y-2.5 transition-colors"
               >
-                {/* Main row: Thumbnail, Title, quantity, price */}
+                {/* Main row: Thumbnail, Title, Unit price, Total */}
                 <div
                   onClick={() => isCustomizable && onEditItem && onEditItem(item)}
                   className={`flex items-start justify-between gap-2.5 ${
                     isCustomizable ? 'cursor-pointer group' : ''
                   }`}
                 >
-                  {/* Miniatura visual interactiva del plato */}
                   <div className="shrink-0 transition-transform group-hover:scale-105 active:scale-95">
                     <ProductThumbnail
                       src={item.image}
@@ -374,9 +366,9 @@ export default function CartView({
                   <div className="flex-1 min-w-0 pt-0.5">
                     <div className="flex items-center gap-1.5">
                       {item.requiresKitchen && (
-                        <Flame className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                        <Flame className="w-3.5 h-3.5 text-[var(--color-porkos-orange)] shrink-0" />
                       )}
-                      <h5 className={`font-bold text-sm text-zinc-100 leading-snug truncate ${isCustomizable ? 'group-hover:text-[var(--color-porkos-orange)]' : ''}`}>
+                      <h5 className={`font-bold text-xs sm:text-sm text-zinc-100 leading-snug truncate ${isCustomizable ? 'group-hover:text-[var(--color-porkos-orange)]' : ''}`}>
                         {item.name}
                       </h5>
                     </div>
@@ -387,23 +379,23 @@ export default function CartView({
                     </div>
                   </div>
 
-                  <span className="font-extrabold text-sm text-white shrink-0 pt-0.5">
+                  <span className="font-black text-sm text-white shrink-0 pt-0.5">
                     {formatCurrency(item.subtotal)}
                   </span>
                 </div>
 
-                {/* Selector / Pestañita editable de Destino: Mesa / Ir Comiendo / Llevar */}
+                {/* Destino del ítem (Mesa / Ir comiendo / Llevar) */}
                 {!isMarketMode && modality !== 'DELIVERY' && (
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-zinc-800/80 w-fit touch-manipulation"
+                    className="flex items-center gap-1 bg-[#141418] p-1 rounded-xl border border-zinc-800/80 w-fit touch-manipulation"
                   >
                     <button
                       type="button"
                       onClick={() => updateItemConsumptionType(item.itemId, 'MESA')}
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 touch-manipulation ${
                         itemConsumption === 'MESA'
-                          ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                          ? 'bg-blue-600 text-white shadow-xs ring-1 ring-blue-400/50'
                           : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
                       }`}
                       title="Para comer en mesa / salón"
@@ -417,7 +409,7 @@ export default function CartView({
                       onClick={() => updateItemConsumptionType(item.itemId, 'CONSUMO_EXTERNO')}
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 touch-manipulation ${
                         itemConsumption === 'CONSUMO_EXTERNO'
-                          ? 'bg-purple-600 text-white shadow-sm ring-1 ring-purple-400/50'
+                          ? 'bg-purple-600 text-white shadow-xs ring-1 ring-purple-400/50'
                           : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
                       }`}
                       title="Para ir comiendo al paso"
@@ -431,66 +423,66 @@ export default function CartView({
                       onClick={() => updateItemConsumptionType(item.itemId, 'PARA_LLEVAR')}
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 touch-manipulation ${
                         itemConsumption === 'PARA_LLEVAR'
-                          ? 'bg-amber-500 text-black shadow-sm ring-1 ring-amber-400/50'
+                          ? 'bg-amber-500 text-zinc-950 shadow-xs ring-1 ring-amber-400/50'
                           : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
                       }`}
-                      title="Para llevar (agrega táper y empaque)"
+                      title="Para llevar"
                     >
                       <ShoppingBag className="w-3 h-3 text-amber-950 shrink-0" />
                       <span>Llevar</span>
                     </button>
 
                     {item.quantity > 1 && (
-                      <span className="text-[9px] text-zinc-500 pl-1 italic select-none">
+                      <span className="text-[9px] text-zinc-500 pl-1 select-none">
                         (x{item.quantity})
                       </span>
                     )}
                   </div>
                 )}
 
-                {/* Customization Details - Formato Gastronómico Limpio y de Alto Contraste */}
+                {/* Detalles de Personalización */}
                 {hasDetails && (
                   <div
                     onClick={() => isCustomizable && onEditItem && onEditItem(item)}
-                    className="text-xs space-y-1 bg-black/50 p-2 rounded-lg border border-zinc-800/70 hover:border-zinc-700 transition-colors cursor-pointer group"
+                    className="text-xs space-y-1 bg-[#141418] p-2 sm:p-2.5 rounded-xl border border-zinc-800/70 hover:border-zinc-700 transition-colors cursor-pointer group"
                   >
-                    {/* 1. ENSALADA */}
+                    {/* 1. Ensalada */}
                     {item.customization?.saladSummary && (
                       <div className="flex items-baseline gap-1.5 leading-tight">
                         <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
                           Ensalada:
                         </span>
-                        <span className="font-semibold text-zinc-200">
+                        <span className="font-bold text-zinc-200">
                           {item.customization.saladSummary}
                         </span>
                       </div>
                     )}
 
-                    {/* 2. PAPAS */}
+                    {/* 2. Papas */}
                     {getPapasText(item.customization) && (
                       <div className="flex items-baseline gap-1.5 leading-tight">
                         <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
                           Papas:
                         </span>
-                        <span className="font-semibold text-zinc-200">
+                        <span className="font-bold text-zinc-200">
                           {getPapasText(item.customization)}
                         </span>
                       </div>
                     )}
 
-                    {/* 3. CREMAS */}
+                    {/* 3. Cremas */}
                     {showCreams && (
                       <div className="flex items-baseline gap-1.5 leading-tight">
                         <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
                           Cremas:
                         </span>
-                        <span className="font-semibold text-zinc-200">
+                        <span className="font-bold text-zinc-200">
                           {item.customization.creamsSummary}
                         </span>
                       </div>
                     )}
 
-                    {/* 4. EXTRAS EN LÍNEAS SEPARADAS */}
+                    {/* 4. Extras */}
                     {item.customization?.selectedExtras?.length > 0 && (
                       <div className="space-y-1 pt-0.5">
                         {item.customization.selectedExtras.map((e, eIdx) => {
@@ -500,10 +492,10 @@ export default function CartView({
                           return (
                             <div
                               key={e?.id || `cart_extra_${eIdx}`}
-                              className="flex items-center justify-between text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20"
+                              className="flex items-center justify-between text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20"
                             >
                               <span className="flex items-center gap-1.5 min-w-0 truncate">
-                                <span className="bg-amber-400 text-black px-1.5 py-0.2 rounded text-[10px] font-black shrink-0">
+                                <span className="bg-amber-400 text-zinc-950 px-1.5 py-0.2 rounded text-[10px] font-black shrink-0">
                                   {qty}x
                                 </span>
                                 <span className="truncate">{clean}</span>
@@ -517,34 +509,34 @@ export default function CartView({
                       </div>
                     )}
 
-                    {/* 5. EMPAQUE INDIVIDUAL */}
+                    {/* 5. Empaque */}
                     {item.customization?.packaging && item.customization.packaging.price > 0 && (
                       <div className="flex items-baseline gap-1.5 leading-tight">
                         <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
                           Empaque:
                         </span>
-                        <span className="font-semibold text-zinc-200">
+                        <span className="font-bold text-zinc-200">
                           {item.customization.packaging.name || 'Empaque'} (+{formatCurrency(item.customization.packaging.price || 0)})
                         </span>
                       </div>
                     )}
 
-                    {/* 6. TEMPERATURA */}
+                    {/* 6. Temperatura */}
                     {item.customization?.temperature && (
                       <div className="flex items-baseline gap-1.5 leading-tight">
                         <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
-                          Temp:
+                          Temperatura:
                         </span>
-                        <span className="font-semibold text-zinc-200">
+                        <span className="font-bold text-zinc-200">
                           {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
                         </span>
                       </div>
                     )}
 
-                    {/* 7. NOTA ESPECIAL */}
+                    {/* 7. Nota Especial */}
                     {item.customization?.itemNotes && (
-                      <div className="pt-1 mt-1 border-t border-zinc-800/80">
-                        <span className="inline-block bg-amber-500/10 text-amber-300/90 border border-amber-500/20 px-2 py-0.5 rounded text-[11px] font-medium italic">
+                      <div className="pt-1 mt-1 border-t border-zinc-800">
+                        <span className="inline-block bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded-lg text-[11px] font-semibold italic">
                           &ldquo;{item.customization.itemNotes}&rdquo;
                         </span>
                       </div>
@@ -552,34 +544,52 @@ export default function CartView({
                   </div>
                 )}
 
-                {/* Controls: Delete & Quantity */}
+                {/* Controles: Eliminar y Selector de Cantidad */}
                 <div className="flex items-center justify-between pt-1">
                   <button
                     type="button"
                     onClick={() => removeItem(item.itemId)}
-                    className="p-2 min-w-[36px] min-h-[36px] text-zinc-500 hover:text-rose-400 hover:bg-rose-500/15 rounded-xl transition-all cursor-pointer active:scale-90 flex items-center justify-center touch-manipulation"
+                    className="p-2 min-w-[38px] min-h-[38px] text-zinc-400 hover:text-rose-400 hover:bg-rose-500/15 rounded-xl transition-all cursor-pointer active:scale-90 flex items-center justify-center touch-manipulation"
                     title="Eliminar de la comanda"
                     aria-label="Eliminar producto"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
 
-                  <div className="flex items-center gap-1.5 bg-zinc-800/90 p-1 rounded-xl border border-zinc-700/60 shadow-sm">
+                  <div className="flex items-center gap-1.5 bg-[#141418] p-1 rounded-xl border border-zinc-800 shadow-sm">
                     <button
                       type="button"
                       onClick={() => updateItemQuantity(item.itemId, -1)}
-                      className="w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600 active:bg-zinc-500 text-zinc-200 hover:text-white flex items-center justify-center cursor-pointer font-bold active:scale-90 transition-transform touch-manipulation"
+                      className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white flex items-center justify-center cursor-pointer font-bold active:scale-90 transition-transform touch-manipulation"
                       aria-label="Disminuir cantidad"
                     >
                       <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
                     </button>
-                    <span className="font-black text-sm text-white min-w-[22px] text-center select-none">
-                      {item.quantity}
-                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={item.quantity}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        if (raw === '') {
+                          setItemQuantity(item.itemId, 1);
+                        } else {
+                          const val = parseInt(raw, 10);
+                          if (val > 0) {
+                            setItemQuantity(item.itemId, val);
+                          }
+                        }
+                      }}
+                      onFocus={(e) => e.target.select()}
+                      className="w-8 sm:w-9 text-center font-black text-sm text-white bg-transparent border-0 focus:outline-none focus:bg-zinc-800 rounded py-0.5 select-all"
+                      aria-label="Cantidad del producto"
+                      title="Toca para cambiar la cantidad manualmente"
+                    />
                     <button
                       type="button"
                       onClick={() => updateItemQuantity(item.itemId, 1)}
-                      className="w-8 h-8 rounded-lg bg-[var(--color-porkos-orange)]/20 hover:bg-[var(--color-porkos-orange)]/30 active:bg-[var(--color-porkos-orange)] text-[var(--color-porkos-orange)] hover:text-white flex items-center justify-center cursor-pointer font-bold active:scale-90 transition-transform touch-manipulation"
+                      className="w-8 h-8 rounded-lg bg-[var(--color-porkos-orange)]/20 hover:bg-[var(--color-porkos-orange)] text-[var(--color-porkos-orange)] hover:text-zinc-950 flex items-center justify-center cursor-pointer font-bold active:scale-90 transition-transform touch-manipulation"
                       aria-label="Aumentar cantidad"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -591,61 +601,61 @@ export default function CartView({
           })
         )}
 
-        {/* Formulario optimizado para DELIVERY al final de los pedidos */}
+        {/* Datos de Envío a Domicilio (DELIVERY) */}
         {isDelivery && (
-          <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl space-y-2 text-xs shadow-md mt-2">
-            <div className="flex items-center justify-between pb-1.5 border-b border-zinc-800">
-              <div className="flex items-center gap-1.5 text-zinc-200 font-bold text-xs">
-                <div className="p-1 rounded-lg bg-zinc-800 text-zinc-300">
-                  <Bike className="w-3.5 h-3.5" />
+          <div className="bg-[#0E0E12] border border-[var(--color-porkos-border)] p-3 rounded-2xl space-y-2 text-xs shadow-md mt-2">
+            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+              <div className="flex items-center gap-2 text-zinc-200 font-bold text-xs">
+                <div className="p-1.5 rounded-lg bg-zinc-800 text-emerald-400">
+                  <Bike className="w-4 h-4" />
                 </div>
                 <span>Datos de Envío a Domicilio</span>
               </div>
-              <div className="flex items-center gap-1 bg-zinc-800/80 border border-zinc-700/60 px-2 py-0.5 rounded-lg text-[11px] font-bold text-zinc-300">
+              <div className="flex items-center gap-1 bg-zinc-800 px-2.5 py-1 rounded-lg text-[11px] font-bold text-zinc-300">
                 <span className="text-zinc-400 font-normal">Envío:</span>
                 <span>{formatCurrency(deliveryFee)}</span>
               </div>
             </div>
 
-            {/* Teléfono / Celular */}
+            {/* Teléfono */}
             <div className="relative">
-              <Phone className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <Phone className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
               <input
                 type="tel"
                 value={customer.phone || ''}
                 onChange={(e) => setCustomer((prev) => ({ ...prev, phone: e.target.value }))}
-                placeholder="Celular / WhatsApp"
-                className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-medium"
+                placeholder="Teléfono / Celular"
+                className="w-full bg-[#141418] border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 font-medium"
               />
             </div>
 
-            {/* Dirección exacta de entrega */}
+            {/* Dirección */}
             <div className="relative">
-              <MapPin className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <MapPin className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
               <input
                 type="text"
                 value={customer.address || ''}
                 onChange={(e) => setCustomer((prev) => ({ ...prev, address: e.target.value }))}
-                placeholder="Dirección"
-                className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-medium"
+                placeholder="Dirección exacta"
+                className="w-full bg-[#141418] border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 font-medium"
               />
             </div>
 
-            {/* Referencia de entrega & Monto de delivery */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            {/* Referencia y Costo de Envío */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="relative">
-                <Navigation className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <Navigation className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
                 <input
                   type="text"
                   value={customer.reference || ''}
                   onChange={(e) => setCustomer((prev) => ({ ...prev, reference: e.target.value }))}
-                  placeholder="Referencia"
-                  className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+                  placeholder="Referencia de llegada"
+                  className="w-full bg-[#141418] border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
                 />
               </div>
 
               <div className="relative flex items-center">
-                <span className="absolute left-2.5 text-zinc-400 text-xs font-bold">S/</span>
+                <span className="absolute left-3 text-zinc-400 text-xs font-black">S/</span>
                 <input
                   type="number"
                   step="0.50"
@@ -653,48 +663,48 @@ export default function CartView({
                   value={customer.deliveryFee ?? ''}
                   onChange={(e) => setCustomer((prev) => ({ ...prev, deliveryFee: e.target.value }))}
                   placeholder="Costo envío"
-                  className="w-full bg-black/60 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-zinc-200 font-bold placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+                  className="w-full bg-[#141418] border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white font-bold placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
                 />
               </div>
             </div>
           </div>
         )}
 
-        {/* General Notes for Order (SOLO en Restaurante) */}
+        {/* Nota general de la comanda */}
         {!isMarketMode && items.length > 0 && (
-          <div className="pt-2">
+          <div className="pt-1">
             <input
               type="text"
               value={generalNotes}
               onChange={(e) => setGeneralNotes(e.target.value)}
-              placeholder="Nota general del pedido..."
-              className="w-full bg-black/40 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              placeholder="Nota general de la comanda..."
+              className="w-full bg-[#0E0E12] border border-[var(--color-porkos-border)] rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
             />
           </div>
         )}
       </div>
 
-      {/* Totals & Actions */}
-      <div className="p-3.5 bg-black/60 border-t border-[var(--color-porkos-border)] space-y-3">
-        {/* Price Breakdown */}
+      {/* Totals & Sticky Actions Footer */}
+      <div className="p-3.5 sm:p-4 bg-[#15151A] border-t border-[var(--color-porkos-border)] space-y-3 shrink-0">
+        {/* Desglose de Precios */}
         <div className="space-y-1 text-xs">
           <div className="flex justify-between text-zinc-400">
-            <span>Subtotal:</span>
-            <span>{formatCurrency(itemsSubtotal)}</span>
+            <span>Subtotal platos:</span>
+            <span className="font-semibold">{formatCurrency(itemsSubtotal)}</span>
           </div>
           {!isMarketMode && packagingsTotal > 0 && (
             <div className="flex justify-between text-zinc-400">
-              <span>Empaques / Tapers:</span>
-              <span>{formatCurrency(packagingsTotal)}</span>
+              <span>Empaques / Tápers:</span>
+              <span className="font-semibold">{formatCurrency(packagingsTotal)}</span>
             </div>
           )}
           {!isMarketMode && deliveryFee > 0 && (
             <div className="flex justify-between text-zinc-400">
               <span>Costo Delivery:</span>
-              <span>{formatCurrency(deliveryFee)}</span>
+              <span className="font-semibold">{formatCurrency(deliveryFee)}</span>
             </div>
           )}
-          <div className="flex justify-between text-white font-extrabold text-base pt-1 border-t border-zinc-800">
+          <div className="flex justify-between text-white font-black text-base sm:text-lg pt-1.5 border-t border-zinc-800">
             <span>Total:</span>
             <span className={isMarketMode ? 'text-blue-400' : 'text-[var(--color-porkos-orange)]'}>
               {formatCurrency(total)}
@@ -702,22 +712,24 @@ export default function CartView({
           </div>
         </div>
 
-        {/* Actions diferenciadas para Market vs Restaurante vs Modo Edición */}
+        {/* Botones de Acción */}
         <div className="space-y-2">
           {editingOrder ? (
-            /* EN MODO EDICIÓN DE COMANDA EXISTENTE */
+            /* MODO EDICIÓN DE COMANDA */
             <div className="space-y-2">
               <Button
                 onClick={onSaveEditedOrder}
                 disabled={isSubmitting || items.length === 0 || (modality === 'MESA' && !selectedTable)}
+                isLoading={isSubmitting}
                 variant="primary"
                 size="lg"
                 icon={Check}
-                className="w-full text-xs sm:text-sm font-black py-3.5 bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 cursor-pointer"
+                fullWidth
+                className="text-xs sm:text-sm font-black py-3.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 shadow-lg shadow-amber-500/20"
               >
                 {isSubmitting
                   ? 'Guardando cambios...'
-                  : `Guardar Cambios Comanda ${editingOrder.orderNumber} (${formatCurrency(total)})`}
+                  : `Guardar Comanda ${editingOrder.orderNumber} • ${formatCurrency(total)}`}
               </Button>
               <Button
                 onClick={() => {
@@ -727,34 +739,39 @@ export default function CartView({
                 disabled={isSubmitting}
                 variant="secondary"
                 size="sm"
-                className="w-full text-xs font-bold py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 cursor-pointer"
+                fullWidth
+                className="text-xs font-bold py-2"
               >
                 Cancelar y Volver
               </Button>
             </div>
           ) : isMarketMode ? (
-            /* EN MODO MARKET: Acción directa y limpia de COBRAR */
+            /* MODO MARKET DIRECTO */
             <Button
               onClick={onCheckout}
               disabled={isSubmitting || items.length === 0}
+              isLoading={isSubmitting}
               variant="primary"
               size="lg"
-              className="w-full text-sm sm:text-base font-black bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-600/20 py-3.5 cursor-pointer"
+              fullWidth
+              className="text-sm sm:text-base font-black bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-600/20 py-3.5"
             >
               {isSubmitting ? 'Procesando...' : `Cobrar ${formatCurrency(total)}`}
             </Button>
           ) : isTableOccupied && selectedTable ? (
-            /* EN MESA ABIERTA: Cada pedido se envía individual a cocina o se suma a la mesa */
+            /* EN MESA ABIERTA */
             <Button
               onClick={onSendToKitchen}
               disabled={isSubmitting || items.length === 0}
+              isLoading={isSubmitting}
               variant="primary"
               size="lg"
+              fullWidth
               icon={hasKitchenItems ? Flame : Package}
-              className="w-full text-xs sm:text-sm font-black py-3.5 bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20 cursor-pointer active:scale-98"
+              className="text-xs sm:text-sm font-black py-3.5 shadow-lg shadow-orange-500/20"
             >
               {isSubmitting
-                ? 'Enviando...'
+                ? 'Enviando comanda...'
                 : hasKitchenItems
                 ? `Mandar a Cocina (${selectedTable.label}) • ${formatCurrency(total)}`
                 : `Enviar a Entregas (${selectedTable.label}) • ${formatCurrency(total)}`}
@@ -771,13 +788,14 @@ export default function CartView({
                   }
                 }}
                 disabled={isSubmitting || items.length === 0}
+                isLoading={isSubmitting}
                 variant="primary"
                 size="md"
                 icon={hasKitchenItems ? Flame : Package}
-                className={`text-xs sm:text-sm font-black py-3 cursor-pointer ${
+                className={`text-xs sm:text-sm font-black py-3 ${
                   modality === 'MESA' && !selectedTable
                     ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
-                    : 'bg-[var(--color-porkos-orange)] hover:bg-orange-500 text-black shadow-lg shadow-orange-500/20'
+                    : 'bg-[var(--color-porkos-orange)] text-zinc-950 shadow-md shadow-orange-500/20'
                 }`}
               >
                 {isSubmitting
@@ -785,7 +803,7 @@ export default function CartView({
                   : modality === 'MESA' && !selectedTable
                   ? 'Elegir mesa para enviar'
                   : selectedTable
-                  ? (hasKitchenItems ? `Abrir comanda (${selectedTable.label})` : `Enviar a ${selectedTable.label} (Entregas)`)
+                  ? (hasKitchenItems ? `Abrir (${selectedTable.label})` : `Enviar a ${selectedTable.label}`)
                   : hasKitchenItems
                   ? 'Mandar a Cocina'
                   : 'Enviar a Entregas'}
@@ -797,9 +815,9 @@ export default function CartView({
                 variant="secondary"
                 size="md"
                 icon={CreditCard}
-                className="text-xs font-bold py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 cursor-pointer"
+                className="text-xs font-bold py-3"
               >
-                {isSubmitting ? 'Procesando...' : `Cobrar en Caja (${formatCurrency(total)})`}
+                {isSubmitting ? 'Procesando...' : `Cobrar (${formatCurrency(total)})`}
               </Button>
             </div>
           )}
@@ -811,7 +829,7 @@ export default function CartView({
         isOpen={isTablePickerOpen}
         onClose={() => setIsTablePickerOpen(false)}
         title="Seleccionar Mesa"
-        subtitle="Elige la mesa del salón para esta orden"
+        subtitle="Elige la mesa del salón para esta comanda"
         maxWidth="max-w-md"
       >
         <div className="space-y-3">
@@ -827,26 +845,26 @@ export default function CartView({
                     setSelectedTable(t);
                     setIsTablePickerOpen(false);
                   }}
-                  className={`p-3 rounded-2xl border transition-all text-left flex flex-col justify-between gap-2.5 cursor-pointer active:scale-98 ${
+                  className={`p-3 rounded-2xl border transition-all text-left flex flex-col justify-between gap-2.5 cursor-pointer active:scale-98 touch-manipulation ${
                     isSelected
-                      ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-lg shadow-orange-500/20 font-black'
+                      ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-transparent shadow-lg shadow-orange-500/20 font-black'
                       : isOccupied
                       ? 'bg-amber-500/10 border-amber-500/30 hover:border-amber-500/60 text-white'
                       : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700 text-white'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`font-bold text-sm ${isSelected ? 'text-black' : 'text-white'}`}>
+                    <span className={`font-bold text-sm ${isSelected ? 'text-zinc-950' : 'text-white'}`}>
                       {t.label}
                     </span>
-                    <Utensils className={`w-3.5 h-3.5 ${isSelected ? 'text-black' : isOccupied ? 'text-amber-400' : 'text-zinc-500'}`} />
+                    <Utensils className={`w-3.5 h-3.5 ${isSelected ? 'text-zinc-950' : isOccupied ? 'text-amber-400' : 'text-zinc-500'}`} />
                   </div>
 
                   <div className="flex items-center justify-between text-[10px]">
                     <span
-                      className={`font-bold px-1.5 py-0.5 rounded ${
+                      className={`font-black px-1.5 py-0.5 rounded ${
                         isSelected
-                          ? 'bg-black/20 text-black'
+                          ? 'bg-black/20 text-zinc-950'
                           : isOccupied
                           ? 'bg-amber-500/20 text-amber-300'
                           : 'bg-emerald-500/20 text-emerald-400'
@@ -855,7 +873,7 @@ export default function CartView({
                       {isOccupied ? 'Ocupada' : 'Libre'}
                     </span>
                     {t.capacity && (
-                      <span className={isSelected ? 'text-black/80 font-bold' : 'text-zinc-500'}>
+                      <span className={isSelected ? 'text-zinc-950 font-bold' : 'text-zinc-500 font-semibold'}>
                         {t.capacity}p
                       </span>
                     )}
@@ -879,6 +897,21 @@ export default function CartView({
           )}
         </div>
       </Modal>
+
+      {/* Confirmación para Vaciar Comanda */}
+      <ConfirmDialog
+        isOpen={isConfirmClearOpen}
+        onClose={() => setIsConfirmClearOpen(false)}
+        onConfirm={() => {
+          clearCart();
+          setIsConfirmClearOpen(false);
+        }}
+        title="¿Vaciar la comanda actual?"
+        message="Se eliminarán todos los productos y personalizaciones agregados en esta orden."
+        confirmText="Sí, vaciar comanda"
+        cancelText="Conservar comanda"
+        variant="danger"
+      />
     </div>
   );
 }

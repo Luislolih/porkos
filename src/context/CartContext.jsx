@@ -319,82 +319,47 @@ export function CartProvider({ children }) {
       custom.packaging = defaultPackaging;
     }
 
-    // Dos ítems son idénticos si comparten el mismo producto Y las mismas opciones (incluyendo destino)
-    const isIdentical = (item) => {
-      if (item.productId !== product.id) return false;
-      const iCust = item.customization || {};
+    const extrasTotal =
+      custom?.selectedExtras?.reduce(
+        (sum, ext) => sum + ext.unitPrice * (ext.quantity || 1),
+        0
+      ) || 0;
+    const packagingPrice = custom?.packaging?.price || 0;
+    const unitPrice = Math.round((product.price + extrasTotal + packagingPrice) * 100) / 100;
+    const itemId = `${product.id}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
-      const itemType = item.consumptionType || iCust.consumptionType || 'MESA';
-      const newType = custom.consumptionType || defaultConsumption || 'MESA';
-      const sameConsumption = itemType === newType;
+    const isMarket = isProductMarket(product);
+    const isBeverage = isProductBeverage(product);
+    const isDessert = isProductDessert(product);
 
-      const sameTemp = (iCust.temperature || null) === (custom.temperature || null);
-      const sameNotes = (iCust.itemNotes || '').trim().toLowerCase() === (custom.itemNotes || '').trim().toLowerCase();
-      const samePkg = (iCust.packaging?.id || null) === (custom.packaging?.id || null);
-      const sameCreams = (iCust.creamsSummary || '') === (custom.creamsSummary || '');
-      const sameSalad = (iCust.saladSummary || '') === (custom.saladSummary || '');
-      const sameExtras = JSON.stringify(iCust.selectedExtras || []) === JSON.stringify(custom.selectedExtras || []);
-      const sameMods = JSON.stringify(iCust.selectedModifiers || []) === JSON.stringify(custom.selectedModifiers || []);
+    // Los productos de market o bebidas directas nunca requieren preparación de cocina
+    let itemRequiresKitchen = product.requiresKitchen;
+    if (isMarket) {
+      itemRequiresKitchen = false;
+    } else if (itemRequiresKitchen === undefined) {
+      itemRequiresKitchen = !isBeverage && !isDessert;
+    }
 
-      return sameConsumption && sameTemp && sameNotes && samePkg && sameCreams && sameSalad && sameExtras && sameMods;
+    const newItem = {
+      itemId,
+      productId: product.id,
+      name: product.name,
+      basePrice: product.price,
+      availablePackagingIds: product.availablePackagingIds || [],
+      consumptionType: custom.consumptionType || defaultConsumption,
+      unitPrice,
+      quantity: 1,
+      requiresKitchen: Boolean(itemRequiresKitchen),
+      isMarket: Boolean(isMarket),
+      image: product.image,
+      thumbnailUrl: product.thumbnailUrl || product.image,
+      customization: custom,
+      subtotal: unitPrice,
     };
 
-    setItems((prev) => {
-      const idx = prev.findIndex(isIdentical);
-      if (idx >= 0) {
-        return prev.map((item, index) => {
-          if (index === idx) {
-            const newQty = item.quantity + 1;
-            return {
-              ...item,
-              quantity: newQty,
-              subtotal: Math.round(item.unitPrice * newQty * 100) / 100,
-            };
-          }
-          return item;
-        });
-      }
-
-      const extrasTotal =
-        custom?.selectedExtras?.reduce(
-          (sum, ext) => sum + ext.unitPrice * (ext.quantity || 1),
-          0
-        ) || 0;
-      const packagingPrice = custom?.packaging?.price || 0;
-      const unitPrice = Math.round((product.price + extrasTotal + packagingPrice) * 100) / 100;
-      const itemId = `${product.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
-
-      const isMarket = isProductMarket(product);
-      const isBeverage = isProductBeverage(product);
-      const isDessert = isProductDessert(product);
-
-      // Los productos de market o bebidas directas nunca requieren preparación de cocina
-      let itemRequiresKitchen = product.requiresKitchen;
-      if (isMarket) {
-        itemRequiresKitchen = false;
-      } else if (itemRequiresKitchen === undefined) {
-        itemRequiresKitchen = !isBeverage && !isDessert;
-      }
-
-      const newItem = {
-        itemId,
-        productId: product.id,
-        name: product.name,
-        basePrice: product.price,
-        availablePackagingIds: product.availablePackagingIds || [],
-        consumptionType: custom.consumptionType || defaultConsumption,
-        unitPrice,
-        quantity: 1,
-        requiresKitchen: Boolean(itemRequiresKitchen),
-        isMarket: Boolean(isMarket),
-        image: product.image,
-        thumbnailUrl: product.thumbnailUrl || product.image,
-        customization: custom,
-        subtotal: unitPrice,
-      };
-
-      return [...prev, newItem];
-    });
+    // Cada toque en el catálogo añade un ítem individual con cantidad 1 para permitir
+    // personalización independiente por comensal (cremas, extras, notas, destino)
+    setItems((prev) => [...prev, newItem]);
   };
 
   /**
@@ -443,7 +408,7 @@ export function CartProvider({ children }) {
       const pkgPrice = targetPackaging?.price || 0;
       const newUnitPrice = Math.round((item.basePrice + extrasTotal + pkgPrice) * 100) / 100;
 
-      // Si la cantidad es 1, actualizar directamente el ítem
+      // Si la cantidad es 1, actualizar directamente el ítem sin auto-agrupar para preservar personalización individual
       if (item.quantity === 1) {
         const updatedItem = {
           ...item,
@@ -457,37 +422,6 @@ export function CartProvider({ children }) {
           },
         };
 
-        // Buscar si ya existe un ítem idéntico con la nueva modalidad para combinarlos
-        const otherIndex = prevItems.findIndex(
-          (it, idx) =>
-            idx !== targetIndex &&
-            it.productId === item.productId &&
-            (it.consumptionType || it.customization?.consumptionType) === newConsumptionType &&
-            (it.customization?.packaging?.id || null) === (targetPackaging?.id || null) &&
-            (it.customization?.temperature || null) === (item.customization?.temperature || null) &&
-            (it.customization?.creamsSummary || '') === (item.customization?.creamsSummary || '') &&
-            (it.customization?.saladSummary || '') === (item.customization?.saladSummary || '') &&
-            (it.customization?.itemNotes || '').trim().toLowerCase() === (item.customization?.itemNotes || '').trim().toLowerCase() &&
-            JSON.stringify(it.customization?.selectedExtras || []) === JSON.stringify(item.customization?.selectedExtras || []) &&
-            JSON.stringify(it.customization?.selectedModifiers || []) === JSON.stringify(item.customization?.selectedModifiers || [])
-        );
-
-        if (otherIndex !== -1) {
-          return prevItems
-            .map((it, idx) => {
-              if (idx === otherIndex) {
-                const combinedQty = it.quantity + 1;
-                return {
-                  ...it,
-                  quantity: combinedQty,
-                  subtotal: Math.round(it.unitPrice * combinedQty * 100) / 100,
-                };
-              }
-              return it;
-            })
-            .filter((_, idx) => idx !== targetIndex);
-        }
-
         return prevItems.map((it, idx) => (idx === targetIndex ? updatedItem : it));
       }
 
@@ -499,7 +433,7 @@ export function CartProvider({ children }) {
         subtotal: Math.round(item.unitPrice * remainingQty * 100) / 100,
       };
 
-      const newItemId = `${item.productId}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+      const newItemId = `${item.productId}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       const splitItem = {
         ...item,
         itemId: newItemId,
@@ -514,36 +448,7 @@ export function CartProvider({ children }) {
         },
       };
 
-      // Si ya existe un ítem en la comanda con esta modalidad e idénticas opciones, incrementarlo
-      const existingMatchIndex = prevItems.findIndex(
-        (it) =>
-          it.productId === item.productId &&
-          (it.consumptionType || it.customization?.consumptionType) === newConsumptionType &&
-          (it.customization?.packaging?.id || null) === (targetPackaging?.id || null) &&
-          (it.customization?.temperature || null) === (item.customization?.temperature || null) &&
-          (it.customization?.creamsSummary || '') === (item.customization?.creamsSummary || '') &&
-          (it.customization?.saladSummary || '') === (item.customization?.saladSummary || '') &&
-          (it.customization?.itemNotes || '').trim().toLowerCase() === (item.customization?.itemNotes || '').trim().toLowerCase() &&
-          JSON.stringify(it.customization?.selectedExtras || []) === JSON.stringify(item.customization?.selectedExtras || []) &&
-          JSON.stringify(it.customization?.selectedModifiers || []) === JSON.stringify(item.customization?.selectedModifiers || [])
-      );
-
-      if (existingMatchIndex !== -1) {
-        return prevItems.map((it, idx) => {
-          if (idx === targetIndex) return updatedOriginal;
-          if (idx === existingMatchIndex) {
-            const newQty = it.quantity + 1;
-            return {
-              ...it,
-              quantity: newQty,
-              subtotal: Math.round(it.unitPrice * newQty * 100) / 100,
-            };
-          }
-          return it;
-        });
-      }
-
-      // Si no existe, insertar splitItem tras el ítem original
+      // Insertar splitItem tras el ítem original manteniendo ítems independientes
       const result = [...prevItems];
       result[targetIndex] = updatedOriginal;
       result.splice(targetIndex + 1, 0, splitItem);
@@ -561,7 +466,27 @@ export function CartProvider({ children }) {
             return {
               ...item,
               quantity: newQty,
-              subtotal: item.unitPrice * newQty,
+              subtotal: Math.round(item.unitPrice * newQty * 100) / 100,
+            };
+          }
+          return item;
+        })
+        .filter(Boolean)
+    );
+  };
+
+  const setItemQuantity = (itemId, quantity) => {
+    const parsed = parseInt(quantity, 10);
+    if (isNaN(parsed) || parsed < 0) return;
+    setItems((prev) =>
+      prev
+        .map((item) => {
+          if (item.itemId === itemId) {
+            if (parsed === 0) return null;
+            return {
+              ...item,
+              quantity: parsed,
+              subtotal: Math.round(item.unitPrice * parsed * 100) / 100,
             };
           }
           return item;
@@ -691,6 +616,7 @@ export function CartProvider({ children }) {
     setDiscount,
     addItem,
     updateItemQuantity,
+    setItemQuantity,
     updateItemCustomization,
     updateItemConsumptionType,
     removeItem,

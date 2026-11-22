@@ -25,7 +25,7 @@ export default function CategoryTabs({
   const tabs = isMarket ? MARKET_TABS : RESTAURANT_TABS;
 
   return (
-    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+    <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
       {tabs.map((tab) => {
         const isSelected =
           selectedLine === tab.id ||
@@ -38,16 +38,18 @@ export default function CategoryTabs({
             type="button"
             onClick={() => onSelectLine(tab.id)}
             className={`
-              px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer border active:scale-95 shadow-sm
+              px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap transition-all duration-120 flex items-center gap-2 cursor-pointer border active:scale-95 touch-manipulation shadow-xs
               ${
                 isSelected
-                  ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-orange-500/20'
-                  : 'bg-zinc-900/90 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+                  ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] shadow-md shadow-orange-500/20'
+                  : 'bg-[#121215] text-zinc-400 hover:text-white border-[var(--color-porkos-border)] hover:border-zinc-700 hover:bg-[#18181D]'
               }
             `}
           >
-            <Icon className={`w-4 h-4 ${isSelected ? 'text-black' : 'text-zinc-500'}`} />
-            <span>{tab.label}</span>
+            <Icon
+              className={`w-4 h-4 shrink-0 ${isSelected ? 'text-zinc-950 stroke-[2.5]' : 'text-zinc-500'}`}
+            />
+            <span className="tracking-wide">{tab.label}</span>
           </button>
         );
       })}

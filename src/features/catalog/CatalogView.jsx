@@ -11,8 +11,7 @@ import {
   Camera,
   Loader2,
   AlertTriangle,
-  Search,
-  X,
+  HardDrive,
 } from 'lucide-react';
 import { useCatalog } from '../../context/useCatalog';
 import { formatCurrency } from '../../utils/formatters';
@@ -25,6 +24,12 @@ import {
 } from '../../services/storageService';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import SearchInput from '../../components/ui/SearchInput';
+import PageHeader from '../../components/ui/PageHeader';
+import EmptyState from '../../components/ui/EmptyState';
+import LoadingState from '../../components/ui/LoadingState';
+import Toast from '../../components/ui/Toast';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
 import { isProductBeverage, isProductDessert, isProductSnack } from '../../utils/productCategories';
@@ -62,7 +67,7 @@ export default function CatalogView() {
     togglePackagingActive,
   } = useCatalog();
 
-  // Estadísticas globales de optimización y almacenamiento de imágenes
+  // Estadísticas de almacenamiento de fotos WebP
   const catalogStorageStats = useMemo(() => calculateCatalogStorageStats(products), [products]);
 
   const [activeTab, setActiveTab] = useState('products'); // 'products' | 'categories' | 'creams' | 'extras' | 'packagings'
@@ -80,8 +85,14 @@ export default function CatalogView() {
       return Boolean(nameMatch || descMatch || typeMatch || lineMatch || subtypeMatch);
     });
   }, [products, productSearchQuery]);
+
+  // Dialogs & Modals state
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+
+  // Deletion Confirm Dialog state for items
+  const [itemToDelete, setItemToDelete] = useState(null); // { type: 'product'|'category'|'cream'|'extra'|'packaging', data: object }
+
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
   const [isTestingStorage, setIsTestingStorage] = useState(false);
@@ -124,7 +135,7 @@ export default function CatalogView() {
   const [prodCategory, setProdCategory] = useState('cat_comida');
   const [prodLine, setProdLine] = useState('COMIDA');
   const [prodType, setProdType] = useState('RESTAURANTE');
-  const [prodMarketSubtype, setProdMarketSubtype] = useState('BEBIDA'); // 'BEBIDA' | 'JUGO' | 'COMIDA'
+  const [prodMarketSubtype, setProdMarketSubtype] = useState('BEBIDA');
   const [prodIsJuice, setProdIsJuice] = useState(false);
   const [prodPrice, setProdPrice] = useState('');
   const [prodCost, setProdCost] = useState('');
@@ -145,7 +156,7 @@ export default function CatalogView() {
   const [imageStats, setImageStats] = useState(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imageUploadError, setImageUploadError] = useState(null);
-  const [imageStorageSource, setImageStorageSource] = useState(null); // 'firebase' | 'local' | null
+  const [imageStorageSource, setImageStorageSource] = useState(null);
 
   // Modales de Crema
   const [isCreamModalOpen, setIsCreamModalOpen] = useState(false);
@@ -176,7 +187,6 @@ export default function CatalogView() {
     setIsUploadingImage(true);
     setImageUploadError(null);
 
-    // 1. Mostrar preview local temporal de inmediato
     const tempBlobUrl = URL.createObjectURL(file);
     setImagePreview(tempBlobUrl);
 
@@ -194,7 +204,6 @@ export default function CatalogView() {
         setImagePreview(result.url);
         setImageStorageSource('firebase');
       } else if (result?.localPreviewUrl) {
-        // Almacenar la versión WebP optimizada (~35 KB) para que SIEMPRE se visualice en la app
         setProdImage(result.localPreviewUrl);
         setProdThumbnailUrl(result.localPreviewUrl);
         setProdImageMetadata(null);
@@ -206,9 +215,9 @@ export default function CatalogView() {
         setImagePreview(result.localPreviewUrl);
         setImageStorageSource('local_optimized');
         if (result.errorCode === 'storage/unauthorized') {
-          setImageUploadError('Aviso: Firebase Storage rechazó la subida por reglas de seguridad. Tu foto se comprimió y se guardará para verse en la app. Toca "Configurar Storage" para sincronizarla en la nube.');
+          setImageUploadError('Aviso: Firebase Storage rechazó la subida por reglas de seguridad. Tu foto se comprimió y se guardará para verse en la app.');
         } else if (result.errorCode === 'storage/bucket-not-found') {
-          setImageUploadError('Aviso: El bucket de Firebase Storage no está activado en tu consola. Tu foto se comprimió y se guardará para verse en la app. Toca "Configurar Storage" para activarlo.');
+          setImageUploadError('Aviso: El bucket de Firebase Storage no está activado. Tu foto se comprimió localmente a WebP.');
         } else {
           setImageUploadError(result.errorMessage || 'Foto optimizada lista para guardar en la app.');
         }
@@ -241,7 +250,7 @@ export default function CatalogView() {
     }
   };
 
-  // 1. Abrir modal de nuevo producto
+  // Abrir modal de nuevo producto
   const handleOpenNewProduct = () => {
     setEditingProduct(null);
     setProdName('');
@@ -274,7 +283,6 @@ export default function CatalogView() {
     setEditingProduct(prod);
     setProdName(prod.name);
 
-    // 1. Respetar estrictamente la categoría y línea guardadas del producto
     const isMarketProd = Boolean(
       prod.type === 'MARKET' ||
       prod.line === 'MARKET' ||
@@ -363,11 +371,7 @@ export default function CatalogView() {
     setProdImageMetadata(prod.imageMetadata || null);
     setImageStats(null);
     setImagePreview(existingImg);
-    setImageStorageSource(
-      existingImg.startsWith('http')
-        ? 'web_url'
-        : null
-    );
+    setImageStorageSource(existingImg.startsWith('http') ? 'web_url' : null);
     setProdDescription(prod.description || '');
     setProdKitchen(isMarketProd ? false : (prod.requiresKitchen ?? (cat !== 'cat_postres')));
     setProdHasPapas(Boolean(prod.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas')));
@@ -401,7 +405,6 @@ export default function CatalogView() {
         });
       }
 
-      // Sanitizar imagen: URLs http/https válidas o WebP optimizado (data:image)
       let cleanImage = prodImage.trim();
       if (
         !cleanImage.startsWith('http://') &&
@@ -411,7 +414,6 @@ export default function CatalogView() {
         cleanImage = '';
       }
 
-      // Si se reemplazó la foto y la versión anterior estaba en Firebase Storage, limpiar archivo huérfano
       if (
         editingProduct &&
         editingProduct.image &&
@@ -476,7 +478,7 @@ export default function CatalogView() {
         if (updateResult?.firestoreResult && !updateResult.firestoreResult.success) {
           setStatusToast({
             type: 'warning',
-            msg: `Producto actualizado en tu navegador. (Aviso: Firebase rechazó con ${updateResult.firestoreResult.error?.code || 'error'})`,
+            msg: `Producto actualizado en navegador. (${updateResult.firestoreResult.error?.code || 'error'})`,
           });
         } else {
           setStatusToast({
@@ -489,7 +491,7 @@ export default function CatalogView() {
         if (result?.firestoreResult && !result.firestoreResult.success) {
           setStatusToast({
             type: 'warning',
-            msg: `Producto guardado en tu navegador. (Aviso: Firebase rechazó con ${result.firestoreResult.error?.code || 'error'})`,
+            msg: `Producto guardado en navegador. (${result.firestoreResult.error?.code || 'error'})`,
           });
         } else {
           setStatusToast({
@@ -508,11 +510,11 @@ export default function CatalogView() {
       });
     } finally {
       setIsSavingProduct(false);
-      setTimeout(() => setStatusToast(null), 5000);
+      setTimeout(() => setStatusToast(null), 4000);
     }
   };
 
-  // 1.5. Categorías Handlers
+  // Categorías Handlers
   const handleOpenNewCategory = () => {
     setEditingCategory(null);
     setCatName('');
@@ -551,7 +553,7 @@ export default function CatalogView() {
     setTimeout(() => setStatusToast(null), 4000);
   };
 
-  // 2. Cremas Handlers
+  // Cremas Handlers
   const handleOpenNewCream = () => {
     setEditingCream(null);
     setCreamName('');
@@ -581,14 +583,17 @@ export default function CatalogView() {
 
     if (editingCream) {
       updateCream(editingCream.id, creamPayload);
+      setStatusToast({ type: 'success', msg: `Crema "${creamName}" actualizada` });
     } else {
       addCream(creamPayload);
+      setStatusToast({ type: 'success', msg: `Crema "${creamName}" agregada` });
     }
 
     setIsCreamModalOpen(false);
+    setTimeout(() => setStatusToast(null), 3000);
   };
 
-  // 3. Extras Handlers
+  // Extras Handlers
   const handleOpenNewExtra = () => {
     setEditingExtra(null);
     setExtraName('');
@@ -623,14 +628,17 @@ export default function CatalogView() {
 
     if (editingExtra) {
       updateExtra(editingExtra.id, extraPayload);
+      setStatusToast({ type: 'success', msg: `Extra "${extraName}" actualizado` });
     } else {
       addExtra(extraPayload);
+      setStatusToast({ type: 'success', msg: `Extra "${extraName}" agregado` });
     }
 
     setIsExtraModalOpen(false);
+    setTimeout(() => setStatusToast(null), 3000);
   };
 
-  // 4. Packaging Handlers
+  // Packaging Handlers
   const handleOpenNewPackaging = () => {
     setEditingPackaging(null);
     setPkgName('');
@@ -643,7 +651,6 @@ export default function CatalogView() {
     setEditingPackaging(pkg);
     setPkgName(pkg.name);
     setPkgPrice((pkg.price || 0).toString());
-    // Combinar productos asociados explícitamente en el empaque o en los productos
     const associatedInProds = products
       .filter((p) => p.availablePackagingIds?.includes(pkg.id))
       .map((p) => p.id);
@@ -664,49 +671,141 @@ export default function CatalogView() {
 
     if (editingPackaging) {
       updatePackaging(editingPackaging.id, pkgPayload);
+      setStatusToast({ type: 'success', msg: `Empaque "${pkgName}" actualizado` });
     } else {
       addPackaging(pkgPayload);
+      setStatusToast({ type: 'success', msg: `Empaque "${pkgName}" registrado` });
     }
 
     setIsPackagingModalOpen(false);
+    setTimeout(() => setStatusToast(null), 3000);
+  };
+
+  // Confirm delete item handler
+  const handleConfirmItemDelete = () => {
+    if (!itemToDelete) return;
+    const { type, data } = itemToDelete;
+
+    if (type === 'product') {
+      if (data.imageMetadata || data.image) {
+        deleteProductImageFromStorage(data.imageMetadata || data.image).catch(() => {});
+      }
+      deleteProduct(data.id);
+      setStatusToast({ type: 'success', msg: `Producto "${data.name}" eliminado` });
+    } else if (type === 'category') {
+      deleteCategory(data.id);
+      setStatusToast({ type: 'success', msg: `Categoría "${data.name}" eliminada` });
+    } else if (type === 'cream') {
+      deleteCream(data.id);
+      setStatusToast({ type: 'success', msg: `Crema "${data.name}" eliminada` });
+    } else if (type === 'extra') {
+      deleteExtra(data.id);
+      setStatusToast({ type: 'success', msg: `Extra "${data.name}" eliminado` });
+    } else if (type === 'packaging') {
+      deletePackaging(data.id);
+      setStatusToast({ type: 'success', msg: `Empaque "${data.name}" eliminado` });
+    }
+
+    setItemToDelete(null);
+    setTimeout(() => setStatusToast(null), 3000);
   };
 
   return (
-    <div className="space-y-4 pb-20 lg:pb-6">
+    <div className="space-y-4 pb-20 lg:pb-8">
       {/* Toast Notification */}
       {statusToast && (
-        <div
-          className={`p-3 rounded-xl font-bold text-xs flex items-center justify-between gap-2 shadow-lg animate-in fade-in slide-in-from-top-2 ${
-            statusToast.type === 'error'
-              ? 'bg-rose-950/80 border border-rose-500/50 text-rose-200'
-              : statusToast.type === 'warning'
-              ? 'bg-amber-950/80 border border-amber-500/50 text-amber-200'
-              : 'bg-emerald-950/80 border border-emerald-500/50 text-emerald-200'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>{statusToast.msg}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setStatusToast(null)}
-            className="text-zinc-400 hover:text-white px-1.5 py-0.5 rounded cursor-pointer"
-          >
-            ✕
-          </button>
-        </div>
+        <Toast
+          message={statusToast.msg}
+          type={statusToast.type || 'info'}
+          onClose={() => setStatusToast(null)}
+        />
       )}
 
-      {/* Banner de Estado de Conexión / Reglas de Firebase */}
+      {/* Page Header */}
+      <PageHeader
+        title="Catálogo & Carta"
+        subtitle="Administra platos, bebidas, cremas caseras, adicionales y empaques para comandas"
+        icon={UtensilsCrossed}
+        badge={`${products.length} productos`}
+        actions={
+          <div className="flex items-center gap-2">
+            {activeTab === 'products' && (
+              <Button
+                onClick={handleOpenNewProduct}
+                icon={Plus}
+                size="sm"
+                className="font-bold text-xs"
+              >
+                Nuevo Producto
+              </Button>
+            )}
+            {activeTab === 'categories' && (
+              <Button
+                onClick={handleOpenNewCategory}
+                icon={Plus}
+                size="sm"
+                className="font-bold text-xs"
+              >
+                Nueva Categoría
+              </Button>
+            )}
+            {activeTab === 'creams' && (
+              <Button
+                onClick={handleOpenNewCream}
+                icon={Plus}
+                size="sm"
+                className="font-bold text-xs"
+              >
+                Nueva Crema
+              </Button>
+            )}
+            {activeTab === 'extras' && (
+              <Button
+                onClick={handleOpenNewExtra}
+                icon={Plus}
+                size="sm"
+                className="font-bold text-xs"
+              >
+                Nuevo Extra
+              </Button>
+            )}
+            {activeTab === 'packagings' && (
+              <Button
+                onClick={handleOpenNewPackaging}
+                icon={Plus}
+                size="sm"
+                className="font-bold text-xs"
+              >
+                Nuevo Empaque
+              </Button>
+            )}
+
+            {(products.length > 0 || creams.length > 0 || extras.length > 0 || packagings.length > 0) && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsClearConfirmOpen(true)}
+                className="text-xs text-rose-400 border-zinc-800 hover:border-rose-900/60 hover:bg-rose-950/20"
+                title="Vaciar catálogo para empezar de cero"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                <span className="hidden sm:inline">Vaciar</span>
+              </Button>
+            )}
+          </div>
+        }
+      />
+
+      {/* Banner de Estado de Conexión / Reglas de Firebase si hay error */}
       {firestoreError && (
-        <div className="bg-amber-950/30 border border-amber-500/40 p-3.5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+        <div className="bg-amber-950/30 border border-amber-500/40 p-3.5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-md">
           <div className="flex items-start gap-2.5 text-amber-200">
             <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
             <div>
               <p className="font-bold text-white">Modo Local Activo (Firebase requiere configurar Reglas)</p>
               <p className="text-zinc-400 text-[11px] mt-0.5">
-                Tus productos se guardan de forma segura en este navegador. Para que aparezcan en tu consola de Firebase en la nube, debes habilitar las Reglas de Firestore.
+                Tus productos se guardan de forma segura en este navegador. Para sincronizarlos con la nube, configura las Reglas de Firestore.
               </p>
             </div>
           </div>
@@ -718,7 +817,7 @@ export default function CatalogView() {
               onClick={() => setIsRulesModalOpen(true)}
               className="text-xs border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
             >
-              Ver Solución de Reglas
+              Ver Solución
             </Button>
             <Button
               type="button"
@@ -739,7 +838,7 @@ export default function CatalogView() {
                     msg: 'Aún sin permisos en Firebase. Revisa las reglas en Firebase Console.',
                   });
                 }
-                setTimeout(() => setStatusToast(null), 5000);
+                setTimeout(() => setStatusToast(null), 4000);
               }}
               className="text-xs bg-amber-500 hover:bg-amber-400 text-black font-bold"
             >
@@ -749,1084 +848,887 @@ export default function CatalogView() {
         </div>
       )}
 
-      {/* Barra de Sub-Navegación y Acciones del Catálogo */}
-      <div className="bg-[var(--color-porkos-surface)] p-2.5 sm:p-3 rounded-2xl border border-[var(--color-porkos-border)] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
-        {/* 5 Pestañas del Catálogo */}
-        <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-zinc-800 text-xs font-bold overflow-x-auto scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setActiveTab('products')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'products'
-                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <UtensilsCrossed className="w-3.5 h-3.5" />
-            <span>Productos ({products.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('categories')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'categories'
-                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Tag className="w-3.5 h-3.5" />
-            <span>Categorías ({categories.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('creams')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'creams'
-                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Cremas ({creams.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('extras')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'extras'
-                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Extras ({extras.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('packagings')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'packagings'
-                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Package className="w-3.5 h-3.5" />
-            <span>Empaques ({packagings.length})</span>
-          </button>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 justify-end">
-          {activeTab === 'products' && (
-            <Button
-              onClick={handleOpenNewProduct}
-              icon={Plus}
-              size="sm"
-              className="text-xs font-bold shrink-0"
-            >
-              Nuevo Producto
-            </Button>
-          )}
-
-          {activeTab === 'categories' && (
-            <Button
-              onClick={handleOpenNewCategory}
-              icon={Plus}
-              size="sm"
-              className="text-xs font-bold shrink-0"
-            >
-              Nueva Categoría
-            </Button>
-          )}
-
-          {activeTab === 'creams' && (
-            <Button
-              onClick={handleOpenNewCream}
-              icon={Plus}
-              size="sm"
-              className="text-xs font-bold shrink-0"
-            >
-              Nueva Crema
-            </Button>
-          )}
-
-          {activeTab === 'extras' && (
-            <Button
-              onClick={handleOpenNewExtra}
-              icon={Plus}
-              size="sm"
-              className="text-xs font-bold shrink-0"
-            >
-              Nuevo Extra
-            </Button>
-          )}
-
-          {activeTab === 'packagings' && (
-            <Button
-              onClick={handleOpenNewPackaging}
-              icon={Plus}
-              size="sm"
-              className="text-xs font-bold shrink-0"
-            >
-              Nuevo Empaque
-            </Button>
-          )}
-
-          {/* Botón para vaciar catálogo demo y empezar 100% de cero */}
-          {(products.length > 0 || creams.length > 0 || extras.length > 0 || packagings.length > 0) && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsClearConfirmOpen(true)}
-              className="text-zinc-500 hover:text-rose-400 border border-zinc-800 hover:border-rose-900/40 text-xs shrink-0"
-              title="Vaciar catálogo para empezar 100% de cero"
-            >
-              <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-500" />
-              Vaciar Catálogo
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Estado de carga inicial desde Firestore */}
-      {isLoadingCatalog ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-zinc-500">
-          <Loader2 className="w-8 h-8 text-[var(--color-porkos-orange)] animate-spin" />
-          <span className="text-xs font-bold uppercase tracking-wider">Cargando catálogo en tiempo real...</span>
-        </div>
-      ) : (
-        <>
-          {/* ============================================================== */}
-          {/* --- TAB 1: PRODUCTOS --- */}
-          {/* ============================================================== */}
-      {activeTab === 'products' && (
-        <>
-          {/* Banner de optimización y capacidad de almacenamiento de fotos */}
-          <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-black border border-zinc-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs shadow-md">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="text-zinc-200 font-bold">Optimización de Imágenes:</span>
-              <span className="text-emerald-400 font-mono font-black text-sm">
-                {catalogStorageStats.totalFormatted}
-              </span>
-              <span className="text-zinc-400 text-[11px]">
-                ({catalogStorageStats.countWithImages} fotos optimizadas WebP • ~{catalogStorageStats.averageFormatted} c/u)
-              </span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <div className="text-[11px] text-zinc-400">
-                Cuota Firebase: <span className="text-white font-mono font-bold">{catalogStorageStats.capacityPercent}%</span> de 5 GB
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setIsStorageModalOpen(true)}
-                className="text-xs border-zinc-700 text-zinc-300 hover:text-white"
-              >
-                ⚙️ Configurar Storage
-              </Button>
-            </div>
-          </div>
-
-          {/* Barra de búsqueda de productos */}
-          {products.length > 0 && (
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-3 shadow-sm">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={productSearchQuery}
-                  onChange={(e) => setProductSearchQuery(e.target.value)}
-                  placeholder="Buscar producto por nombre, tipo o categoría..."
-                  className="w-full bg-zinc-900/90 border border-zinc-800 focus:border-[var(--color-porkos-orange)] rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-white placeholder-zinc-500 font-semibold focus:outline-none transition-colors"
-                />
-                {productSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setProductSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white p-0.5 rounded cursor-pointer"
-                    title="Limpiar búsqueda"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 text-xs text-zinc-400 shrink-0 self-end sm:self-center font-semibold">
-                <span>
-                  Mostrando <strong className="text-white">{filteredProducts.length}</strong> de {products.length} productos
-                </span>
-              </div>
-            </div>
-          )}
-
-          {products.length === 0 ? (
-            <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto space-y-3.5 my-6">
-              <div className="w-14 h-14 rounded-2xl bg-orange-500/10 text-[var(--color-porkos-orange)] border border-orange-500/20 flex items-center justify-center">
-                <UtensilsCrossed className="w-7 h-7" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-base font-bold text-white">No tienes productos creados aún</h3>
-                <p className="text-xs text-zinc-400">
-                  Crea tu primer plato o bebida con su fotografía real, precio y opciones de papas, ensalada o cremas.
-                </p>
-              </div>
-              <Button type="button" onClick={handleOpenNewProduct} icon={Plus}>
-                Crear Primer Producto
-              </Button>
-            </div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-8 text-center flex flex-col items-center justify-center max-w-md mx-auto space-y-3 my-6">
-              <div className="w-12 h-12 rounded-2xl bg-zinc-800 text-zinc-400 flex items-center justify-center">
-                <Search className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-sm font-bold text-white">No se encontraron productos</h4>
-                <p className="text-xs text-zinc-400">
-                  No hay productos que coincidan con &ldquo;<strong className="text-zinc-200">{productSearchQuery}</strong>&rdquo;
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setProductSearchQuery('')}
-                className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 cursor-pointer"
-              >
-                Limpiar búsqueda
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredProducts.map((p) => {
-                const allowedPackagingsCount = p.availablePackagingIds?.length || 0;
-
+      {/* Sub-Navegación por Pestañas */}
+      <div className="bg-[var(--color-porkos-surface)] p-2 rounded-2xl border border-[var(--color-porkos-border)] flex items-center justify-between gap-2 shadow-sm overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+          {[
+            { id: 'products', label: 'Productos', count: products.length, icon: UtensilsCrossed },
+            { id: 'categories', label: 'Categorías', count: categories.length, icon: Tag },
+            { id: 'creams', label: 'Cremas', count: creams.length, icon: Sparkles },
+            { id: 'extras', label: 'Extras', count: extras.length, icon: Plus },
+            { id: 'packagings', label: 'Empaques', count: packagings.length, icon: Package },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isSelected = activeTab === tab.id;
             return (
-              <div
-                key={p.id}
-                className={`
-                  bg-[var(--color-porkos-surface)] border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all
-                  ${p.active ? 'border-[var(--color-porkos-border)]' : 'border-zinc-800/40 opacity-60'}
-                `}
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  isSelected
+                    ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-md shadow-orange-500/15'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+                }`}
               >
-                {/* Product Info */}
-                <div className="flex gap-3 items-start">
-                  <ProductThumbnail
-                    src={p.image}
-                    thumbnailUrl={p.thumbnailUrl}
-                    name={p.name}
-                    isBeverage={isProductBeverage(p)}
-                    isDessert={isProductDessert(p, categories)}
-                    className="w-16 h-16"
-                    iconSize="w-7 h-7"
-                  />
-
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-sm text-white truncate">
-                      {p.name}
-                    </h4>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-sm text-[var(--color-porkos-orange)] font-extrabold">
-                        {formatCurrency(p.price)}
-                      </span>
-                      {p.imageMetadata?.sizeBytes && (
-                        <span className="text-[10px] text-zinc-400 font-mono bg-black/40 px-1.5 py-0.2 rounded border border-zinc-800">
-                          {formatBytes(p.imageMetadata.sizeBytes)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-1 text-[10px]">
-                      <span className="bg-zinc-800 text-zinc-300 px-1.5 py-0.2 rounded font-bold uppercase">
-                        {p.type}
-                      </span>
-                      {p.type === 'MARKET' ? (
-                        <>
-                          {isProductDessert(p, categories) && (
-                            <span className="bg-pink-500/10 text-pink-400 border border-pink-500/20 px-1.5 py-0.2 rounded font-bold">
-                              🍰 Market Postre
-                            </span>
-                          )}
-                          {isProductBeverage(p) && (
-                            <span className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.2 rounded font-bold">
-                              🥤 Market Bebida
-                            </span>
-                          )}
-                          {isProductSnack(p) && !isProductDessert(p, categories) && !isProductBeverage(p) && (
-                            <span className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-1.5 py-0.2 rounded font-bold">
-                              🍪 Market Snack
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          {isProductDessert(p, categories) && (
-                            <span className="bg-pink-500/10 text-pink-400 border border-pink-500/20 px-1.5 py-0.2 rounded font-bold">
-                              🍰 Postre
-                            </span>
-                          )}
-                          {isProductBeverage(p) && (
-                            <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.2 rounded font-bold">
-                              {p.isJuice ? '🍹 Jugo' : '🥤 Bebida'}
-                            </span>
-                          )}
-                        </>
-                      )}
-                      {p.requiresKitchen && (
-                        <span className="bg-orange-500/10 text-orange-400 px-1.5 py-0.2 rounded font-bold">
-                          Cocina
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Badges of dynamic options */}
-                <div className="flex flex-wrap gap-1 text-[10px] text-zinc-400 pt-1 border-t border-zinc-800/80">
-                  {p.modifiers?.some((m) => m.id === 'mod_papas') && (
-                    <span className="bg-black/50 px-2 py-0.5 rounded border border-zinc-800">
-                      🍟 Papas Fritas/Hilo
-                    </span>
-                  )}
-                  {p.saladConfig?.enabled && (
-                    <span className="bg-black/50 px-2 py-0.5 rounded border border-zinc-800">
-                      🥗 Ensalada
-                    </span>
-                  )}
-                  {p.temperatureConfig?.enabled && (
-                    <span className="bg-black/50 px-2 py-0.5 rounded border border-zinc-800">
-                      ❄️ Helada/Sin Helar
-                    </span>
-                  )}
-                  {p.creamsConfig?.enabled && (
-                    <span className="bg-black/50 px-2 py-0.5 rounded border border-zinc-800">
-                      🥫 {p.creamsConfig.availableCreamIds?.length || 0} cremas
-                    </span>
-                  )}
-                  {allowedPackagingsCount > 0 && (
-                    <span className="bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded border border-blue-500/20 font-bold flex items-center gap-1">
-                      <Package className="w-3 h-3" />
-                      {allowedPackagingsCount} empaque{allowedPackagingsCount > 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
-
-                {/* Action Buttons: Edit, Toggle, Delete */}
-                <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80">
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditProduct(p)}
-                      className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer"
-                      title="Editar producto"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm(`¿Seguro que deseas eliminar "${p.name}"?`)) {
-                          if (p.imageMetadata || p.image) {
-                            deleteProductImageFromStorage(p.imageMetadata || p.image).catch(() => {});
-                          }
-                          deleteProduct(p.id);
-                        }
-                      }}
-                      className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/40 text-rose-400 transition-colors cursor-pointer"
-                      title="Eliminar producto"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Active switch */}
-                  <button
-                    type="button"
-                    onClick={() => toggleProductActive(p.id)}
-                    className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
-                      p.active ? 'bg-emerald-500' : 'bg-zinc-700'
-                    }`}
-                    title={p.active ? 'Desactivar producto' : 'Activar producto'}
-                  >
-                    <div
-                      className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
-                        p.active ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
+                <Icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                  isSelected ? 'bg-black/20 text-black' : 'bg-black/40 text-zinc-400'
+                }`}>
+                  {tab.count}
+                </span>
+              </button>
             );
           })}
         </div>
-        )}
-      </>
-      )}
+      </div>
 
-      {/* ============================================================== */}
-      {/* --- TAB: CATEGORÍAS CONFIGURABLES --- */}
-      {/* ============================================================== */}
-      {activeTab === 'categories' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {categories.map((cat) => {
-              const assignedProductsCount = products.filter((p) => p.categoryId === cat.id).length;
-              return (
-                <div
-                  key={cat.id}
-                  className={`bg-[var(--color-porkos-surface)] border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all ${
-                    cat.active ? 'border-[var(--color-porkos-border)]' : 'border-zinc-800/40 opacity-60'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Tag className="w-4 h-4 text-[var(--color-porkos-orange)] shrink-0" />
-                        <h4 className="font-extrabold text-sm text-white truncate">{cat.name}</h4>
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-1.5 text-[10px]">
-                        <span className={`px-2 py-0.5 rounded font-bold uppercase ${
-                          cat.type === 'MARKET' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
-                        }`}>
-                          {cat.type}
-                        </span>
-                        <span className="text-zinc-500 font-semibold">
-                          {assignedProductsCount} plato{assignedProductsCount === 1 ? '' : 's'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditCategory(cat)}
-                        className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer"
-                        title="Editar categoría"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm(`¿Eliminar la categoría "${cat.name}"?`)) {
-                            deleteCategory(cat.id);
-                          }
-                        }}
-                        className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/40 text-rose-400 transition-colors cursor-pointer"
-                        title="Eliminar categoría"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => toggleCategoryActive(cat.id)}
-                      className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
-                        cat.active ? 'bg-emerald-500' : 'bg-zinc-700'
-                      }`}
-                      title={cat.active ? 'Desactivar categoría' : 'Activar categoría'}
-                    >
-                      <div
-                        className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
-                          cat.active ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================== */}
-      {/* --- TAB 2: CREMAS CONFIGURABLES --- */}
-      {/* ============================================================== */}
-      {activeTab === 'creams' && (
+      {/* Contenido según Pestaña Activa */}
+      {isLoadingCatalog ? (
+        <LoadingState message="Cargando catálogo en tiempo real..." />
+      ) : (
         <>
-          {creams.length === 0 ? (
-            <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto space-y-3.5 my-6">
-              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center">
-                <Sparkles className="w-7 h-7" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-base font-bold text-white">No tienes cremas registradas</h3>
-                <p className="text-xs text-zinc-400">
-                  Agrega salsas caseras como Mayonesa, Ají PORKOS, Tártara con su abreviatura (MAYO, AJÍ) para selección táctil rápida en caja.
-                </p>
-              </div>
-              <Button type="button" onClick={handleOpenNewCream} icon={Plus}>
-                Agregar Nueva Crema
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {creams.map((c) => (
-            <div
-              key={c.id}
-              className={`
-                bg-[var(--color-porkos-surface)] border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all
-                ${c.active ? 'border-[var(--color-porkos-border)]' : 'border-zinc-800/40 opacity-60'}
-              `}
-            >
-              <div className="flex items-center gap-3">
-                <span
-                  className="w-8 h-8 rounded-xl border border-white/20 shadow-md shrink-0 flex items-center justify-center"
-                  style={{ backgroundColor: c.color }}
-                />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-black text-base text-[var(--color-porkos-orange)] tracking-wider">
-                      {c.shortName || c.name.slice(0, 4).toUpperCase()}
-                    </span>
-                    <span className="text-xs font-semibold text-zinc-400 truncate">({c.name})</span>
+          {/* TAB 1: PRODUCTOS */}
+          {activeTab === 'products' && (
+            <div className="space-y-4">
+              {/* Banner de Almacenamiento & Cuota WebP */}
+              <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                    <HardDrive className="w-4 h-4" />
                   </div>
-                  <span className={`text-[10px] font-bold ${c.active ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                    {c.active ? 'Activa' : 'Desactivada'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Botones de crema */}
-              <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditCream(c)}
-                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer"
-                    title="Editar crema"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm(`¿Eliminar la crema "${c.name}"?`)) {
-                        deleteCream(c.id);
-                      }
-                    }}
-                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/40 text-rose-400 transition-colors cursor-pointer"
-                    title="Eliminar crema"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => toggleCreamActive(c.id)}
-                  className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
-                    c.active ? 'bg-emerald-500' : 'bg-zinc-700'
-                  }`}
-                  title={c.active ? 'Desactivar crema' : 'Activar crema'}
-                >
-                  <div
-                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
-                      c.active ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        )}
-      </>
-      )}
-
-      {/* ============================================================== */}
-      {/* --- TAB 3: EXTRAS CONFIGURABLES --- */}
-      {/* ============================================================== */}
-      {activeTab === 'extras' && (
-        <>
-          {extras.length === 0 ? (
-            <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto space-y-3.5 my-6">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
-                <Plus className="w-7 h-7" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-base font-bold text-white">No tienes adicionales registrados</h3>
-                <p className="text-xs text-zinc-400">
-                  Agrega adicionales como Extra Queso Cheddar, Extra Huevo, Porción de Papas para sumarlos a tus platos en comanda.
-                </p>
-              </div>
-              <Button type="button" onClick={handleOpenNewExtra} icon={Plus}>
-                Agregar Nuevo Extra
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {extras.map((ext) => (
-            <div
-              key={ext.id}
-              className={`
-                bg-[var(--color-porkos-surface)] border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all
-                ${ext.active ? 'border-[var(--color-porkos-border)]' : 'border-zinc-800/40 opacity-60'}
-              `}
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <h4 className="font-extrabold text-sm text-white">
-                    {ext.name}
-                  </h4>
-                  <span className="text-sm font-black text-emerald-400 shrink-0">
-                    +{formatCurrency(ext.price)}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1 mt-2 text-[10px]">
-                  {(ext.compatibleCategories || []).map((catId) => {
-                    const normalizedId =
-                      catId === 'cat_burgers' || catId === 'cat_salchipapas' || catId === 'cat_choripanes' || catId === 'cat_clasico' || catId === 'cat_artesanal'
-                        ? 'cat_comida'
-                        : catId;
-                    const cat = categories.find((c) => c.id === normalizedId);
-                    const label =
-                      cat?.name ||
-                      (normalizedId === 'cat_comida'
-                        ? 'Comida'
-                        : normalizedId === 'cat_bebidas'
-                        ? 'Bebidas'
-                        : 'Market');
-                    return (
-                      <span key={catId} className="bg-zinc-800/80 text-zinc-300 px-2 py-0.5 rounded border border-zinc-700/60 font-semibold">
-                        {label}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-white">Almacenamiento WebP:</span>
+                      <span className="font-mono font-black text-emerald-400">
+                        {catalogStorageStats.totalFormatted}
                       </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">
+                      {catalogStorageStats.countWithImages} fotos optimizadas • ~{catalogStorageStats.averageFormatted} c/u
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 self-end sm:self-center">
+                  <span className="text-[11px] text-zinc-400">
+                    Cuota: <strong className="text-white font-mono">{catalogStorageStats.capacityPercent}%</strong> de 5 GB
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsStorageModalOpen(true)}
+                    className="text-xs border-zinc-700 text-zinc-300 hover:text-white"
+                  >
+                    ⚙️ Storage
+                  </Button>
+                </div>
+              </div>
+
+              {/* Barra de Búsqueda de Productos */}
+              {products.length > 0 && (
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="flex-1">
+                    <SearchInput
+                      value={productSearchQuery}
+                      onChange={setProductSearchQuery}
+                      placeholder="Buscar plato por nombre, descripción o categoría..."
+                    />
+                  </div>
+                  <div className="text-xs text-zinc-400 font-semibold shrink-0 self-end sm:self-center">
+                    Mostrando <strong className="text-white">{filteredProducts.length}</strong> de {products.length} platos
+                  </div>
+                </div>
+              )}
+
+              {/* Listado de Productos */}
+              {products.length === 0 ? (
+                <EmptyState
+                  icon={UtensilsCrossed}
+                  title="No tienes productos creados aún"
+                  description="Crea tu primer plato o bebida con su fotografía real, precio y opciones gastronómicas."
+                  actionLabel="Crear Primer Producto"
+                  onAction={handleOpenNewProduct}
+                />
+              ) : filteredProducts.length === 0 ? (
+                <EmptyState
+                  title="Sin resultados de búsqueda"
+                  description={`No se encontraron productos que coincidan con "${productSearchQuery}"`}
+                  actionLabel="Limpiar búsqueda"
+                  onAction={() => setProductSearchQuery('')}
+                />
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {filteredProducts.map((p) => {
+                    const allowedPackagingsCount = p.availablePackagingIds?.length || 0;
+
+                    return (
+                      <div
+                        key={p.id}
+                        className={`
+                          bg-[var(--color-porkos-surface)] border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all hover:border-zinc-700
+                          ${p.active ? 'border-[var(--color-porkos-border)]' : 'border-zinc-800/40 opacity-60'}
+                        `}
+                      >
+                        {/* Info de Producto */}
+                        <div className="flex gap-3 items-start">
+                          <ProductThumbnail
+                            src={p.image}
+                            thumbnailUrl={p.thumbnailUrl}
+                            name={p.name}
+                            isBeverage={isProductBeverage(p)}
+                            isDessert={isProductDessert(p, categories)}
+                            className="w-16 h-16 rounded-xl shrink-0"
+                            iconSize="w-7 h-7"
+                          />
+
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-extrabold text-sm text-white truncate">
+                              {p.name}
+                            </h4>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-sm font-black text-[var(--color-porkos-orange)]">
+                                {formatCurrency(p.price)}
+                              </span>
+                              {p.cost > 0 && (
+                                <span className="text-[10px] text-zinc-500 font-mono">
+                                  Costo: {formatCurrency(p.cost)}
+                                </span>
+                              )}
+                              {p.imageMetadata?.sizeBytes && (
+                                <span className="text-[10px] text-zinc-400 font-mono bg-black/40 px-1.5 py-0.2 rounded border border-zinc-800">
+                                  {formatBytes(p.imageMetadata.sizeBytes)}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-1 mt-1 text-[10px]">
+                              <span className="bg-zinc-800 text-zinc-300 px-1.5 py-0.2 rounded font-bold uppercase">
+                                {p.type}
+                              </span>
+                              {p.type === 'MARKET' ? (
+                                <>
+                                  {isProductDessert(p, categories) && (
+                                    <span className="bg-pink-500/10 text-pink-400 border border-pink-500/20 px-1.5 py-0.2 rounded font-bold">
+                                      🍰 Postre
+                                    </span>
+                                  )}
+                                  {isProductBeverage(p) && (
+                                    <span className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.2 rounded font-bold">
+                                      🥤 Bebida
+                                    </span>
+                                  )}
+                                  {isProductSnack(p) && !isProductDessert(p, categories) && !isProductBeverage(p) && (
+                                    <span className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-1.5 py-0.2 rounded font-bold">
+                                      🍪 Snack
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  {isProductDessert(p, categories) && (
+                                    <span className="bg-pink-500/10 text-pink-400 border border-pink-500/20 px-1.5 py-0.2 rounded font-bold">
+                                      🍰 Postre
+                                    </span>
+                                  )}
+                                  {isProductBeverage(p) && (
+                                    <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.2 rounded font-bold">
+                                      {p.isJuice ? '🍹 Jugo' : '🥤 Bebida'}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                              {p.requiresKitchen && (
+                                <span className="bg-orange-500/10 text-orange-400 border border-orange-500/20 px-1.5 py-0.2 rounded font-bold">
+                                  Cocina
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Modificadores dinámicos */}
+                        <div className="flex flex-wrap gap-1 text-[10px] text-zinc-400 pt-2 border-t border-zinc-800/80">
+                          {p.modifiers?.some((m) => m.id === 'mod_papas') && (
+                            <span className="bg-black/50 px-2 py-0.5 rounded border border-zinc-800">
+                              🍟 Papas
+                            </span>
+                          )}
+                          {p.saladConfig?.enabled && (
+                            <span className="bg-black/50 px-2 py-0.5 rounded border border-zinc-800">
+                              🥗 Ensalada
+                            </span>
+                          )}
+                          {p.temperatureConfig?.enabled && (
+                            <span className="bg-black/50 px-2 py-0.5 rounded border border-zinc-800">
+                              ❄️ Helada
+                            </span>
+                          )}
+                          {p.creamsConfig?.enabled && (
+                            <span className="bg-black/50 px-2 py-0.5 rounded border border-zinc-800">
+                              🥫 {p.creamsConfig.availableCreamIds?.length || 0} cremas
+                            </span>
+                          )}
+                          {allowedPackagingsCount > 0 && (
+                            <span className="bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded border border-blue-500/20 font-bold flex items-center gap-1">
+                              <Package className="w-3 h-3" />
+                              {allowedPackagingsCount} empaque{allowedPackagingsCount > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Botones de acción */}
+                        <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditProduct(p)}
+                              className="p-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer active:scale-95 touch-manipulation"
+                              title="Editar plato"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setItemToDelete({ type: 'product', data: p })}
+                              className="p-2 rounded-xl bg-zinc-800/80 hover:bg-rose-950/40 text-rose-400 hover:border-rose-500/40 transition-colors cursor-pointer active:scale-95 touch-manipulation"
+                              title="Eliminar plato"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Toggle Switch */}
+                          <button
+                            type="button"
+                            onClick={() => toggleProductActive(p.id)}
+                            className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
+                              p.active ? 'bg-emerald-500' : 'bg-zinc-700'
+                            }`}
+                            title={p.active ? 'Desactivar plato' : 'Activar plato'}
+                          >
+                            <div
+                              className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                                p.active ? 'translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
-              </div>
-
-              {/* Botones de extra */}
-              <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditExtra(ext)}
-                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer"
-                    title="Editar extra"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm(`¿Eliminar el extra "${ext.name}"?`)) {
-                        deleteExtra(ext.id);
-                      }
-                    }}
-                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/40 text-rose-400 transition-colors cursor-pointer"
-                    title="Eliminar extra"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => toggleExtraActive(ext.id)}
-                  className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
-                    ext.active ? 'bg-emerald-500' : 'bg-zinc-700'
-                  }`}
-                  title={ext.active ? 'Desactivar extra' : 'Activar extra'}
-                >
-                  <div
-                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
-                      ext.active ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
+              )}
             </div>
-          ))}
-        </div>
-        )}
-      </>
-      )}
+          )}
 
-      {/* ============================================================== */}
-      {/* --- TAB 4: PACKAGING / EMPAQUES (ASOCIADOS A PRODUCTOS) --- */}
-      {/* ============================================================== */}
-      {activeTab === 'packagings' && (
-        <div className="space-y-4">
-          {packagings.length === 0 ? (
-            <div className="bg-[var(--color-porkos-surface)] border border-dashed border-zinc-800 rounded-2xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto space-y-3.5 my-6">
-              <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center">
-                <Package className="w-7 h-7" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-base font-bold text-white">No tienes empaques registrados</h3>
-                <p className="text-xs text-zinc-400">
-                  Crea empaques como Bolsa Kraft o Taper Térmico y asócialos a tus hamburguesas o salchipapas para pedidos Para Llevar o Delivery.
-                </p>
-              </div>
-              <Button type="button" onClick={handleOpenNewPackaging} icon={Plus}>
-                Agregar Nuevo Empaque
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {packagings.map((pkg) => {
-              // Calcular qué productos tienen este empaque asociado
-              const associatedProducts = products.filter(
-                (p) =>
-                  pkg.applicableProductIds?.includes(p.id) ||
-                  p.availablePackagingIds?.includes(pkg.id)
-              );
-
-              const isDefaultOption = pkg.id === 'pkg_ninguno';
-
-              return (
-                <div
-                  key={pkg.id}
-                  className={`
-                    bg-[var(--color-porkos-surface)] border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all
-                    ${pkg.active ? 'border-[var(--color-porkos-border)]' : 'border-zinc-800/40 opacity-60'}
-                  `}
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Package className="w-4 h-4 text-blue-400 shrink-0" />
-                        <h4 className="font-extrabold text-sm text-white">
-                          {pkg.name}
-                        </h4>
-                      </div>
-                      <span className="text-sm font-black text-white shrink-0">
-                        {pkg.price > 0 ? `+${formatCurrency(pkg.price)}` : 'Gratis'}
-                      </span>
-                    </div>
-
-                    {/* Productos Asociados */}
-                    <div className="mt-3 pt-2.5 border-t border-zinc-800 space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-zinc-400">
-                          {isDefaultOption ? 'Aplica a:' : 'Productos asociados:'}
-                        </span>
-                        <span className="bg-zinc-800 text-zinc-300 font-extrabold px-2 py-0.5 rounded-md text-[10px]">
-                          {isDefaultOption ? 'Todos' : `${associatedProducts.length} producto${associatedProducts.length === 1 ? '' : 's'}`}
-                        </span>
-                      </div>
-
-                      {!isDefaultOption && (
-                        <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
-                          {associatedProducts.length === 0 ? (
-                            <span className="text-[11px] text-zinc-500 italic">
-                              Sin productos asignados (no aparecerá en comandas)
+          {/* TAB 2: CATEGORÍAS */}
+          {activeTab === 'categories' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+                {categories.map((cat) => {
+                  const assignedProductsCount = products.filter((p) => p.categoryId === cat.id).length;
+                  return (
+                    <div
+                      key={cat.id}
+                      className={`bg-[var(--color-porkos-surface)] border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all hover:border-zinc-700 ${
+                        cat.active ? 'border-[var(--color-porkos-border)]' : 'border-zinc-800/40 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-[var(--color-porkos-orange)] shrink-0" />
+                            <h4 className="font-extrabold text-sm text-white truncate">{cat.name}</h4>
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1.5 text-[10px]">
+                            <span className={`px-2 py-0.5 rounded font-bold uppercase ${
+                              cat.type === 'MARKET'
+                                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                            }`}>
+                              {cat.type}
                             </span>
-                          ) : (
-                            associatedProducts.map((p) => (
-                              <span
-                                key={p.id}
-                                className="bg-black/60 text-zinc-300 text-[10px] font-semibold px-2 py-0.5 rounded border border-zinc-800"
-                              >
-                                {p.name}
-                              </span>
-                            ))
-                          )}
+                            <span className="text-zinc-400 font-semibold">
+                              {assignedProductsCount} plato{assignedProductsCount === 1 ? '' : 's'}
+                            </span>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
+                      </div>
 
-                  {/* Botones de acción */}
-                  <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditPackaging(pkg)}
-                        className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer"
-                        title="Editar empaque y productos asociados"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditCategory(cat)}
+                            className="p-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer active:scale-95 touch-manipulation"
+                            title="Editar categoría"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setItemToDelete({ type: 'category', data: cat })}
+                            className="p-2 rounded-xl bg-zinc-800/80 hover:bg-rose-950/40 text-rose-400 transition-colors cursor-pointer active:scale-95 touch-manipulation"
+                            title="Eliminar categoría"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
 
-                      {!isDefaultOption && (
                         <button
                           type="button"
-                          onClick={() => {
-                            if (confirm(`¿Eliminar el empaque "${pkg.name}"?`)) {
-                              deletePackaging(pkg.id);
-                            }
-                          }}
-                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/40 text-rose-400 transition-colors cursor-pointer"
-                          title="Eliminar empaque"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-
-                    {!isDefaultOption && (
-                      <button
-                        type="button"
-                        onClick={() => togglePackagingActive(pkg.id)}
-                        className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
-                          pkg.active ? 'bg-emerald-500' : 'bg-zinc-700'
-                        }`}
-                        title={pkg.active ? 'Desactivar empaque' : 'Activar empaque'}
-                      >
-                        <div
-                          className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
-                            pkg.active ? 'translate-x-5' : 'translate-x-0'
+                          onClick={() => toggleCategoryActive(cat.id)}
+                          className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
+                            cat.active ? 'bg-emerald-500' : 'bg-zinc-700'
                           }`}
-                        />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                          title={cat.active ? 'Desactivar categoría' : 'Activar categoría'}
+                        >
+                          <div
+                            className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                              cat.active ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
-        </div>
-      )}
-      </>
+
+          {/* TAB 3: CREMAS */}
+          {activeTab === 'creams' && (
+            <div className="space-y-4">
+              {creams.length === 0 ? (
+                <EmptyState
+                  icon={Sparkles}
+                  title="No tienes cremas registradas"
+                  description="Agrega salsas caseras como Mayonesa, Ají PORKOS, Tártara con su abreviatura táctil (MAYO, AJÍ) para comandas."
+                  actionLabel="Agregar Nueva Crema"
+                  onAction={handleOpenNewCream}
+                />
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+                  {creams.map((c) => (
+                    <div
+                      key={c.id}
+                      className={`
+                        bg-[var(--color-porkos-surface)] border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all hover:border-zinc-700
+                        ${c.active ? 'border-[var(--color-porkos-border)]' : 'border-zinc-800/40 opacity-60'}
+                      `}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="w-9 h-9 rounded-xl border border-white/20 shadow-md shrink-0 flex items-center justify-center"
+                          style={{ backgroundColor: c.color }}
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-black text-sm text-[var(--color-porkos-orange)] tracking-wider">
+                              {c.shortName || c.name.slice(0, 4).toUpperCase()}
+                            </span>
+                            <span className="text-xs font-semibold text-zinc-300 truncate">({c.name})</span>
+                          </div>
+                          <span className={`text-[10px] font-bold ${c.active ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                            {c.active ? 'Activa' : 'Desactivada'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditCream(c)}
+                            className="p-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer active:scale-95 touch-manipulation"
+                            title="Editar crema"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setItemToDelete({ type: 'cream', data: c })}
+                            className="p-2 rounded-xl bg-zinc-800/80 hover:bg-rose-950/40 text-rose-400 transition-colors cursor-pointer active:scale-95 touch-manipulation"
+                            title="Eliminar crema"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleCreamActive(c.id)}
+                          className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
+                            c.active ? 'bg-emerald-500' : 'bg-zinc-700'
+                          }`}
+                          title={c.active ? 'Desactivar crema' : 'Activar crema'}
+                        >
+                          <div
+                            className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                              c.active ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: EXTRAS */}
+          {activeTab === 'extras' && (
+            <div className="space-y-4">
+              {extras.length === 0 ? (
+                <EmptyState
+                  icon={Plus}
+                  title="No tienes adicionales registrados"
+                  description="Agrega adicionales como Extra Queso Cheddar, Extra Huevo o Porción de Papas."
+                  actionLabel="Agregar Nuevo Extra"
+                  onAction={handleOpenNewExtra}
+                />
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+                  {extras.map((ext) => (
+                    <div
+                      key={ext.id}
+                      className={`
+                        bg-[var(--color-porkos-surface)] border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all hover:border-zinc-700
+                        ${ext.active ? 'border-[var(--color-porkos-border)]' : 'border-zinc-800/40 opacity-60'}
+                      `}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-extrabold text-sm text-white">
+                            {ext.name}
+                          </h4>
+                          <span className="text-sm font-black text-emerald-400 shrink-0">
+                            +{formatCurrency(ext.price)}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-2 text-[10px]">
+                          {(ext.compatibleCategories || []).map((catId) => {
+                            const normalizedId =
+                              catId === 'cat_burgers' || catId === 'cat_salchipapas' || catId === 'cat_choripanes' || catId === 'cat_clasico' || catId === 'cat_artesanal'
+                                ? 'cat_comida'
+                                : catId;
+                            const cat = categories.find((c) => c.id === normalizedId);
+                            const label =
+                              cat?.name ||
+                              (normalizedId === 'cat_comida'
+                                ? 'Comida'
+                                : normalizedId === 'cat_bebidas'
+                                ? 'Bebidas'
+                                : 'Market');
+                            return (
+                              <span key={catId} className="bg-zinc-800/80 text-zinc-300 px-2 py-0.5 rounded border border-zinc-700/60 font-semibold">
+                                {label}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditExtra(ext)}
+                            className="p-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer active:scale-95 touch-manipulation"
+                            title="Editar extra"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setItemToDelete({ type: 'extra', data: ext })}
+                            className="p-2 rounded-xl bg-zinc-800/80 hover:bg-rose-950/40 text-rose-400 transition-colors cursor-pointer active:scale-95 touch-manipulation"
+                            title="Eliminar extra"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleExtraActive(ext.id)}
+                          className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
+                            ext.active ? 'bg-emerald-500' : 'bg-zinc-700'
+                          }`}
+                          title={ext.active ? 'Desactivar extra' : 'Activar extra'}
+                        >
+                          <div
+                            className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                              ext.active ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 5: PACKAGINGS / EMPAQUES */}
+          {activeTab === 'packagings' && (
+            <div className="space-y-4">
+              {packagings.length === 0 ? (
+                <EmptyState
+                  icon={Package}
+                  title="No tienes empaques registrados"
+                  description="Crea empaques como Bolsa Kraft o Taper Térmico y asócialos a tus hamburguesas o salchipapas."
+                  actionLabel="Agregar Nuevo Empaque"
+                  onAction={handleOpenNewPackaging}
+                />
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {packagings.map((pkg) => {
+                    const associatedProducts = products.filter(
+                      (p) =>
+                        pkg.applicableProductIds?.includes(p.id) ||
+                        p.availablePackagingIds?.includes(pkg.id)
+                    );
+                    const isDefaultOption = pkg.id === 'pkg_ninguno';
+
+                    return (
+                      <div
+                        key={pkg.id}
+                        className={`
+                          bg-[var(--color-porkos-surface)] border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all hover:border-zinc-700
+                          ${pkg.active ? 'border-[var(--color-porkos-border)]' : 'border-zinc-800/40 opacity-60'}
+                        `}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Package className="w-4 h-4 text-blue-400 shrink-0" />
+                              <h4 className="font-extrabold text-sm text-white">{pkg.name}</h4>
+                            </div>
+                            <span className="text-sm font-black text-white shrink-0">
+                              {pkg.price > 0 ? `+${formatCurrency(pkg.price)}` : 'Gratis'}
+                            </span>
+                          </div>
+
+                          <div className="mt-3 pt-2.5 border-t border-zinc-800 space-y-1.5">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="font-bold text-zinc-400">
+                                {isDefaultOption ? 'Aplica a:' : 'Productos asociados:'}
+                              </span>
+                              <span className="bg-zinc-800 text-zinc-300 font-extrabold px-2 py-0.5 rounded-md text-[10px]">
+                                {isDefaultOption ? 'Todos' : `${associatedProducts.length} producto${associatedProducts.length === 1 ? '' : 's'}`}
+                              </span>
+                            </div>
+
+                            {!isDefaultOption && (
+                              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
+                                {associatedProducts.length === 0 ? (
+                                  <span className="text-[11px] text-zinc-500 italic">
+                                    Sin productos asignados
+                                  </span>
+                                ) : (
+                                  associatedProducts.map((p) => (
+                                    <span
+                                      key={p.id}
+                                      className="bg-black/60 text-zinc-300 text-[10px] font-semibold px-2 py-0.5 rounded border border-zinc-800"
+                                    >
+                                      {p.name}
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditPackaging(pkg)}
+                              className="p-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer active:scale-95 touch-manipulation"
+                              title="Editar empaque"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            {!isDefaultOption && (
+                              <button
+                                type="button"
+                                onClick={() => setItemToDelete({ type: 'packaging', data: pkg })}
+                                className="p-2 rounded-xl bg-zinc-800/80 hover:bg-rose-950/40 text-rose-400 transition-colors cursor-pointer active:scale-95 touch-manipulation"
+                                title="Eliminar empaque"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {!isDefaultOption && (
+                            <button
+                              type="button"
+                              onClick={() => togglePackagingActive(pkg.id)}
+                              className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
+                                pkg.active ? 'bg-emerald-500' : 'bg-zinc-700'
+                              }`}
+                              title={pkg.active ? 'Desactivar empaque' : 'Activar empaque'}
+                            >
+                              <div
+                                className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                                  pkg.active ? 'translate-x-5' : 'translate-x-0'
+                               }`}
+                              />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* ============================================================== */}
-      {/* --- MODAL 1: CREAR / EDITAR PRODUCTO --- */}
+      {/* MODAL 1: CREAR / EDITAR PRODUCTO                               */}
       {/* ============================================================== */}
       <Modal
         isOpen={isProductModalOpen}
         onClose={() => setIsProductModalOpen(false)}
-        title={editingProduct ? `Editar: ${editingProduct.name}` : 'Nuevo Producto'}
-        subtitle="Configura nombre, precio, opciones y empaques asociados"
+        title={editingProduct ? `Editar: ${editingProduct.name}` : 'Nuevo Plato o Bebida'}
+        subtitle="Configura nombre, precio, categoría, fotografía y empaques"
         maxWidth="max-w-2xl"
       >
         <form onSubmit={handleSaveProduct} className="space-y-4 text-xs sm:text-sm">
-          {/* Nombre del Producto */}
-          <div>
-            <label className="block text-zinc-300 font-bold mb-1">Nombre del Producto *</label>
-            <input
-              type="text"
-              required
-              value={prodName}
-              onChange={(e) => setProdName(e.target.value)}
-              placeholder="Ej. Hamburguesa Parrillera, Inka Cola 500ml..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
-            />
-          </div>
+          {/* SECCIÓN 1: DATOS GENERALES */}
+          <div className="space-y-3 bg-black/40 p-3.5 rounded-2xl border border-zinc-800/80">
+            <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
+              1. Identificación del Plato
+            </span>
 
-          {/* Categoría Única Oficial: CLÁSICO, ARTESANAL, MARKET */}
-          <div className="bg-black/40 p-3 rounded-xl border border-zinc-800/80 space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-zinc-300 font-bold flex items-center gap-1.5 text-xs">
-                <Tag className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
-                Categoría del Producto *
-              </label>
-              <span className="text-[10px] text-zinc-500 font-medium">
-                Pestaña principal en Ventas
-              </span>
+            <div>
+              <label className="block text-zinc-300 font-bold mb-1">Nombre del Plato *</label>
+              <input
+                type="text"
+                required
+                value={prodName}
+                onChange={(e) => setProdName(e.target.value)}
+                placeholder="Ej. Hamburguesa Parrillera, Inka Cola 500ml..."
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              />
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { id: 'cat_comida', line: 'COMIDA', type: 'RESTAURANTE', label: 'COMIDA', desc: 'Hamburguesas, Papas...' },
-                { id: 'cat_bebidas', line: 'BEBIDAS', type: 'RESTAURANTE', label: 'BEBIDAS', desc: 'Jugos, Refrescos...' },
-                { id: 'cat_postres', line: 'POSTRES', type: 'RESTAURANTE', label: 'POSTRES', desc: 'Tortas, Helados...' },
-                { id: 'cat_market', line: 'MARKET', type: 'MARKET', label: 'MARKET', desc: 'Snacks, Golosinas...' },
-              ].map((opt) => {
-                const isSelected = prodCategory === opt.id;
-                return (
+            {/* Categoría Selector */}
+            <div>
+              <label className="block text-zinc-300 font-bold mb-1.5">Categoría Comercial *</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'cat_comida', line: 'COMIDA', type: 'RESTAURANTE', label: 'COMIDA', desc: 'Hamburguesas, Papas' },
+                  { id: 'cat_bebidas', line: 'BEBIDAS', type: 'RESTAURANTE', label: 'BEBIDAS', desc: 'Jugos, Refrescos' },
+                  { id: 'cat_postres', line: 'POSTRES', type: 'RESTAURANTE', label: 'POSTRES', desc: 'Tortas, Helados' },
+                  { id: 'cat_market', line: 'MARKET', type: 'MARKET', label: 'MARKET', desc: 'Snacks, Golosinas' },
+                ].map((opt) => {
+                  const isSelected = prodCategory === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        setProdCategory(opt.id);
+                        setProdLine(opt.line);
+                        setProdType(opt.type);
+                        if (opt.id === 'cat_bebidas') {
+                          setProdHasTemperature(true);
+                          setProdMarketSubtype('BEBIDA');
+                          setProdKitchen(true);
+                        } else if (opt.id === 'cat_postres') {
+                          setProdHasTemperature(false);
+                          setProdMarketSubtype('POSTRE');
+                          setProdKitchen(false);
+                          setProdIsJuice(false);
+                        } else if (opt.type === 'MARKET') {
+                          setProdKitchen(false);
+                          setProdAvailablePackagingIds([]);
+                          if (prodMarketSubtype !== 'BEBIDA' && prodMarketSubtype !== 'POSTRE' && prodMarketSubtype !== 'SNACK') {
+                            setProdMarketSubtype('SNACK');
+                          }
+                          setProdHasTemperature(prodMarketSubtype === 'BEBIDA');
+                        } else {
+                          setProdKitchen(true);
+                          setProdHasTemperature(false);
+                          setProdMarketSubtype('COMIDA');
+                          setProdIsJuice(false);
+                        }
+                      }}
+                      className={`py-2.5 px-2 rounded-xl text-xs font-black border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 text-center ${
+                        isSelected
+                          ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-md'
+                          : 'bg-zinc-900 text-zinc-400 hover:text-white border-zinc-800'
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      <span className={`text-[10px] font-semibold truncate ${isSelected ? 'text-black/80' : 'text-zinc-500'}`}>
+                        {opt.desc}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Subcategoría de Market */}
+            {(prodCategory === 'cat_market' || prodType === 'MARKET') && (
+              <div className="bg-blue-950/20 p-3 rounded-xl border border-blue-500/30 space-y-1.5">
+                <label className="text-zinc-200 font-bold block text-xs">Subcategoría Market *</label>
+                <div className="grid grid-cols-3 gap-2">
                   <button
-                    key={opt.id}
                     type="button"
                     onClick={() => {
-                      setProdCategory(opt.id);
-                      setProdLine(opt.line);
-                      setProdType(opt.type);
-                      if (opt.id === 'cat_bebidas') {
-                        setProdHasTemperature(true);
-                        setProdMarketSubtype('BEBIDA');
-                        setProdKitchen(true);
-                      } else if (opt.id === 'cat_postres') {
-                        setProdHasTemperature(false);
-                        setProdMarketSubtype('POSTRE');
-                        setProdKitchen(false);
-                        setProdIsJuice(false);
-                      } else if (opt.type === 'MARKET') {
-                        setProdKitchen(false);
-                        setProdAvailablePackagingIds([]);
-                        if (prodMarketSubtype !== 'BEBIDA' && prodMarketSubtype !== 'POSTRE' && prodMarketSubtype !== 'SNACK') {
-                          setProdMarketSubtype('SNACK');
-                        }
-                        setProdHasTemperature(prodMarketSubtype === 'BEBIDA');
-                      } else {
-                        setProdKitchen(true);
-                        setProdHasTemperature(false);
-                        setProdMarketSubtype('COMIDA');
-                        setProdIsJuice(false);
-                      }
+                      setProdMarketSubtype('BEBIDA');
+                      setProdHasTemperature(true);
                     }}
-                    className={`py-2.5 px-2 rounded-xl text-xs font-black border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 text-center ${
-                      isSelected
-                        ? 'bg-[var(--color-porkos-orange)] text-black border-transparent shadow-sm'
-                        : 'bg-zinc-900 text-zinc-400 hover:text-white border-zinc-800'
+                    className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                      prodMarketSubtype === 'BEBIDA' || prodMarketSubtype === 'JUGO'
+                        ? 'bg-blue-600 text-white border-transparent font-black shadow-md'
+                        : 'bg-black/50 text-zinc-400 hover:text-white border-zinc-800'
                     }`}
                   >
-                    <span>{opt.label}</span>
-                    <span className={`text-[10px] font-semibold truncate ${isSelected ? 'text-black/80' : 'text-zinc-500'}`}>
-                      {opt.desc}
-                    </span>
+                    <span className="text-sm">🥤</span>
+                    <span>Bebidas</span>
                   </button>
-                );
-              })}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProdMarketSubtype('SNACK');
+                      setProdIsJuice(false);
+                      setProdHasTemperature(false);
+                    }}
+                    className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                      prodMarketSubtype === 'SNACK' || prodMarketSubtype === 'COMIDA'
+                        ? 'bg-purple-600 text-white border-transparent font-black shadow-md'
+                        : 'bg-black/50 text-zinc-400 hover:text-white border-zinc-800'
+                    }`}
+                  >
+                    <span className="text-sm">🍪</span>
+                    <span>Snacks</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProdMarketSubtype('POSTRE');
+                      setProdIsJuice(false);
+                      setProdHasTemperature(false);
+                    }}
+                    className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                      prodMarketSubtype === 'POSTRE'
+                        ? 'bg-pink-600 text-white border-transparent font-black shadow-md'
+                        : 'bg-black/50 text-zinc-400 hover:text-white border-zinc-800'
+                    }`}
+                  >
+                    <span className="text-sm">🍰</span>
+                    <span>Postres</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Opción Tipo Jugo / Requiere Cocina */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              {(prodCategory === 'cat_bebidas' || ((prodCategory === 'cat_market' || prodType === 'MARKET') && (prodMarketSubtype === 'BEBIDA' || prodMarketSubtype === 'JUGO'))) && (
+                <label className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer">
+                  <div>
+                    <span className="font-bold text-zinc-200 block text-xs">🍹 ¿Es Tipo Jugo?</span>
+                    <span className="text-[10px] text-zinc-500">Permite notas de azúcar en comanda</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={prodIsJuice}
+                    onChange={(e) => {
+                      setProdIsJuice(e.target.checked);
+                      if (e.target.checked) {
+                        setProdHasTemperature(true);
+                        setProdMarketSubtype('JUGO');
+                      } else {
+                        setProdMarketSubtype('BEBIDA');
+                      }
+                    }}
+                    className="w-5 h-5 accent-[var(--color-porkos-orange)] cursor-pointer"
+                  />
+                </label>
+              )}
+
+              {prodType === 'RESTAURANTE' && (
+                <label className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer">
+                  <div>
+                    <span className="font-bold text-zinc-200 block text-xs">🍳 ¿Requiere Cocina?</span>
+                    <span className="text-[10px] text-zinc-500">Aparecerá en pantalla KDS</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={prodKitchen}
+                    onChange={(e) => setProdKitchen(e.target.checked)}
+                    className="w-5 h-5 accent-[var(--color-porkos-orange)] cursor-pointer"
+                  />
+                </label>
+              )}
             </div>
           </div>
 
-          {/* Si es MARKET: selector explícito de subcategoría (BEBIDAS, SNACKS, POSTRES) */}
-          {(prodCategory === 'cat_market' || prodType === 'MARKET') && (
-            <div className="bg-blue-950/20 p-3 rounded-xl border border-blue-500/30 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-zinc-200 font-bold flex items-center gap-1.5 text-xs">
-                  <span>Subcategoría de Market *</span>
-                </label>
-                <span className="text-[10px] text-zinc-400">
-                  Visible en Market y en Restaurante
-                </span>
-              </div>
+          {/* SECCIÓN 2: PRECIOS & COSTOS */}
+          <div className="space-y-3 bg-black/40 p-3.5 rounded-2xl border border-zinc-800/80">
+            <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
+              2. Precios y Márgenes
+            </span>
 
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProdMarketSubtype('BEBIDA');
-                    setProdHasTemperature(true);
-                  }}
-                  className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                    prodMarketSubtype === 'BEBIDA' || prodMarketSubtype === 'JUGO'
-                      ? 'bg-blue-600 text-white border-transparent font-black shadow-md'
-                      : 'bg-black/50 text-zinc-400 hover:text-white border-zinc-800'
-                  }`}
-                >
-                  <span className="text-base">🥤</span>
-                  <span className="truncate">Bebidas</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProdMarketSubtype('SNACK');
-                    setProdIsJuice(false);
-                    setProdHasTemperature(false);
-                  }}
-                  className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                    prodMarketSubtype === 'SNACK' || prodMarketSubtype === 'COMIDA'
-                      ? 'bg-purple-600 text-white border-transparent font-black shadow-md'
-                      : 'bg-black/50 text-zinc-400 hover:text-white border-zinc-800'
-                  }`}
-                >
-                  <span className="text-base">🍪</span>
-                  <span className="truncate">Snacks</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProdMarketSubtype('POSTRE');
-                    setProdIsJuice(false);
-                    setProdHasTemperature(false);
-                  }}
-                  className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                    prodMarketSubtype === 'POSTRE'
-                      ? 'bg-pink-600 text-white border-transparent font-black shadow-md'
-                      : 'bg-black/50 text-zinc-400 hover:text-white border-zinc-800'
-                  }`}
-                >
-                  <span className="text-base">🍰</span>
-                  <span className="truncate">Postres</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Opción Tipo Jugo / Batido (permite notas de azúcar en comanda) - Solo para bebidas */}
-          {(prodCategory === 'cat_bebidas' || ((prodCategory === 'cat_market' || prodType === 'MARKET') && (prodMarketSubtype === 'BEBIDA' || prodMarketSubtype === 'JUGO'))) && (
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-zinc-200 font-bold text-xs cursor-pointer">
-                  🍹 ¿Es Tipo Jugo / Bebida Natural?
-                </label>
-                <span className="text-[10px] text-zinc-500 block">
-                  Permite elegir en caja: sin azúcar, bajo azúcar, poco azúcar, etc.
-                </span>
+                <label className="block text-zinc-300 font-bold mb-1">Precio de Venta (S/) *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-amber-400">S/</span>
+                  <input
+                    type="number"
+                    step="0.50"
+                    required
+                    value={prodPrice}
+                    onChange={(e) => setProdPrice(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-8 pr-3 py-2.5 text-base sm:text-sm text-white font-extrabold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                  />
+                </div>
               </div>
-              <input
-                type="checkbox"
-                checked={prodIsJuice}
-                onChange={(e) => {
-                  setProdIsJuice(e.target.checked);
-                  if (e.target.checked) {
-                    setProdHasTemperature(true);
-                    setProdMarketSubtype('JUGO');
-                  } else {
-                    setProdMarketSubtype('BEBIDA');
-                  }
-                }}
-                className="w-5 h-5 accent-[var(--color-porkos-orange)] cursor-pointer"
-              />
-            </div>
-          )}
 
-          {/* Si es restaurante: opción de cocina */}
-          {prodType === 'RESTAURANTE' && (
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800">
-              <label className="text-zinc-300 font-bold text-xs cursor-pointer">¿Requiere Cocina?</label>
-              <input
-                type="checkbox"
-                checked={prodKitchen}
-                onChange={(e) => setProdKitchen(e.target.checked)}
-                className="w-5 h-5 accent-[var(--color-porkos-orange)] cursor-pointer"
-              />
-            </div>
-          )}
-
-          {/* Precio y Costo */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-zinc-300 font-bold mb-1">Precio de Venta (S/) *</label>
-              <input
-                type="number"
-                step="0.50"
-                required
-                value={prodPrice}
-                onChange={(e) => setProdPrice(e.target.value)}
-                placeholder="0.00"
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-extrabold focus:outline-none focus:border-[var(--color-porkos-orange)]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-zinc-300 font-bold mb-1">Costo Referencial (S/)</label>
-              <input
-                type="number"
-                step="0.50"
-                value={prodCost}
-                onChange={(e) => setProdCost(e.target.value)}
-                placeholder="0.00"
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-zinc-300 font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
-              />
+              <div>
+                <label className="block text-zinc-300 font-bold mb-1">Costo Insumo (S/)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-zinc-500">S/</span>
+                  <input
+                    type="number"
+                    step="0.50"
+                    value={prodCost}
+                    onChange={(e) => setProdCost(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-8 pr-3 py-2.5 text-base sm:text-sm text-zinc-300 font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Carga y Gestión de Fotografía con Optimización Inteligente */}
-          <div className="space-y-2">
+          {/* SECCIÓN 3: FOTOGRAFÍA CON OPTIMIZACIÓN WEBP */}
+          <div className="space-y-2 bg-black/40 p-3.5 rounded-2xl border border-zinc-800/80">
             <div className="flex items-center justify-between">
-              <label className="text-zinc-300 font-bold text-xs flex items-center gap-1.5">
-                <Camera className="w-4 h-4 text-[var(--color-porkos-orange)]" />
-                Fotografía del Producto (WebP Optimizado)
-              </label>
+              <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
+                3. Fotografía del Plato
+              </span>
               {(prodImage || imagePreview) && (
                 <button
                   type="button"
@@ -1853,9 +1755,9 @@ export default function CatalogView() {
                   <img
                     src={imagePreview}
                     alt="Vista previa plato"
-                    className="w-full h-44 object-cover"
+                    className="w-full h-40 object-cover"
                   />
-                  <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                  <div className="absolute top-2 right-2">
                     <Button
                       type="button"
                       size="sm"
@@ -1870,21 +1772,15 @@ export default function CatalogView() {
                   {isUploadingImage && (
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-xs flex flex-col items-center justify-center gap-2">
                       <Loader2 className="w-7 h-7 text-[var(--color-porkos-orange)] animate-spin" />
-                      <span className="text-xs font-bold text-white">
-                        Optimizando en navegador y subiendo...
-                      </span>
-                      <span className="text-[10px] text-zinc-400">
-                        Generando WebP 640px y Miniatura 240px
-                      </span>
+                      <span className="text-xs font-bold text-white">Optimizando a WebP...</span>
                     </div>
                   )}
                 </div>
 
-                {/* Badge comparativo de compresión inteligente */}
                 {imageStats && (
                   <div className="bg-emerald-950/30 border border-emerald-500/30 p-2.5 rounded-xl text-xs space-y-1">
                     <div className="flex items-center justify-between font-bold">
-                      <span className="text-zinc-300">Compresión Inteligente WebP:</span>
+                      <span className="text-zinc-300">Compresión WebP:</span>
                       <span className="text-emerald-400 font-mono font-black text-sm">
                         -{imageStats.reductionPercent}% Reducción
                       </span>
@@ -1892,9 +1788,19 @@ export default function CatalogView() {
                     <div className="flex justify-between text-[11px] text-zinc-400 font-mono">
                       <span>Original: {formatBytes(imageStats.originalSize)}</span>
                       <span className="text-white font-bold">
-                        Optimizado: {formatBytes(imageStats.optimizedSize)} (640px + Miniatura)
+                        Optimizado: {formatBytes(imageStats.optimizedSize)}
                       </span>
                     </div>
+                    {imageStorageSource === 'firebase' && (
+                      <p className="text-[10px] text-emerald-400 font-bold pt-0.5">
+                        ✓ Foto sincronizada en Firebase Cloud Storage
+                      </p>
+                    )}
+                    {imageStorageSource === 'local_optimized' && (
+                      <p className="text-[10px] text-amber-300 font-bold pt-0.5">
+                        ✓ WebP optimizado (~35 KB) guardado para la app
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1910,28 +1816,9 @@ export default function CatalogView() {
                   Subir fotografía desde tu dispositivo
                 </span>
                 <span className="text-[10px] text-zinc-500 text-center">
-                  Compresión automática a WebP (640px, ~50-90 KB). La imagen original nunca se sube a Firebase.
+                  Compresión automática a WebP (640px, ~50-80 KB)
                 </span>
               </button>
-            )}
-
-            {/* Mensajes informativos de imagen */}
-            {imageStorageSource === 'firebase' && (
-              <p className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
-                ✓ Foto optimizada y sincronizada en Firebase Storage
-              </p>
-            )}
-
-            {imageStorageSource === 'local_optimized' && (
-              <p className="text-[11px] text-amber-300 font-bold flex items-center gap-1">
-                ✓ Foto optimizada a WebP (~35 KB) guardada para la app
-              </p>
-            )}
-
-            {imageStorageSource === 'local_preview' && (
-              <p className="text-[10px] text-amber-400 font-medium">
-                ⓘ Vista previa local (WebP comprimido en navegador)
-              </p>
             )}
 
             {imageUploadError && (
@@ -1939,52 +1826,45 @@ export default function CatalogView() {
             )}
           </div>
 
-          {/* Descripción */}
+          {/* DESCRIPCIÓN */}
           <div>
             <label className="block text-zinc-300 font-bold mb-1">Descripción / Ingredientes</label>
             <textarea
               rows={2}
               value={prodDescription}
               onChange={(e) => setProdDescription(e.target.value)}
-              placeholder="Carne 150g, pan artesanal..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl p-3 text-base sm:text-sm text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              placeholder="Carne 150g, pan artesanal, lechuga y tomate..."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-base sm:text-sm text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 
-          {/* Opciones Gastronómicas (SOLO en Restaurante) */}
+          {/* SECCIÓN 4: OPCIONES GASTRONÓMICAS (RESTAURANTE) */}
           {prodType === 'RESTAURANTE' && (
-            <div className="space-y-3 bg-black/50 p-3 rounded-xl border border-zinc-800">
-              <label className="block text-zinc-300 font-bold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                <Sliders className="w-4 h-4 text-[var(--color-porkos-orange)]" />
-                Opciones y Modificadores Dinámicos
-              </label>
+            <div className="space-y-3 bg-black/40 p-3.5 rounded-2xl border border-zinc-800/80">
+              <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
+                4. Opciones Gastronómicas & Modificadores
+              </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {/* Papas */}
-                <label className="flex items-center gap-2 p-2 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer">
+                <label className="flex items-center gap-2 p-2 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={prodHasPapas}
                     onChange={(e) => setProdHasPapas(e.target.checked)}
                     className="accent-[var(--color-porkos-orange)]"
                   />
-                  <span className="font-semibold text-zinc-200">🍟 Papas Fritas/Hilo</span>
+                  <span className="font-semibold text-zinc-200 text-xs">🍟 Papas Fritas/Hilo</span>
                 </label>
 
-                {/* Ensalada (Sí / No) */}
-                <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-900 border border-zinc-800">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm">🥗</span>
-                    <span className="font-semibold text-zinc-200 text-xs">Lleva Ensalada:</span>
-                  </div>
+                <div className="flex items-center justify-between p-2 rounded-xl bg-zinc-900 border border-zinc-800">
+                  <span className="font-semibold text-zinc-200 text-xs">🥗 Ensalada:</span>
                   <div className="flex bg-black/60 p-0.5 rounded-md border border-zinc-800 shrink-0">
                     <button
                       type="button"
                       onClick={() => setProdHasSalad(true)}
                       className={`px-2.5 py-0.5 text-xs font-bold rounded transition-all cursor-pointer ${
-                        prodHasSalad
-                          ? 'bg-emerald-500 text-black font-black'
-                          : 'text-zinc-400 hover:text-white'
+                        prodHasSalad ? 'bg-emerald-500 text-black font-black' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       Sí
@@ -1993,9 +1873,7 @@ export default function CatalogView() {
                       type="button"
                       onClick={() => setProdHasSalad(false)}
                       className={`px-2.5 py-0.5 text-xs font-bold rounded transition-all cursor-pointer ${
-                        !prodHasSalad
-                          ? 'bg-zinc-800 text-zinc-200 font-bold'
-                          : 'text-zinc-400 hover:text-white'
+                        !prodHasSalad ? 'bg-zinc-800 text-zinc-200 font-bold' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       No
@@ -2003,28 +1881,23 @@ export default function CatalogView() {
                   </div>
                 </div>
 
-                {/* Temperatura */}
-                <label className="flex items-center gap-2 p-2 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer">
+                <label className="flex items-center gap-2 p-2 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={prodHasTemperature}
                     onChange={(e) => setProdHasTemperature(e.target.checked)}
                     className="accent-[var(--color-porkos-orange)]"
                   />
-                  <span className="font-semibold text-zinc-200">❄️ Helada / Sin Helar</span>
+                  <span className="font-semibold text-zinc-200 text-xs">❄️ Helada/Sin Helar</span>
                 </label>
               </div>
 
-              {/* ASOCIACIÓN DE EMPAQUES PERMITIDOS PARA ESTE PRODUCTO */}
+              {/* Empaques Permitidos */}
               <div className="space-y-1.5 pt-2 border-t border-zinc-800">
                 <span className="text-zinc-300 font-bold block text-[11px] flex items-center gap-1.5">
                   <Package className="w-3.5 h-3.5 text-blue-400" />
-                  Empaques / Tapers Permitidos para este producto:
+                  Empaques / Tapers Permitidos:
                 </span>
-                <span className="text-[10px] text-zinc-500 block">
-                  Solo los empaques seleccionados aparecerán cuando el cajero personalice este plato.
-                </span>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
                   {packagings
                     .filter((pkg) => pkg.id !== 'pkg_ninguno' && pkg.active)
@@ -2039,10 +1912,10 @@ export default function CatalogView() {
                               prev.includes(pkg.id) ? prev.filter((id) => id !== pkg.id) : [...prev, pkg.id]
                             );
                           }}
-                          className={`p-2 rounded-lg border text-left flex items-center justify-between cursor-pointer transition-all ${
+                          className={`p-2 rounded-xl border text-left flex items-center justify-between cursor-pointer transition-all ${
                             isChecked
                               ? 'bg-blue-950/40 border-blue-500/80 text-white'
-                              : 'bg-black/40 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                              : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
                           }`}
                         >
                           <div className="min-w-0 pr-2">
@@ -2051,9 +1924,7 @@ export default function CatalogView() {
                           </div>
                           <span
                             className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] font-black shrink-0 ${
-                              isChecked
-                                ? 'bg-blue-500 border-blue-400 text-white'
-                                : 'border-zinc-700 text-transparent'
+                              isChecked ? 'bg-blue-500 border-blue-400 text-white' : 'border-zinc-700 text-transparent'
                             }`}
                           >
                             ✓
@@ -2064,10 +1935,10 @@ export default function CatalogView() {
                 </div>
               </div>
 
-              {/* Cremas permitidas */}
+              {/* Cremas Permitidas */}
               <div className="space-y-1.5 pt-2 border-t border-zinc-800">
                 <span className="text-zinc-400 font-semibold block text-[11px]">
-                  Cremas permitidas para este plato:
+                  Cremas disponibles para este plato:
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {creams.map((c) => {
@@ -2081,10 +1952,10 @@ export default function CatalogView() {
                             prev.includes(c.id) ? prev.filter((id) => id !== c.id) : [...prev, c.id]
                           );
                         }}
-                        className={`text-xs px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1.5 cursor-pointer ${
+                        className={`text-xs px-2.5 py-1 rounded-xl border font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
                           isSelected
                             ? 'bg-zinc-800 text-white border-[var(--color-porkos-orange)]'
-                            : 'bg-black/60 text-zinc-600 border-zinc-800'
+                            : 'bg-zinc-900 text-zinc-500 border-zinc-800'
                         }`}
                       >
                         <span
@@ -2101,8 +1972,8 @@ export default function CatalogView() {
             </div>
           )}
 
-          {/* Botones de guardar flotantes */}
-          <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 flex items-center justify-end gap-2.5 z-20 shadow-2xl">
+          {/* Botones de acción en modal */}
+          <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
             <Button
               type="button"
               variant="outline"
@@ -2113,27 +1984,93 @@ export default function CatalogView() {
             <Button
               type="submit"
               disabled={isSavingProduct || isUploadingImage}
+              isLoading={isSavingProduct}
             >
               {isUploadingImage
                 ? 'Subiendo foto...'
-                : isSavingProduct
-                ? 'Guardando...'
                 : editingProduct
                 ? 'Guardar Cambios'
-                : 'Crear Producto'}
+                : 'Crear Plato'}
             </Button>
           </div>
         </form>
       </Modal>
 
       {/* ============================================================== */}
-      {/* --- MODAL 2: CREAR / EDITAR CREMA --- */}
+      {/* MODAL 2: CREAR / EDITAR CATEGORÍA                              */}
+      {/* ============================================================== */}
+      <Modal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        title={editingCategory ? `Editar: ${editingCategory.name}` : 'Nueva Categoría'}
+        subtitle="Agrupa platos en ventas y cocina"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleSaveCategory} className="space-y-4 text-xs sm:text-sm">
+          <div>
+            <label className="block text-zinc-300 font-bold mb-1">Nombre de la Categoría *</label>
+            <input
+              type="text"
+              required
+              value={catName}
+              onChange={(e) => setCatName(e.target.value)}
+              placeholder="Ej. Alitas, Costillas, Combos..."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-zinc-300 font-bold mb-1">Tipo de Categoría</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCatType('RESTAURANTE')}
+                className={`py-2 rounded-xl font-bold border transition-all cursor-pointer ${
+                  catType === 'RESTAURANTE'
+                    ? 'bg-[var(--color-porkos-orange)] text-black border-transparent font-black shadow-sm'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                }`}
+              >
+                Restaurante / Cocina
+              </button>
+              <button
+                type="button"
+                onClick={() => setCatType('MARKET')}
+                className={`py-2 rounded-xl font-bold border transition-all cursor-pointer ${
+                  catType === 'MARKET'
+                    ? 'bg-blue-600 text-white border-transparent font-black shadow-sm'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                }`}
+              >
+                Market / Bebidas
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end gap-2 border-t border-zinc-800">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCategoryModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit">
+              {editingCategory ? 'Guardar Cambios' : 'Crear Categoría'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ============================================================== */}
+      {/* MODAL 3: CREAR / EDITAR CREMA                                  */}
       {/* ============================================================== */}
       <Modal
         isOpen={isCreamModalOpen}
         onClose={() => setIsCreamModalOpen(false)}
         title={editingCream ? `Editar Crema: ${editingCream.name}` : 'Nueva Crema'}
         subtitle="Configura el nombre y abreviatura para la comanda"
+        maxWidth="max-w-md"
       >
         <form onSubmit={handleSaveCream} className="space-y-4 text-xs sm:text-sm">
           <div>
@@ -2143,20 +2080,20 @@ export default function CatalogView() {
               required
               value={creamName}
               onChange={(e) => setCreamName(e.target.value)}
-              placeholder="Ej. Mayonesa Casera..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              placeholder="Ej. Mayonesa Casera, Ají PORKOS..."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 
           <div>
-            <label className="block text-zinc-300 font-bold mb-1">Abreviatura / Diminutivo en Comandas *</label>
+            <label className="block text-zinc-300 font-bold mb-1">Abreviatura en Comandas (Máx 6) *</label>
             <input
               type="text"
               maxLength={6}
               value={creamShortName}
               onChange={(e) => setCreamShortName(e.target.value.toUpperCase())}
-              placeholder="Ej. MAYO, KET, MOS, AJÍ, BBQ"
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-mono font-bold uppercase tracking-wider focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              placeholder="Ej. MAYO, KET, AJÍ, BBQ"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-mono font-bold uppercase tracking-wider focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 
@@ -2173,7 +2110,7 @@ export default function CatalogView() {
             </div>
           </div>
 
-          <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 flex items-center justify-end gap-2.5 z-20 shadow-2xl">
+          <div className="pt-2 flex justify-end gap-2 border-t border-zinc-800">
             <Button
               type="button"
               variant="outline"
@@ -2189,13 +2126,14 @@ export default function CatalogView() {
       </Modal>
 
       {/* ============================================================== */}
-      {/* --- MODAL 3: CREAR / EDITAR EXTRA --- */}
+      {/* MODAL 4: CREAR / EDITAR EXTRA                                  */}
       {/* ============================================================== */}
       <Modal
         isOpen={isExtraModalOpen}
         onClose={() => setIsExtraModalOpen(false)}
         title={editingExtra ? `Editar Extra: ${editingExtra.name}` : 'Nuevo Extra'}
         subtitle="Configura ingredientes adicionales y su precio"
+        maxWidth="max-w-md"
       >
         <form onSubmit={handleSaveExtra} className="space-y-4 text-xs sm:text-sm">
           <div>
@@ -2206,7 +2144,7 @@ export default function CatalogView() {
               value={extraName}
               onChange={(e) => setExtraName(e.target.value)}
               placeholder="Ej. Extra Tocino Crocante..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 
@@ -2219,7 +2157,7 @@ export default function CatalogView() {
               value={extraPrice}
               onChange={(e) => setExtraPrice(e.target.value)}
               placeholder="2.50"
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-black focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-black focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 
@@ -2242,7 +2180,7 @@ export default function CatalogView() {
                       className={`p-2 rounded-xl border text-left flex items-center justify-between cursor-pointer transition-all ${
                         isChecked
                           ? 'bg-orange-500/10 border-[var(--color-porkos-orange)] text-white'
-                          : 'bg-black/40 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
                       }`}
                     >
                       <span className="font-bold">{cat.name}</span>
@@ -2253,7 +2191,7 @@ export default function CatalogView() {
             </div>
           </div>
 
-          <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 flex items-center justify-end gap-2.5 z-20 shadow-2xl">
+          <div className="pt-2 flex justify-end gap-2 border-t border-zinc-800">
             <Button
               type="button"
               variant="outline"
@@ -2269,26 +2207,26 @@ export default function CatalogView() {
       </Modal>
 
       {/* ============================================================== */}
-      {/* --- MODAL 4: CREAR / EDITAR EMPAQUE (CON ASOCIACIÓN) --- */}
+      {/* MODAL 5: CREAR / EDITAR EMPAQUE                                */}
       {/* ============================================================== */}
       <Modal
         isOpen={isPackagingModalOpen}
         onClose={() => setIsPackagingModalOpen(false)}
         title={editingPackaging ? `Editar Empaque: ${editingPackaging.name}` : 'Nuevo Empaque'}
-        subtitle="Configura el empaque y asócialo a los productos permitidos"
+        subtitle="Configura el empaque y asócialo a los platos permitidos"
         maxWidth="max-w-xl"
       >
         <form onSubmit={handleSavePackaging} className="space-y-4 text-xs sm:text-sm">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-zinc-300 font-bold mb-1">Nombre del Empaque / Taper *</label>
+              <label className="block text-zinc-300 font-bold mb-1">Nombre del Empaque *</label>
               <input
                 type="text"
                 required
                 value={pkgName}
                 onChange={(e) => setPkgName(e.target.value)}
                 placeholder="Ej. Taper Térmico Mediano..."
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
               />
             </div>
 
@@ -2300,7 +2238,7 @@ export default function CatalogView() {
                 value={pkgPrice}
                 onChange={(e) => setPkgPrice(e.target.value)}
                 placeholder="1.00"
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-black focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-black focus:outline-none focus:border-[var(--color-porkos-orange)]"
               />
             </div>
           </div>
@@ -2347,10 +2285,10 @@ export default function CatalogView() {
                         prev.includes(prod.id) ? prev.filter((id) => id !== prod.id) : [...prev, prod.id]
                       );
                     }}
-                    className={`w-full p-2 rounded-lg border text-left flex items-center justify-between transition-all cursor-pointer ${
+                    className={`w-full p-2 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-blue-950/40 border-blue-500/70 text-white'
-                        : 'bg-black/50 border-zinc-800/80 text-zinc-400 hover:border-zinc-700'
+                        : 'bg-zinc-900/80 border-zinc-800/80 text-zinc-400 hover:border-zinc-700'
                     }`}
                   >
                     <div className="min-w-0 pr-2">
@@ -2373,7 +2311,7 @@ export default function CatalogView() {
             </div>
           </div>
 
-          <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#141414]/95 backdrop-blur-md border-t border-zinc-800 flex items-center justify-end gap-2.5 z-20 shadow-2xl">
+          <div className="pt-2 flex justify-end gap-2 border-t border-zinc-800">
             <Button
               type="button"
               variant="outline"
@@ -2388,63 +2326,61 @@ export default function CatalogView() {
         </form>
       </Modal>
 
-      {/* Modal de Confirmación para Vaciar Catálogo */}
-      <Modal
+      {/* CONFIRM DIALOG: VACIAR CATÁLOGO */}
+      <ConfirmDialog
         isOpen={isClearConfirmOpen}
         onClose={() => !isClearing && setIsClearConfirmOpen(false)}
+        onConfirm={async () => {
+          setIsClearing(true);
+          try {
+            await clearAllCatalog();
+            setIsClearConfirmOpen(false);
+            setStatusToast({ type: 'success', msg: 'Catálogo vaciado con éxito' });
+          } catch (err) {
+            console.error('Error vaciando catálogo:', err);
+          } finally {
+            setIsClearing(false);
+          }
+        }}
         title="¿Vaciar todo el catálogo?"
-        maxWidth="max-w-md"
-      >
-        <div className="space-y-4">
-          <div className="p-3 bg-rose-950/30 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-start gap-2.5">
-            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-bold">Esta acción eliminará todos los datos:</p>
-              <p>Se borrarán los productos, cremas, extras y empaques de Firebase Firestore para que puedas crear tu carta real desde cero.</p>
-            </div>
-          </div>
+        message="Esta acción eliminará todos los platos, cremas, extras y empaques de Firebase Firestore para empezar 100% desde cero."
+        confirmText={isClearing ? 'Vaciando...' : 'Sí, Vaciar Todo'}
+        variant="danger"
+        isLoading={isClearing}
+      />
 
-          <div className="pt-2 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isClearing}
-              onClick={() => setIsClearConfirmOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="danger"
-              disabled={isClearing}
-              onClick={async () => {
-                setIsClearing(true);
-                try {
-                  await clearAllCatalog();
-                  setIsClearConfirmOpen(false);
-                } catch (err) {
-                  console.error('Error al vaciar catálogo:', err);
-                } finally {
-                  setIsClearing(false);
-                }
-              }}
-            >
-              {isClearing ? 'Vaciando...' : 'Sí, Vaciar Todo'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      {/* CONFIRM DIALOG: ELIMINAR ELEMENTO INDIVIDUAL */}
+      <ConfirmDialog
+        isOpen={Boolean(itemToDelete)}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={handleConfirmItemDelete}
+        title={
+          itemToDelete?.type === 'product'
+            ? `¿Eliminar "${itemToDelete?.data?.name}"?`
+            : itemToDelete?.type === 'category'
+            ? `¿Eliminar categoría "${itemToDelete?.data?.name}"?`
+            : itemToDelete?.type === 'cream'
+            ? `¿Eliminar crema "${itemToDelete?.data?.name}"?`
+            : itemToDelete?.type === 'extra'
+            ? `¿Eliminar extra "${itemToDelete?.data?.name}"?`
+            : `¿Eliminar empaque "${itemToDelete?.data?.name}"?`
+        }
+        message="Esta acción no se puede deshacer. Se actualizará en la base de datos."
+        confirmText="Sí, Eliminar"
+        variant="danger"
+      />
 
-      {/* Modal Instructivo de Reglas de Firebase */}
+      {/* MODAL: REGLAS DE FIREBASE FIRESTORE */}
       <Modal
         isOpen={isRulesModalOpen}
         onClose={() => setIsRulesModalOpen(false)}
-        title="Cómo Habilitar Firebase Firestore"
+        title="Reglas de Firebase Firestore"
+        subtitle="Configuración para sincronizar en la nube"
         maxWidth="max-w-lg"
       >
         <div className="space-y-4 text-xs text-zinc-300">
           <p>
-            Al crear un proyecto en Firebase, Google bloquea la base de datos por defecto (<code className="text-amber-400 bg-black/60 px-1 py-0.5 rounded">allow read, write: if false;</code>). Para que tu base de datos en la nube reciba los productos:
+            Al crear tu proyecto en Firebase, la base de datos viene bloqueada por defecto. Para habilitarla con autenticación segura:
           </p>
 
           <ol className="list-decimal list-inside space-y-2.5 bg-black/40 p-3.5 rounded-xl border border-zinc-800">
@@ -2456,11 +2392,11 @@ export default function CatalogView() {
                 rel="noreferrer"
                 className="text-orange-400 hover:text-orange-300 underline font-bold"
               >
-                Firebase Console &gt; porkos-ac37d &gt; Firestore Database &gt; Reglas
+                Firestore Database &gt; Reglas
               </a>
             </li>
             <li>
-              Reemplaza las reglas actuales por las reglas protegidas por correo:
+              Pega estas reglas protegidas por autenticación:
               <pre className="mt-1.5 p-2.5 bg-black rounded-lg text-emerald-400 font-mono text-[11px] overflow-x-auto border border-zinc-800">
 {`rules_version = '2';
 service cloud.firestore {
@@ -2468,17 +2404,8 @@ service cloud.firestore {
     function isAuthenticated() {
       return request.auth != null && request.auth.token.email != null;
     }
-    function isSuperAdminEmail() {
-      return isAuthenticated() && (
-        request.auth.token.email.lower() in ['admin@porkos.pe'] ||
-        request.auth.token.email.matches('.*@porkos[.]pe')
-      );
-    }
-    function isAuthorizedUser() {
-      return isSuperAdminEmail() || exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower()));
-    }
     match /{document=**} {
-      allow read, write: if isAuthorizedUser();
+      allow read, write: if isAuthenticated();
     }
   }
 }`}
@@ -2487,12 +2414,9 @@ service cloud.firestore {
             <li>
               Haz clic en el botón azul <strong>Publicar (Publish)</strong>.
             </li>
-            <li>
-              Vuelve aquí y presiona el botón <strong>"Reintentar Nube"</strong>. Todos tus productos se subirán automáticamente a Firestore.
-            </li>
           </ol>
 
-          <div className="flex justify-end pt-2">
+          <div className="flex justify-end pt-2 border-t border-zinc-800">
             <Button type="button" onClick={() => setIsRulesModalOpen(false)}>
               Entendido
             </Button>
@@ -2500,83 +2424,20 @@ service cloud.firestore {
         </div>
       </Modal>
 
-      {/* Modal Crear / Editar Categoría */}
-      <Modal
-        isOpen={isCategoryModalOpen}
-        onClose={() => setIsCategoryModalOpen(false)}
-        title={editingCategory ? `Editar: ${editingCategory.name}` : 'Nueva Categoría'}
-        subtitle="Crea o edita categorías para agrupar tus platos en ventas y cocina"
-        maxWidth="max-w-md"
-      >
-        <form onSubmit={handleSaveCategory} className="space-y-4 text-xs sm:text-sm">
-          <div>
-            <label className="block text-zinc-300 font-bold mb-1">Nombre de la Categoría *</label>
-            <input
-              type="text"
-              required
-              value={catName}
-              onChange={(e) => setCatName(e.target.value)}
-              placeholder="Ej. Alitas, Costillas, Combos, Tragos..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-zinc-300 font-bold mb-1">Tipo de Categoría</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setCatType('RESTAURANTE')}
-                className={`py-2 rounded-xl font-bold border transition-all cursor-pointer ${
-                  catType === 'RESTAURANTE'
-                    ? 'bg-[var(--color-porkos-orange)] text-black border-transparent font-extrabold shadow-sm'
-                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
-                }`}
-              >
-                Restaurante / Cocina
-              </button>
-              <button
-                type="button"
-                onClick={() => setCatType('MARKET')}
-                className={`py-2 rounded-xl font-bold border transition-all cursor-pointer ${
-                  catType === 'MARKET'
-                    ? 'bg-blue-600 text-white border-transparent font-extrabold shadow-sm'
-                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
-                }`}
-              >
-                Market / Bebidas
-              </button>
-            </div>
-          </div>
-
-          <div className="pt-2 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsCategoryModalOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit">
-              {editingCategory ? 'Guardar Cambios' : 'Crear Categoría'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal de Configuración y Diagnóstico de Firebase Storage */}
+      {/* MODAL: CONFIGURACIÓN FIREBASE STORAGE */}
       <Modal
         isOpen={isStorageModalOpen}
         onClose={() => setIsStorageModalOpen(false)}
         title="Configuración de Firebase Storage"
+        subtitle="Diagnóstico y reglas para almacenamiento de fotos WebP"
         maxWidth="max-w-2xl"
       >
         <div className="space-y-4 text-xs">
           <p className="text-zinc-300 leading-relaxed">
-            PORKOAPP optimiza automáticamente las fotos en tu navegador a formato <strong className="text-white">WebP (640px, ~50-80 KB)</strong>. Para que se guarden en la nube en Firebase Cloud Storage, sigue estos 2 sencillos pasos en tu consola de Firebase:
+            PORKOAPP optimiza automáticamente las fotos en tu navegador a formato <strong className="text-white">WebP (640px, ~50-80 KB)</strong>. Para que se guarden en la nube:
           </p>
 
-          {/* Test de Conexión Live */}
+          {/* Test Live */}
           <div className="bg-black/50 border border-zinc-800 p-3.5 rounded-xl space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="font-bold text-white text-xs">Diagnóstico en Tiempo Real:</span>
@@ -2587,7 +2448,7 @@ service cloud.firestore {
                 disabled={isTestingStorage}
                 className="text-xs"
               >
-                {isTestingStorage ? 'Probando...' : '🔍 Probar Conexión con Storage'}
+                {isTestingStorage ? 'Probando...' : '🔍 Probar Conexión'}
               </Button>
             </div>
 
@@ -2604,57 +2465,21 @@ service cloud.firestore {
                 </div>
                 {storageTestResult.errorCode && (
                   <div className="text-[11px] text-zinc-400 font-mono">
-                    Código de error: {storageTestResult.errorCode}
-                  </div>
-                )}
-                {storageTestResult.bucket && (
-                  <div className="text-[11px] text-zinc-400 font-mono">
-                    Bucket probado: {storageTestResult.bucket}
+                    Código: {storageTestResult.errorCode}
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          {/* Pasos de configuración */}
           <div className="space-y-3">
-            <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 space-y-1.5">
-              <span className="font-black text-amber-400">Paso 1: Abrir Firebase Console</span>
-              <p className="text-zinc-400 leading-relaxed">
-                Ingresa a tu consola de Firebase en la sección Storage:{' '}
-                <a
-                  href="https://console.firebase.google.com/project/porkos-ac37d/storage"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[var(--color-porkos-orange)] underline font-bold"
-                >
-                  console.firebase.google.com/project/porkos-ac37d/storage
-                </a>
-                . Si aparece el botón <strong>"Comenzar" (Get Started)</strong>, haz clic en él y sigue las instrucciones para crear tu bucket.
-              </p>
-            </div>
-
-            <div className="bg-amber-950/40 border border-amber-500/40 p-3 rounded-xl text-amber-200 text-xs space-y-1.5">
-              <div className="font-extrabold text-amber-400 flex items-center gap-1.5">
-                <span>⚠️</span> ¿Te sale "Permiso Denegado"? Revisa estos 2 puntos clave:
-              </div>
-              <ul className="list-disc pl-4 space-y-1 text-zinc-300 text-[11px]">
-                <li>
-                  <strong className="text-white">¿Hiciste clic en "Publicar" (Publish)?</strong> Luego de pegar el código en Firebase Console, es <strong>obligatorio</strong> hacer clic en el botón azul <strong className="text-amber-300">Publicar</strong> arriba a la derecha. Si no lo presionas, Firebase mantiene bloqueado el acceso.
-                </li>
-                <li>
-                  <strong className="text-white">Reglas blindadas por correo:</strong> Solo usuarios autenticados con correos autorizados pueden subir o gestionar imágenes en Storage, evitando accesos públicos no autorizados.
-                </li>
-              </ul>
-            </div>
-
             <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-black text-amber-400">Paso 2: Copiar y Publicar las Reglas</span>
+                <span className="font-black text-amber-400">Reglas de Storage</span>
                 <button
                   type="button"
                   onClick={() => {
-                    const rulesText = `rules_version = '2';\nservice firebase.storage {\n  match /b/{bucket}/o {\n    function isAuthenticated() {\n      return request.auth != null && request.auth.token.email != null;\n    }\n    function isAuthorizedEmail() {\n      return isAuthenticated() && (\n        request.auth.token.email.lower() in ['admin@porkos.pe'] ||\n        request.auth.token.email.matches('.*@porkos[.]pe') ||\n        firestore.exists(/databases/(default)/documents/users/$(request.auth.token.email.lower()))\n      );\n    }\n    match /products/{allPaths=**} {\n      allow read: if isAuthorizedEmail();\n      allow write: if isAuthorizedEmail() && request.resource.size < 300 * 1024 && request.resource.contentType.matches('image/(webp|jpeg|png)');\n      allow delete: if isAuthorizedEmail();\n    }\n    match /{allPaths=**} {\n      allow read, write: if false;\n    }\n  }\n}`;
+                    const rulesText = `rules_version = '2';\nservice firebase.storage {\n  match /b/{bucket}/o {\n    function isAuthenticated() {\n      return request.auth != null && request.auth.token.email != null;\n    }\n    match /products/{allPaths=**} {\n      allow read: if isAuthenticated();\n      allow write: if isAuthenticated() && request.resource.size < 300 * 1024 && request.resource.contentType.matches('image/(webp|jpeg|png)');\n      allow delete: if isAuthenticated();\n    }\n    match /{allPaths=**} {\n      allow read, write: if false;\n    }\n  }\n}`;
                     navigator.clipboard.writeText(rulesText);
                     setHasCopiedStorageRules(true);
                     setTimeout(() => setHasCopiedStorageRules(false), 3000);
@@ -2664,9 +2489,6 @@ service cloud.firestore {
                   {hasCopiedStorageRules ? '✓ ¡Reglas Copiadas!' : '📋 Copiar Reglas'}
                 </button>
               </div>
-              <p className="text-zinc-400 leading-relaxed">
-                En la pestaña <strong>Reglas (Rules)</strong> de Storage en Firebase Console, pega el siguiente código y haz clic en <strong>Publicar (Publish)</strong>:
-              </p>
               <pre className="bg-black/80 p-2.5 rounded-lg border border-zinc-800 text-[11px] font-mono text-zinc-300 overflow-x-auto">
 {`rules_version = '2';
 service firebase.storage {
@@ -2674,19 +2496,12 @@ service firebase.storage {
     function isAuthenticated() {
       return request.auth != null && request.auth.token.email != null;
     }
-    function isAuthorizedEmail() {
-      return isAuthenticated() && (
-        request.auth.token.email.lower() in ['admin@porkos.pe'] ||
-        request.auth.token.email.matches('.*@porkos[.]pe') ||
-        firestore.exists(/databases/(default)/documents/users/$(request.auth.token.email.lower()))
-      );
-    }
     match /products/{allPaths=**} {
-      allow read: if isAuthorizedEmail();
-      allow write: if isAuthorizedEmail()
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
         && request.resource.size < 300 * 1024
         && request.resource.contentType.matches('image/(webp|jpeg|png)');
-      allow delete: if isAuthorizedEmail();
+      allow delete: if isAuthenticated();
     }
     match /{allPaths=**} {
       allow read, write: if false;
@@ -2697,7 +2512,7 @@ service firebase.storage {
             </div>
           </div>
 
-          <div className="pt-2 flex justify-end">
+          <div className="pt-2 flex justify-end border-t border-zinc-800">
             <Button
               type="button"
               variant="outline"
@@ -2709,7 +2524,7 @@ service firebase.storage {
         </div>
       </Modal>
 
-      {/* Flecha flotante para subir al inicio en listas largas */}
+      {/* Flecha flotante para subir al inicio */}
       <ScrollToTopButton />
     </div>
   );

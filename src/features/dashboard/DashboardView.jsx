@@ -38,7 +38,7 @@ const DATE_RANGES = {
 // Pestañas internas del Dashboard
 const DASHBOARD_TABS = [
   { id: 'OVERVIEW', label: 'Resumen & Tops', icon: PieChart },
-  { id: 'FINANCES', label: 'Finanzas & Margen Real', icon: Wallet },
+  { id: 'FINANCES', label: 'Finanzas & Balance Operativo', icon: Wallet },
   { id: 'SIMULATION', label: 'Simulador de Costos', icon: Sliders },
   { id: 'COMBINATIONS', label: 'Combinaciones (Combos)', icon: Layers },
   { id: 'INSIGHTS', label: 'Sugerencias Inteligentes', icon: Sparkles },
@@ -757,10 +757,10 @@ export default function DashboardView({ orders = [] }) {
               </span>
             </div>
 
-            {/* Utilidad Neta Real */}
+            {/* Balance Operativo Estimado */}
             <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] p-4 rounded-2xl space-y-1.5">
               <div className="flex items-center justify-between text-zinc-400 text-xs font-bold uppercase tracking-wider">
-                <span>Utilidad Neta Real</span>
+                <span>Balance Operativo</span>
                 <Wallet className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="flex items-baseline justify-between gap-1 flex-wrap">
@@ -774,7 +774,7 @@ export default function DashboardView({ orders = [] }) {
                 {renderDelta(metrics.current.netProfit, metrics.previous.netProfit)}
               </div>
               <span className="text-[11px] text-zinc-400 font-medium block">
-                Margen neto: {metrics.current.netMargin.toFixed(1)}%
+                Ventas (-) Costos & Gastos registrados
               </span>
             </div>
           </div>
@@ -982,9 +982,9 @@ export default function DashboardView({ orders = [] }) {
                 }`}
               >
                 <div>
-                  <span>(=) Ganancia / Utilidad Neta Real:</span>
+                  <span>(=) Balance Operativo Estimado:</span>
                   <span className="block text-[11px] font-normal text-zinc-400 mt-0.5">
-                    Margen Neto Final: {metrics.current.netMargin.toFixed(1)}%
+                    Margen Operativo: {metrics.current.netMargin.toFixed(1)}% (Ventas (-) Insumos (-) Gastos del período)
                   </span>
                 </div>
                 <span className="font-mono text-xl sm:text-2xl">

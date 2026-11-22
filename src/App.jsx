@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
 import { CatalogProvider } from './context/CatalogContext';
@@ -7,6 +7,8 @@ import { useCart } from './context/useCart';
 import { MODULES } from './types/constants';
 import { DEFAULT_TABLES } from './types/defaultCatalog';
 import Navbar from './components/layout/Navbar';
+import OfflineBanner from './components/ui/OfflineBanner';
+import NotificationPermissionBanner from './components/ui/NotificationPermissionBanner';
 import SalesView from './features/sales/SalesView';
 import KitchenView from './features/kitchen/KitchenView';
 import OrdersView from './features/orders/OrdersView';
@@ -30,6 +32,8 @@ import {
   deleteTableFromFirestore,
 } from './services/firestoreService';
 import { parseToDate } from './utils/formatters';
+import { playOrderChime } from './utils/audioChime';
+import { sendOrderNotification } from './utils/notifications';
 import { Flame } from 'lucide-react';
 
 function saveOrdersLocal(ordersList) {
@@ -141,6 +145,33 @@ function MainApp() {
     return () => unsubscribe();
   }, []);
 
+  const knownOrdersRef = useRef(null);
+
+  // Alerta sonora y Notificación PWA global cuando ingresa cualquier nueva comanda
+  useEffect(() => {
+    const currentOrderNumbers = new Set(orders.map((o) => o.orderNumber));
+    if (knownOrdersRef.current === null) {
+      // Primera carga: memorizar existentes sin disparar alerta
+      knownOrdersRef.current = currentOrderNumbers;
+      return;
+    }
+
+    let newOrder = null;
+    for (const order of orders) {
+      if (!knownOrdersRef.current.has(order.orderNumber) && order.status === 'PENDIENTE') {
+        newOrder = order;
+        break;
+      }
+    }
+
+    if (newOrder) {
+      playOrderChime();
+      sendOrderNotification(newOrder);
+    }
+
+    knownOrdersRef.current = currentOrderNumbers;
+  }, [orders]);
+
   // 2. Estado reactivo de las mesas según las comandas abiertas no pagadas
   const activeTableIds = useMemo(() => {
     return orders
@@ -228,6 +259,15 @@ function MainApp() {
       saveOrdersLocal(updated);
       return updated;
     });
+
+    // Notificación sonora y del sistema operativo (PWA) inmediata
+    if (cleanOrder.status === 'PENDIENTE') {
+      playOrderChime();
+      sendOrderNotification(cleanOrder);
+      if (knownOrdersRef.current) {
+        knownOrdersRef.current.add(cleanOrder.orderNumber);
+      }
+    }
 
     // Guardar nueva orden individual en Firestore con protección contra colisión concurrente
     const res = await saveOrderToFirestore(cleanOrder, true);
@@ -426,6 +466,8 @@ function MainApp() {
 
   return (
     <div className="min-h-screen bg-[var(--color-porkos-bg)] text-white flex flex-col font-sans selection:bg-orange-500 selection:text-black">
+      <OfflineBanner />
+      <NotificationPermissionBanner />
       <Navbar
         currentModule={activeModule}
         onSelectModule={setCurrentModule}

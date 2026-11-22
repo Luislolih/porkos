@@ -1,9 +1,24 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Wallet, Plus, Edit3, Trash2, ShieldCheck, AlertTriangle, Calendar, Clock } from 'lucide-react';
+import {
+  Wallet,
+  Plus,
+  Edit3,
+  Trash2,
+  ShieldCheck,
+  Calendar,
+  Clock,
+  TrendingDown,
+  CreditCard,
+} from 'lucide-react';
 import { formatCurrency, formatTime, formatDate, parseToDate } from '../../utils/formatters';
 import { sanitizeText } from '../../utils/security';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import PageHeader from '../../components/ui/PageHeader';
+import SearchInput from '../../components/ui/SearchInput';
+import EmptyState from '../../components/ui/EmptyState';
+import Toast from '../../components/ui/Toast';
 import { useAuth } from '../../context/useAuth';
 import {
   subscribeToExpenses,
@@ -32,13 +47,19 @@ export default function ExpensesView() {
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'OWNER';
 
   const [expenses, setExpenses] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('TODAS');
+  const [toastMessage, setToastMessage] = useState(null);
+
+  // Modal Nuevo Gasto
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newCategory, setNewCategory] = useState(EXPENSE_CATEGORIES[0]);
   const [newDesc, setNewDesc] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newMethod, setNewMethod] = useState('Efectivo');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Estado para Edición (Exclusivo Administrador)
+  // Modal Edición (Solo Admin)
   const [editingExpense, setEditingExpense] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editCategory, setEditCategory] = useState('');
@@ -46,9 +67,9 @@ export default function ExpensesView() {
   const [editAmount, setEditAmount] = useState('');
   const [editMethod, setEditMethod] = useState('Efectivo');
 
-  // Estado para Eliminación (Exclusivo Administrador)
+  // Dialog Eliminación (Solo Admin)
   const [deletingExpense, setDeletingExpense] = useState(null);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Sincronización en tiempo real con Firestore
   useEffect(() => {
@@ -58,9 +79,7 @@ export default function ExpensesView() {
     return () => unsubscribe();
   }, []);
 
-  const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-
-  // Ordenar gastos cronológicamente por fecha descendente (más recientes primero)
+  // Ordenar gastos cronológicamente por fecha descendente
   const sortedExpenses = useMemo(() => {
     return [...expenses].sort((a, b) => {
       const timeA = parseToDate(a.date)?.getTime() || 0;
@@ -69,13 +88,57 @@ export default function ExpensesView() {
     });
   }, [expenses]);
 
-  // 1. Registrar nuevo gasto
+  // Gastos filtrados por búsqueda y categoría
+  const filteredExpenses = useMemo(() => {
+    let result = sortedExpenses;
+    if (selectedCategory !== 'TODAS') {
+      result = result.filter((e) => e.category === selectedCategory);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter((e) =>
+        e.description?.toLowerCase().includes(q) ||
+        e.category?.toLowerCase().includes(q) ||
+        e.paymentMethod?.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [sortedExpenses, selectedCategory, searchQuery]);
+
+  // Cálculos para KPIs
+  const totalExpenses = useMemo(() => {
+    return expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+  }, [expenses]);
+
+  const todayExpenses = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return expenses
+      .filter((e) => {
+        const d = parseToDate(e.date);
+        return d && d >= today;
+      })
+      .reduce((sum, e) => sum + (e.amount || 0), 0);
+  }, [expenses]);
+
+  const topCategory = useMemo(() => {
+    if (expenses.length === 0) return null;
+    const catTotals = {};
+    expenses.forEach((e) => {
+      catTotals[e.category] = (catTotals[e.category] || 0) + (e.amount || 0);
+    });
+    const sorted = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+    return sorted[0] ? { name: sorted[0][0], total: sorted[0][1] } : null;
+  }, [expenses]);
+
+  // Registrar nuevo gasto
   const handleAddExpense = async (e) => {
     e.preventDefault();
     const cleanAmount = Math.round(Math.max(0.1, parseFloat(newAmount) || 0) * 100) / 100;
     const cleanDescription = sanitizeText(newDesc, 200);
     if (!cleanAmount || !cleanDescription) return;
 
+    setIsSubmitting(true);
     const newExp = {
       id: `exp_${Date.now()}`,
       date: new Date(),
@@ -86,17 +149,17 @@ export default function ExpensesView() {
       registeredBy: user?.displayName || user?.email?.split('@')[0] || 'Cajero',
     };
 
-    // Actualización optimista local
     setExpenses((prev) => [newExp, ...prev]);
     setIsAddOpen(false);
     setNewDesc('');
     setNewAmount('');
+    setIsSubmitting(false);
 
-    // Guardar en Firestore
+    setToastMessage({ type: 'success', text: `Gasto de S/ ${cleanAmount.toFixed(2)} registrado` });
     await saveExpenseToFirestore(newExp);
   };
 
-  // 2. Abrir modal de edición (Solo Admin)
+  // Abrir modal de edición (Solo Admin)
   const handleOpenEdit = (exp) => {
     if (!isAdmin) return;
     setEditingExpense(exp);
@@ -124,99 +187,190 @@ export default function ExpensesView() {
       editedBy: user?.displayName || user?.email?.split('@')[0] || 'Admin',
     };
 
-    // Actualización optimista local
     setExpenses((prev) =>
       prev.map((exp) => (exp.id === editingExpense.id ? { ...exp, ...updatedData } : exp))
     );
     setIsEditOpen(false);
     setEditingExpense(null);
 
-    // Persistir en Firestore
+    setToastMessage({ type: 'success', text: `Gasto actualizado correctamente` });
     await updateExpenseInFirestore(editingExpense.id, updatedData);
-  };
-
-  // 3. Abrir confirmación de eliminación (Solo Admin)
-  const handleOpenDelete = (exp) => {
-    if (!isAdmin) return;
-    setDeletingExpense(exp);
-    setIsDeleteOpen(true);
   };
 
   // Confirmar eliminación de gasto (Solo Admin)
   const handleConfirmDelete = async () => {
     if (!isAdmin || !deletingExpense) return;
 
+    setIsDeleting(true);
     const targetId = deletingExpense.id;
 
-    // Actualización optimista local
     setExpenses((prev) => prev.filter((exp) => exp.id !== targetId));
-    setIsDeleteOpen(false);
     setDeletingExpense(null);
+    setIsDeleting(false);
 
-    // Eliminar de Firestore
+    setToastMessage({ type: 'success', text: `Gasto eliminado de la base de datos` });
     await deleteExpenseFromFirestore(targetId);
   };
 
   return (
     <div className="space-y-4 pb-20 lg:pb-8">
+      {toastMessage && (
+        <Toast
+          message={toastMessage.text}
+          type={toastMessage.type}
+          onClose={() => setToastMessage(null)}
+        />
+      )}
+
       {/* Header */}
-      <div className="bg-[var(--color-porkos-surface)] p-4 sm:p-5 rounded-2xl border border-[var(--color-porkos-border)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 sm:p-3 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
-            <Wallet className="w-6 h-6" />
-          </div>
+      <PageHeader
+        title="Gastos & Compras Diarias"
+        subtitle="Control de salidas de dinero, compras de insumos para cocina y gastos operativos"
+        icon={Wallet}
+        badge={
+          isAdmin ? (
+            <span className="flex items-center gap-1 text-rose-300">
+              <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />
+              Edición & Eliminación activa
+            </span>
+          ) : (
+            'Modo Registro'
+          )
+        }
+        actions={
+          <Button
+            onClick={() => setIsAddOpen(true)}
+            icon={Plus}
+            size="sm"
+            className="text-xs font-black shadow-md shadow-orange-500/20"
+          >
+            Registrar Gasto
+          </Button>
+        }
+      />
+
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Total Egresos */}
+        <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] p-4 rounded-2xl flex items-center justify-between shadow-sm">
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                Gastos & Compras Diarias
-              </h2>
-              {isAdmin ? (
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1 shadow-xs">
-                  <ShieldCheck className="w-3 h-3 text-rose-400" />
-                  Admin: Edición y Eliminación Activa
-                </span>
-              ) : (
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
-                  Modo Operativo (Solo lectura para modificar)
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              Control de salidas de dinero, compras de insumos e insumos de cocina
-            </p>
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
+              Total Egresos Históricos
+            </span>
+            <span className="text-2xl sm:text-3xl font-black text-rose-400 font-mono mt-1 block">
+              {formatCurrency(totalExpenses)}
+            </span>
+            <span className="text-[10px] text-zinc-500 mt-0.5 block">
+              {expenses.length} movimientos registrados
+            </span>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+            <TrendingDown className="w-6 h-6" />
           </div>
         </div>
 
-        <Button
-          onClick={() => setIsAddOpen(true)}
-          icon={Plus}
-          size="md"
-          className="text-xs sm:text-sm font-black whitespace-nowrap"
-        >
-          Registrar Gasto
-        </Button>
-      </div>
-
-      {/* KPI Total */}
-      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] p-4 sm:p-5 rounded-2xl flex items-center justify-between max-w-sm shadow-sm">
-        <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-          Total Egresos Registrados:
-        </span>
-        <span className="text-2xl sm:text-3xl font-black text-rose-400">
-          {formatCurrency(totalExpenses)}
-        </span>
-      </div>
-
-      {/* Expenses Table */}
-      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl overflow-hidden shadow-sm">
-        {expenses.length === 0 ? (
-          <div className="py-16 text-center text-zinc-500">
-            <Wallet className="w-10 h-10 opacity-20 mx-auto mb-2.5" />
-            <p className="text-sm font-bold text-zinc-300">No hay gastos registrados</p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              Registra compras de insumos para llevar el control de caja al cierre
-            </p>
+        {/* Egresos Hoy */}
+        <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] p-4 rounded-2xl flex items-center justify-between shadow-sm">
+          <div>
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
+              Egresos de Hoy
+            </span>
+            <span className="text-2xl sm:text-3xl font-black text-amber-400 font-mono mt-1 block">
+              {formatCurrency(todayExpenses)}
+            </span>
+            <span className="text-[10px] text-zinc-500 mt-0.5 block">
+              Cierre de turno actual
+            </span>
           </div>
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+            <Calendar className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Mayor Rubro */}
+        <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] p-4 rounded-2xl flex items-center justify-between shadow-sm">
+          <div>
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
+              Mayor Rubro de Gasto
+            </span>
+            <span className="text-base sm:text-lg font-black text-white truncate max-w-[180px] mt-1 block">
+              {topCategory?.name || 'Sin registros'}
+            </span>
+            <span className="text-[10px] text-zinc-400 font-mono mt-0.5 block">
+              {topCategory ? formatCurrency(topCategory.total) : 'S/ 0.00'}
+            </span>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+            <CreditCard className="w-6 h-6" />
+          </div>
+        </div>
+      </div>
+
+      {/* Buscador & Filtro de Categoría */}
+      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shadow-sm">
+        <div className="flex-1">
+          <SearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Buscar por descripción, categoría o método de pago..."
+          />
+        </div>
+
+        {/* Filtro por categoría */}
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('TODAS')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              selectedCategory === 'TODAS'
+                ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
+                : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+            }`}
+          >
+            Todas ({expenses.length})
+          </button>
+          {EXPENSE_CATEGORIES.map((cat) => {
+            const count = expenses.filter((e) => e.category === cat).length;
+            if (count === 0 && selectedCategory !== cat) return null;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  selectedCategory === cat
+                    ? 'bg-[var(--color-porkos-orange)] text-black font-black shadow-sm'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+                }`}
+              >
+                {cat} ({count})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Listado de Gastos */}
+      <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl overflow-hidden shadow-sm">
+        {filteredExpenses.length === 0 ? (
+          <EmptyState
+            icon={Wallet}
+            title={expenses.length === 0 ? 'No hay gastos registrados' : 'Sin resultados para la búsqueda'}
+            description={
+              expenses.length === 0
+                ? 'Registra compras de insumos para llevar el control de caja al cierre del turno.'
+                : 'Intenta con otro término de búsqueda o selecciona "Todas" las categorías.'
+            }
+            actionLabel={expenses.length === 0 ? 'Registrar Primer Gasto' : 'Limpiar Filtros'}
+            onAction={() => {
+              if (expenses.length === 0) {
+                setIsAddOpen(true);
+              } else {
+                setSearchQuery('');
+                setSelectedCategory('TODAS');
+              }
+            }}
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs whitespace-nowrap">
@@ -227,13 +381,13 @@ export default function ExpensesView() {
                   <th className="py-3 px-4">Descripción</th>
                   <th className="py-3 px-4">Método</th>
                   <th className="py-3 px-4 text-right">Importe</th>
-                  {isAdmin && <th className="py-3 px-4 text-center">Acciones Admin</th>}
+                  {isAdmin && <th className="py-3 px-4 text-center">Acciones</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/60 font-medium">
-                {sortedExpenses.map((exp) => (
+                {filteredExpenses.map((exp) => (
                   <tr key={exp.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="py-3.5 px-4 font-mono text-[11px] text-zinc-300">
+                    <td className="py-3 px-4 font-mono text-[11px] text-zinc-300">
                       <div className="flex items-center gap-1.5 font-bold text-white">
                         <Calendar className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                         <span>{formatDate(exp.date)}</span>
@@ -242,33 +396,39 @@ export default function ExpensesView() {
                         <span className="text-zinc-300 font-semibold">{formatTime(exp.date)}</span>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-amber-400">{exp.category}</td>
-                    <td className="py-3.5 px-4 text-white font-semibold">{exp.description}</td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3 px-4">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 font-bold text-[11px]">
+                        {exp.category}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-white font-semibold max-w-xs truncate">
+                      {exp.description}
+                    </td>
+                    <td className="py-3 px-4">
                       <span className="px-2 py-0.5 rounded-lg bg-zinc-800 text-zinc-300 border border-zinc-700/80 text-[11px] font-semibold">
                         {exp.paymentMethod}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-right font-black text-rose-400 text-sm">
+                    <td className="py-3 px-4 text-right font-black text-rose-400 text-sm font-mono">
                       -{formatCurrency(exp.amount)}
                     </td>
                     {isAdmin && (
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(exp)}
-                            className="p-2 rounded-xl bg-zinc-800/80 hover:bg-amber-500 hover:text-black text-amber-300 border border-zinc-700/80 transition-all cursor-pointer active:scale-95 touch-manipulation shadow-xs"
-                            title="Editar gasto (Solo Admin)"
+                            className="p-1.5 rounded-xl bg-zinc-800/80 hover:bg-amber-500 hover:text-black text-amber-300 border border-zinc-700/80 transition-all cursor-pointer active:scale-95 touch-manipulation"
+                            title="Editar gasto"
                             aria-label="Editar gasto"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleOpenDelete(exp)}
-                            className="p-2 rounded-xl bg-zinc-800/80 hover:bg-rose-500 hover:text-white text-rose-400 border border-zinc-700/80 transition-all cursor-pointer active:scale-95 touch-manipulation shadow-xs"
-                            title="Eliminar gasto (Solo Admin)"
+                            onClick={() => setDeletingExpense(exp)}
+                            className="p-1.5 rounded-xl bg-zinc-800/80 hover:bg-rose-500 hover:text-white text-rose-400 border border-zinc-700/80 transition-all cursor-pointer active:scale-95 touch-manipulation"
+                            title="Eliminar gasto"
                             aria-label="Eliminar gasto"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -289,14 +449,16 @@ export default function ExpensesView() {
         isOpen={isAddOpen}
         onClose={() => setIsAddOpen(false)}
         title="Registrar Gasto o Compra"
+        subtitle="Registra salidas de dinero y compra de insumos de cocina"
+        maxWidth="max-w-md"
       >
-        <form onSubmit={handleAddExpense} className="space-y-4 text-xs">
+        <form onSubmit={handleAddExpense} className="space-y-4 text-xs sm:text-sm">
           <div>
-            <label className="block text-zinc-300 font-bold mb-1">Categoría</label>
+            <label className="block text-zinc-300 font-bold mb-1">Categoría del Gasto *</label>
             <select
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value)}
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
             >
               {EXPENSE_CATEGORIES.map((cat) => (
                 <option key={cat} value={cat}>
@@ -307,37 +469,40 @@ export default function ExpensesView() {
           </div>
 
           <div>
-            <label className="block text-zinc-300 font-bold mb-1">Descripción</label>
+            <label className="block text-zinc-300 font-bold mb-1">Descripción del Gasto *</label>
             <input
               type="text"
               required
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
-              placeholder="Ej. 10 bolsas de papas congeladas..."
-              className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
+              placeholder="Ej. 10 bolsas de papas congeladas, 5 paquetes de pan..."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-zinc-300 font-bold mb-1">Importe (S/)</label>
-              <input
-                type="number"
-                step="0.10"
-                required
-                value={newAmount}
-                onChange={(e) => setNewAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)]"
-              />
+              <label className="block text-zinc-300 font-bold mb-1">Importe (S/) *</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-rose-400">S/</span>
+                <input
+                  type="number"
+                  step="0.10"
+                  required
+                  value={newAmount}
+                  onChange={(e) => setNewAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-8 pr-3 py-2.5 text-white font-black text-base sm:text-sm focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                />
+              </div>
             </div>
 
             <div>
-              <label className="block text-zinc-300 font-bold mb-1">Método de Pago</label>
+              <label className="block text-zinc-300 font-bold mb-1">Método de Pago *</label>
               <select
                 value={newMethod}
                 onChange={(e) => setNewMethod(e.target.value)}
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
               >
                 {PAYMENT_METHODS.map((method) => (
                   <option key={method} value={method}>
@@ -348,8 +513,20 @@ export default function ExpensesView() {
             </div>
           </div>
 
-          <div className="pt-2">
-            <Button type="submit" fullWidth size="lg">
+          <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAddOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              isLoading={isSubmitting}
+              className="font-black"
+            >
               Guardar Gasto
             </Button>
           </div>
@@ -365,15 +542,16 @@ export default function ExpensesView() {
             setEditingExpense(null);
           }}
           title="Editar Gasto Registrado"
-          subtitle="Modificación protegida (Solo Administrador)"
+          subtitle="Modificación protegida para administradores"
+          maxWidth="max-w-md"
         >
-          <form onSubmit={handleSaveEditExpense} className="space-y-4 text-xs">
+          <form onSubmit={handleSaveEditExpense} className="space-y-4 text-xs sm:text-sm">
             <div>
               <label className="block text-zinc-300 font-bold mb-1">Categoría</label>
               <select
                 value={editCategory}
                 onChange={(e) => setEditCategory(e.target.value)}
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
               >
                 {EXPENSE_CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
@@ -390,21 +568,24 @@ export default function ExpensesView() {
                 required
                 value={editDesc}
                 onChange={(e) => setEditDesc(e.target.value)}
-                className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-zinc-300 font-bold mb-1">Importe (S/)</label>
-                <input
-                  type="number"
-                  step="0.10"
-                  required
-                  value={editAmount}
-                  onChange={(e) => setEditAmount(e.target.value)}
-                  className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white font-bold focus:outline-none focus:border-[var(--color-porkos-orange)]"
-                />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-rose-400">S/</span>
+                  <input
+                    type="number"
+                    step="0.10"
+                    required
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-8 pr-3 py-2.5 text-white font-black text-base sm:text-sm focus:outline-none focus:border-[var(--color-porkos-orange)]"
+                  />
+                </div>
               </div>
 
               <div>
@@ -412,7 +593,7 @@ export default function ExpensesView() {
                 <select
                   value={editMethod}
                   onChange={(e) => setEditMethod(e.target.value)}
-                  className="w-full bg-black/60 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer"
                 >
                   {PAYMENT_METHODS.map((method) => (
                     <option key={method} value={method}>
@@ -423,12 +604,10 @@ export default function ExpensesView() {
               </div>
             </div>
 
-            <div className="pt-2 flex items-center gap-2">
+            <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
               <Button
                 type="button"
-                variant="secondary"
-                size="md"
-                className="flex-1"
+                variant="outline"
                 onClick={() => {
                   setIsEditOpen(false);
                   setEditingExpense(null);
@@ -436,7 +615,7 @@ export default function ExpensesView() {
               >
                 Cancelar
               </Button>
-              <Button type="submit" size="md" className="flex-1">
+              <Button type="submit" className="font-black">
                 Guardar Cambios
               </Button>
             </div>
@@ -444,58 +623,21 @@ export default function ExpensesView() {
         </Modal>
       )}
 
-      {/* Modal Confirmar Eliminación (Solo Administrador) */}
-      {isAdmin && (
-        <Modal
-          isOpen={isDeleteOpen}
-          onClose={() => {
-            setIsDeleteOpen(false);
-            setDeletingExpense(null);
-          }}
-          title="Eliminar Registro de Gasto"
-        >
-          <div className="space-y-4 text-xs">
-            <div className="bg-rose-950/20 border border-rose-800/40 p-3.5 rounded-xl flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-              <div className="space-y-1 text-zinc-300">
-                <p className="font-bold text-white text-sm">¿Confirmas la eliminación de este gasto?</p>
-                <p>
-                  Gasto de{' '}
-                  <strong className="text-rose-400 font-black">
-                    {formatCurrency(deletingExpense?.amount || 0)}
-                  </strong>{' '}
-                  en &ldquo;{deletingExpense?.description}&rdquo;.
-                </p>
-                <p className="text-[11px] text-zinc-400">
-                  Esta acción revertirá este egreso de los totales del turno y de la base de datos.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-1">
-              <Button
-                type="button"
-                variant="secondary"
-                size="md"
-                className="flex-1"
-                onClick={() => {
-                  setIsDeleteOpen(false);
-                  setDeletingExpense(null);
-                }}
-              >
-                Cancelar
-              </Button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                className="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-black bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white transition-all cursor-pointer active:scale-95 touch-manipulation shadow-md shadow-rose-600/20"
-              >
-                Sí, Eliminar Gasto
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      {/* Confirm Dialog: Eliminar Gasto */}
+      <ConfirmDialog
+        isOpen={Boolean(deletingExpense)}
+        onClose={() => setDeletingExpense(null)}
+        onConfirm={handleConfirmDelete}
+        title="¿Eliminar registro de gasto?"
+        message={
+          deletingExpense
+            ? `Se eliminará el gasto de S/ ${Number(deletingExpense.amount || 0).toFixed(2)} ("${deletingExpense.description}"). Esta acción revertirá este egreso de los totales del turno.`
+            : ''
+        }
+        confirmText="Sí, Eliminar Gasto"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }
