@@ -31,7 +31,10 @@ import EmptyState from '../../components/ui/EmptyState';
 import SearchInput from '../../components/ui/SearchInput';
 import Button from '../../components/ui/Button';
 import Toast from '../../components/ui/Toast';
+import ProductThumbnail from '../../components/ui/ProductThumbnail';
+import { isProductBeverage, isProductDessert } from '../../utils/productCategories';
 import { useAuth } from '../../context/useAuth';
+import { useCatalog } from '../../context/useCatalog';
 
 export default function OrdersView({
   orders = [],
@@ -42,7 +45,20 @@ export default function OrdersView({
   onCreateOrder,
 }) {
   const { user } = useAuth();
+  const { products = [] } = useCatalog();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'OWNER';
+
+  const getItemThumbnail = (item) => {
+    if (item?.thumbnailUrl) return item.thumbnailUrl;
+    if (item?.image) return item.image;
+    if (!products || products.length === 0) return null;
+    const match = products.find(
+      (p) =>
+        (item?.productId && p.id === item.productId) ||
+        (item?.name && p.name && p.name.trim().toLowerCase() === item.name.trim().toLowerCase())
+    );
+    return match?.thumbnailUrl || match?.image || null;
+  };
 
   const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'HISTORY'
   const [filterModality, setFilterModality] = useState('ALL');
@@ -551,8 +567,17 @@ export default function OrdersView({
                       {order.items.slice(0, 5).map((item, idx) => (
                         <span
                           key={idx}
-                          className="inline-flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 text-zinc-200 px-2.5 py-1 rounded-lg text-xs"
+                          className="inline-flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 text-zinc-200 p-1 pr-2.5 rounded-lg text-xs"
                         >
+                          <ProductThumbnail
+                            src={item.image}
+                            thumbnailUrl={getItemThumbnail(item)}
+                            name={item.name}
+                            isBeverage={isProductBeverage(item)}
+                            isDessert={isProductDessert(item)}
+                            className="w-6 h-6 rounded-md shrink-0"
+                            iconSize="w-3.5 h-3.5"
+                          />
                           <span className="font-black text-[var(--color-porkos-orange)]">
                             {item.quantity}×
                           </span>
@@ -736,22 +761,45 @@ export default function OrdersView({
             </div>
 
             {/* Productos */}
-            <div className="bg-[#0C0C0F] p-3 rounded-2xl space-y-2 border border-[var(--color-porkos-border)]">
-              <h5 className="font-black text-white uppercase tracking-wider text-[11px]">
-                Platos y Artículos ({selectedOrder.items?.length || 0})
-              </h5>
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5 scrollbar-none">
+            <div className="bg-[#0C0C0F] p-3 sm:p-4 rounded-2xl space-y-2.5 border border-[var(--color-porkos-border)]">
+              <div className="flex items-center justify-between">
+                <h5 className="font-black text-white uppercase tracking-wider text-[11px]">
+                  Platos y Artículos ({selectedOrder.items?.length || 0})
+                </h5>
+                <span className="text-[11px] font-bold text-zinc-400">
+                  {selectedOrder.items?.reduce((acc, i) => acc + (i.quantity || 1), 0)} unidades
+                </span>
+              </div>
+              <div className="space-y-2.5 max-h-72 sm:max-h-80 overflow-y-auto pr-0.5 scrollbar-none">
                 {selectedOrder.items?.map((item, idx) => (
                   <div
                     key={idx}
-                    className="p-2.5 rounded-xl bg-[#141418] border border-zinc-800 flex justify-between items-start text-xs"
+                    className="p-2.5 sm:p-3 rounded-xl bg-[#141418] border border-zinc-800 flex items-start gap-3 text-xs"
                   >
-                    <div className="space-y-0.5 min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-black text-white">
-                          {item.quantity}× {item.name}
+                    <ProductThumbnail
+                      src={item.image}
+                      thumbnailUrl={getItemThumbnail(item)}
+                      name={item.name}
+                      isBeverage={isProductBeverage(item)}
+                      isDessert={isProductDessert(item)}
+                      className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl shrink-0"
+                      iconSize="w-6 h-6"
+                    />
+
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                          <span className="bg-zinc-800 text-white border border-zinc-700 px-1.5 py-0.5 rounded font-black text-xs shrink-0">
+                            {item.quantity}×
+                          </span>
+                          <span className="font-black text-white text-xs sm:text-sm truncate">
+                            {item.name}
+                          </span>
+                          <ItemConsumptionBadge item={item} orderModality={selectedOrder.modality} />
+                        </div>
+                        <span className="font-black text-white text-xs sm:text-sm shrink-0 ml-2">
+                          {formatCurrency(item.subtotal)}
                         </span>
-                        <ItemConsumptionBadge item={item} orderModality={selectedOrder.modality} />
                       </div>
 
                       {item.customization?.saladSummary && (
@@ -814,10 +862,6 @@ export default function OrdersView({
                         </p>
                       )}
                     </div>
-
-                    <span className="font-black text-white text-xs shrink-0 ml-2">
-                      {formatCurrency(item.subtotal)}
-                    </span>
                   </div>
                 ))}
               </div>
