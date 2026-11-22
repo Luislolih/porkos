@@ -65,6 +65,15 @@ export function setChimeEnabled(enabled) {
 export function playOrderChime() {
   if (!isChimeEnabled()) return;
 
+  // Vibración háptica en dispositivos móviles al ingresar una comanda
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try {
+      navigator.vibrate([200, 100, 200]);
+    } catch {
+      // Ignorar si el dispositivo no soporta vibración
+    }
+  }
+
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -113,4 +122,15 @@ function playTone(ctx, freq, startTime, duration, maxVolume = 0.2) {
 export function testChime() {
   unlockAudio();
   playOrderChime();
+}
+
+// Desbloquear audio automáticamente con la primera interacción del usuario (touch o click)
+if (typeof window !== 'undefined') {
+  const autoUnlock = () => {
+    unlockAudio();
+    window.removeEventListener('click', autoUnlock);
+    window.removeEventListener('touchstart', autoUnlock);
+  };
+  window.addEventListener('click', autoUnlock, { once: true, passive: true });
+  window.addEventListener('touchstart', autoUnlock, { once: true, passive: true });
 }

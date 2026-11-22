@@ -16,6 +16,7 @@ import {
   Users,
   Settings,
   Bell,
+  RefreshCw,
 } from 'lucide-react';
 import CatalogView from '../catalog/CatalogView';
 import NotificationsSettingsTab from './NotificationsSettingsTab';
@@ -366,6 +367,27 @@ export default function SettingsView({
   const [activeTab, setActiveTab] = useState('tables'); // 'tables' | 'delivery' | 'users' | 'system' | 'catalog'
   const [isConfirmOrdersClearOpen, setIsConfirmOrdersClearOpen] = useState(false);
   const [isClearingOrders, setIsClearingOrders] = useState(false);
+  const [isRefreshingCache, setIsRefreshingCache] = useState(false);
+
+  const handleForceUpdateAndClearCache = async () => {
+    setIsRefreshingCache(true);
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+      localStorage.removeItem('porkos_build_version');
+      window.location.reload();
+    } catch {
+      window.location.reload();
+    }
+  };
 
   const {
     user: currentUser,
@@ -983,6 +1005,38 @@ service cloud.firestore {
                 <span className="text-blue-400 font-bold">CAJERO:</span>
                 <span className="text-zinc-400">Ventas, salón y pedidos</span>
               </div>
+            </div>
+          </div>
+
+          {/* Actualización de Aplicación y Memoria Caché */}
+          <div className="bg-[var(--color-porkos-surface)] border border-[var(--color-porkos-border)] rounded-2xl p-4 sm:p-5 space-y-3 md:col-span-2 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 text-[var(--color-porkos-orange)]" />
+                  <span>Versión de la Aplicación y Caché Móvil</span>
+                </h4>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Fuerza la descarga inmediata de la última versión desplegada y purga los archivos antiguos de este dispositivo.
+                </p>
+                <div className="flex items-center gap-2 mt-2 text-[11px] text-zinc-500 font-mono">
+                  <span>Versión local:</span>
+                  <span className="text-zinc-300 font-bold bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
+                    {localStorage.getItem('porkos_build_version') || 'Última versión'}
+                  </span>
+                </div>
+              </div>
+
+              <Button
+                variant="primary"
+                size="sm"
+                icon={RefreshCw}
+                onClick={handleForceUpdateAndClearCache}
+                disabled={isRefreshingCache}
+                className="shrink-0 font-bold"
+              >
+                {isRefreshingCache ? 'Actualizando...' : 'Forzar Actualización y Limpiar Caché'}
+              </Button>
             </div>
           </div>
 

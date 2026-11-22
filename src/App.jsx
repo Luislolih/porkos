@@ -8,7 +8,7 @@ import { MODULES } from './types/constants';
 import { DEFAULT_TABLES } from './types/defaultCatalog';
 import Navbar from './components/layout/Navbar';
 import OfflineBanner from './components/ui/OfflineBanner';
-import NotificationPermissionBanner from './components/ui/NotificationPermissionBanner';
+
 import SalesView from './features/sales/SalesView';
 import KitchenView from './features/kitchen/KitchenView';
 import OrdersView from './features/orders/OrdersView';
@@ -467,7 +467,6 @@ function MainApp() {
   return (
     <div className="min-h-screen bg-[var(--color-porkos-bg)] text-white flex flex-col font-sans selection:bg-orange-500 selection:text-black">
       <OfflineBanner />
-      <NotificationPermissionBanner />
       <Navbar
         currentModule={activeModule}
         onSelectModule={setCurrentModule}

@@ -8,11 +8,46 @@ export function isNotificationSupported() {
   return typeof window !== 'undefined' && 'Notification' in window;
 }
 
+export function isSecureContextEnvironment() {
+  return typeof window !== 'undefined' ? Boolean(window.isSecureContext) : true;
+}
+
 export function getNotificationPermission() {
   if (!isNotificationSupported()) {
     return 'unsupported';
   }
   return Notification.permission; // 'default' | 'granted' | 'denied'
+}
+
+/**
+ * Obtiene el ServiceWorkerRegistration de manera confiable y sin bloqueos agresivos.
+ */
+async function getActiveSWRegistration() {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+    return null;
+  }
+  try {
+    // 1. Obtener registro existente de inmediato si ya está disponible
+    let reg = await navigator.serviceWorker.getRegistration();
+    if (reg && (reg.active || reg.installing || reg.waiting)) {
+      return reg;
+    }
+
+    // 2. Esperar a que esté listo con timeout de 3.5s
+    reg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('SW ready timeout')), 3500)),
+    ]);
+    return reg;
+  } catch {
+    // 3. Intentar registrar de inmediato si aún no existía
+    try {
+      return await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    } catch (e) {
+      console.warn('No se pudo registrar ServiceWorker para notificaciones:', e);
+      return null;
+    }
+  }
 }
 
 /**
@@ -82,38 +117,45 @@ export async function sendTestNotification() {
     data: { url: '/' },
   };
 
-  // 1. Intentar mediante Service Worker
-  if ('serviceWorker' in navigator) {
+  // Vibrar en dispositivos móviles compatibles
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
     try {
-      const reg = await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 1200)),
-      ]);
-      if (reg && reg.showNotification) {
-        await reg.showNotification(title, options);
-        return true;
-      }
+      navigator.vibrate([200, 100, 200]);
     } catch (e) {
-      console.warn('Fallback a notificación directa:', e);
+      void e;
     }
   }
 
-  // 2. Fallback directo a la API nativa de Notification (Desktop / Safari)
-  try {
-    const notif = new Notification(title, {
-      body: options.body,
-      icon: options.icon,
-      tag: options.tag,
-    });
-    notif.onclick = () => {
-      window.focus();
-      notif.close();
-    };
-    return true;
-  } catch (e) {
-    console.warn('Error mostrando notificación:', e);
-    return false;
+  // 1. Intentar primero mediante Service Worker (imprescindible en Android Chrome y PWA)
+  const reg = await getActiveSWRegistration();
+  if (reg && typeof reg.showNotification === 'function') {
+    try {
+      await reg.showNotification(title, options);
+      return true;
+    } catch (e) {
+      console.warn('Fallback tras error en reg.showNotification:', e);
+    }
   }
+
+  // 2. Fallback directo a la API nativa de Notification (Desktop / Safari macOS)
+  if (typeof Notification === 'function') {
+    try {
+      const notif = new Notification(title, {
+        body: options.body,
+        icon: options.icon,
+        tag: options.tag,
+      });
+      notif.onclick = () => {
+        window.focus();
+        notif.close();
+      };
+      return true;
+    } catch (e) {
+      console.warn('Error mostrando notificación nativa directa:', e);
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -162,38 +204,45 @@ export async function sendOrderNotification(order) {
       ],
     };
 
-    // 1. Intentar mediante Service Worker
-    if ('serviceWorker' in navigator) {
+    // Vibración táctil en móvil
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
-        const reg = await Promise.race([
-          navigator.serviceWorker.ready,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 1200)),
-        ]);
-        if (reg && reg.showNotification) {
-          await reg.showNotification(title, options);
-          return true;
-        }
+        navigator.vibrate([250, 100, 250, 100, 250]);
+      } catch (e) {
+        void e;
+      }
+    }
+
+    // 1. Intentar mediante Service Worker (requerido en Android Chrome)
+    const reg = await getActiveSWRegistration();
+    if (reg && typeof reg.showNotification === 'function') {
+      try {
+        await reg.showNotification(title, options);
+        return true;
       } catch (e) {
         console.warn('Fallback a notificación directa para comanda:', e);
       }
     }
 
-    // 2. Fallback directo a la API nativa
-    try {
-      const notif = new Notification(title, {
-        body: options.body,
-        icon: options.icon,
-        tag: options.tag,
-      });
-      notif.onclick = () => {
-        window.focus();
-        notif.close();
-      };
-      return true;
-    } catch (err) {
-      console.warn('Error mostrando notificación nativa:', err);
-      return false;
+    // 2. Fallback directo a la API nativa (Desktop Chrome / Safari / Edge)
+    if (typeof Notification === 'function') {
+      try {
+        const notif = new Notification(title, {
+          body: options.body,
+          icon: options.icon,
+          tag: options.tag,
+        });
+        notif.onclick = () => {
+          window.focus();
+          notif.close();
+        };
+        return true;
+      } catch (err) {
+        console.warn('Error mostrando notificación nativa:', err);
+      }
     }
+
+    return false;
   } catch (error) {
     console.warn('Error emitiendo notificación de comanda:', error);
     return false;

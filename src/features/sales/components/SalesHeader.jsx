@@ -1,9 +1,6 @@
-import { useState } from 'react';
-import { Utensils, Store, Search, Users, Bike, ShoppingBag, User, X, Bell, BellOff } from 'lucide-react';
+import { Utensils, Store, Search, Users, Bike, ShoppingBag, User, X } from 'lucide-react';
 import { SALES_MODES, ORDER_MODALITIES } from '../../../types/constants';
 import { useCart } from '../../../context/useCart';
-import { useNotifications } from '../../../hooks/useNotifications';
-import NotificationModal from '../../../components/ui/NotificationModal';
 
 export default function SalesHeader({
   salesMode,
@@ -12,8 +9,6 @@ export default function SalesHeader({
   setSearchQuery,
   tables = [],
 }) {
-  const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
-  const { isGranted, isDenied } = useNotifications();
   const {
     modality,
     setModality,
@@ -98,37 +93,6 @@ export default function SalesHeader({
             </button>
           )}
         </div>
-
-        {/* Acceso Directo de Notificaciones en Pantalla de Ventas */}
-        <button
-          type="button"
-          onClick={() => setIsNotifModalOpen(true)}
-          className={`flex items-center gap-1.5 px-3 py-2.5 rounded-2xl text-xs font-bold border transition-all cursor-pointer shrink-0 active:scale-95 shadow-xs ${
-            isGranted
-              ? 'bg-[#121216] text-zinc-300 hover:text-white border-[var(--color-porkos-border)] hover:border-emerald-500/40'
-              : isDenied
-              ? 'bg-rose-950/40 text-rose-300 border-rose-500/40 hover:bg-rose-950/60'
-              : 'bg-orange-500/15 text-[var(--color-porkos-orange)] border-orange-500/40 hover:bg-orange-500/25'
-          }`}
-          title="Centro de Alertas y Notificaciones"
-        >
-          <div className="relative">
-            {isDenied ? (
-              <BellOff className="w-4 h-4 text-rose-400 shrink-0" />
-            ) : (
-              <Bell className="w-4 h-4 shrink-0" />
-            )}
-            {isGranted && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-black" />
-            )}
-            {!isGranted && !isDenied && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-400 ring-2 ring-black animate-ping" />
-            )}
-          </div>
-          <span className="hidden sm:inline font-black text-xs">
-            {isGranted ? 'Alertas ON' : isDenied ? 'Bloqueado' : 'Activar Alertas'}
-          </span>
-        </button>
       </div>
 
       {/* Control de Operación en Restaurante: Modalidades de atención y Mesas */}
@@ -271,12 +235,6 @@ export default function SalesHeader({
           )}
         </div>
       )}
-
-      {/* Modal de Control de Notificaciones */}
-      <NotificationModal
-        isOpen={isNotifModalOpen}
-        onClose={() => setIsNotifModalOpen(false)}
-      />
     </div>
   );
 }

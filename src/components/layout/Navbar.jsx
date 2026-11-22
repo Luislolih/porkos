@@ -12,22 +12,21 @@ import {
   Menu,
   X,
   ChevronRight,
+  ChevronDown,
   MoreHorizontal,
-  Bell,
-  BellOff,
 } from 'lucide-react';
 import { MODULES } from '../../types/constants';
 import { useAuth } from '../../context/useAuth';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import NotificationModal from '../ui/NotificationModal';
-import { useNotifications } from '../../hooks/useNotifications';
+import UserMenuModal from '../ui/UserMenuModal';
 
 export default function Navbar({ currentModule, onSelectModule, activeOrdersCount = 0 }) {
   const { user, logout, canAccessModule } = useAuth();
-  const { isGranted, isDenied } = useNotifications();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const allNavItems = [
     { id: MODULES.SALES, label: 'Ventas', desc: 'Caja y comandas', icon: ShoppingBag },
@@ -52,7 +51,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
   return (
     <>
       {/* Top Bar for Desktop & Mobile */}
-      <header className="sticky top-0 z-30 bg-[#09090B]/95 backdrop-blur-md border-b border-[var(--color-porkos-border)] px-2 sm:px-4 xl:px-6 py-2 w-full overflow-hidden">
+      <header className="sticky top-0 z-30 bg-[#09090B]/95 backdrop-blur-md border-b border-[var(--color-porkos-border)] px-2 sm:px-4 xl:px-6 py-2 w-full">
         <div className="max-w-[1720px] mx-auto flex items-center justify-between gap-2 xl:gap-3 w-full">
           {/* Logo & Brand */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 whitespace-nowrap select-none">
@@ -109,85 +108,45 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
             })}
           </nav>
 
-          {/* Right Header: Notifications, User Profile & Logout */}
+          {/* Right Header: User Profile & Mobile Menu */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Botón de Centro de Notificaciones PWA */}
-            <button
-              type="button"
-              onClick={() => setIsNotifModalOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border transition-all cursor-pointer font-bold text-xs shrink-0 active:scale-95 shadow-xs ${
-                isGranted
-                  ? 'bg-[#121215] text-zinc-300 hover:text-white border-[var(--color-porkos-border)] hover:border-emerald-500/40'
-                  : isDenied
-                  ? 'bg-rose-950/40 text-rose-300 border-rose-500/40 hover:bg-rose-950/60'
-                  : 'bg-orange-500/15 text-[var(--color-porkos-orange)] border-orange-500/40 hover:bg-orange-500/25'
-              }`}
-              title="Centro de Alertas y Notificaciones PWA"
-              aria-label="Notificaciones"
-            >
-              <div className="relative">
-                {isDenied ? (
-                  <BellOff className="w-4 h-4 text-rose-400" />
-                ) : (
-                  <Bell className="w-4 h-4" />
-                )}
-                {isGranted && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-black" />
-                )}
-                {!isGranted && !isDenied && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-400 ring-2 ring-black animate-ping" />
-                )}
-              </div>
-              <span className="hidden sm:inline text-xs">
-                {isGranted ? 'Alertas ON' : isDenied ? 'Bloqueado' : 'Activar Alertas'}
-              </span>
-            </button>
-
             {user && (
-              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                <div className="flex items-center gap-2 bg-[#121215] pl-2 pr-2.5 sm:pr-3 py-1 rounded-xl border border-[var(--color-porkos-border)] shadow-xs shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsUserMenuOpen(true)}
+                className="flex items-center gap-1.5 sm:gap-2.5 px-2 sm:pl-2 sm:pr-3 py-1.5 rounded-2xl bg-[#121215] hover:bg-zinc-850 active:bg-zinc-800 border border-[var(--color-porkos-border)] hover:border-zinc-700 transition-all cursor-pointer shadow-xs select-none active:scale-95 touch-manipulation min-h-[42px]"
+                title="Mi perfil (Notificaciones y Cerrar sesión)"
+                aria-label="Abrir opciones de usuario"
+              >
+                <div className="shrink-0">
                   {user.photoURL ? (
                     <img
                       src={user.photoURL}
                       alt={user.displayName}
-                      className="w-7 h-7 rounded-lg object-cover border border-zinc-700 shrink-0"
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl object-cover border border-zinc-700 shrink-0"
                     />
                   ) : (
-                    <div className="w-7 h-7 rounded-lg bg-orange-500/15 text-[var(--color-porkos-orange)] flex items-center justify-center font-black text-xs border border-orange-500/30 shrink-0">
-                      <UserIcon className="w-3.5 h-3.5" />
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-orange-500/15 text-[var(--color-porkos-orange)] flex items-center justify-center font-black text-xs sm:text-sm border border-orange-500/30 shrink-0">
+                      <UserIcon className="w-4 h-4" />
                     </div>
                   )}
-                  <div className="text-left hidden sm:block min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-white block leading-tight truncate max-w-[85px] xl:max-w-[125px]">
-                        {user.displayName}
-                      </span>
-                      <span
-                        className={`text-[9px] font-black px-1.5 py-0.2 rounded border uppercase shrink-0 ${
-                          user.roleBadgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'
-                        }`}
-                      >
-                        {user.role}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold leading-none pt-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                      En línea
-                    </span>
-                  </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setIsLogoutConfirmOpen(true)}
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#121215] hover:bg-rose-500/15 text-zinc-300 hover:text-rose-300 border border-[var(--color-porkos-border)] hover:border-rose-500/35 transition-all cursor-pointer font-bold text-xs shrink-0 active:scale-95 shadow-xs"
-                  title="Cerrar sesión"
-                  aria-label="Cerrar sesión"
-                >
-                  <LogOut className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span className="hidden sm:inline">Salir</span>
-                </button>
-              </div>
+                <div className="text-left hidden sm:flex items-center gap-1.5 min-w-0">
+                  <span className="text-xs font-bold text-white block leading-tight truncate max-w-[85px] xl:max-w-[130px]">
+                    {user.displayName}
+                  </span>
+                  <span
+                    className={`text-[9px] font-black px-1.5 py-0.2 rounded border uppercase shrink-0 ${
+                      user.roleBadgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                    }`}
+                  >
+                    {user.role}
+                  </span>
+                </div>
+
+                <ChevronDown className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+              </button>
             )}
 
             {/* Hamburger Button for Mobile */}
@@ -241,22 +200,39 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
 
               {/* User Info inside Drawer */}
               {user && (
-                <div className="bg-[#0C0C0F] p-3 rounded-2xl border border-[var(--color-porkos-border)] flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-orange-500/15 text-[var(--color-porkos-orange)] flex items-center justify-center font-black text-xs border border-orange-500/30 shrink-0">
-                    <UserIcon className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-xs font-bold text-white block truncate">
-                      {user.displayName}
-                    </span>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className={`text-[9px] font-black px-1.5 py-0.2 rounded border uppercase ${user.roleBadgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}>
-                        {user.role}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setIsUserMenuOpen(true);
+                  }}
+                  className="w-full bg-[#0C0C0F] hover:bg-zinc-850 p-3 rounded-2xl border border-[var(--color-porkos-border)] hover:border-orange-500/40 flex items-center justify-between text-left cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {user.photoURL ? (
+                      <img
+                        src={user.photoURL}
+                        alt={user.displayName}
+                        className="w-9 h-9 rounded-xl object-cover border border-zinc-700 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-xl bg-orange-500/15 text-[var(--color-porkos-orange)] flex items-center justify-center font-black text-xs border border-orange-500/30 shrink-0">
+                        <UserIcon className="w-4 h-4" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <span className="text-xs font-bold text-white block truncate">
+                        {user.displayName}
                       </span>
-                      <span className="text-[10px] text-emerald-400 font-semibold">En línea</span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className={`text-[9px] font-black px-1.5 py-0.2 rounded border uppercase ${user.roleBadgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}>
+                          {user.role}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                  <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0" />
+                </button>
               )}
 
               {/* Navigation Items in Drawer */}
@@ -388,6 +364,17 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
         confirmText="Cerrar Sesión"
         cancelText="Permanecer"
         variant="warning"
+      />
+
+      {/* Modal de Usuario para Desktop y Mobile */}
+      <UserMenuModal
+        isOpen={isUserMenuOpen}
+        onClose={() => setIsUserMenuOpen(false)}
+        user={user}
+        canAccessSettings={canAccessModule(MODULES.SETTINGS)}
+        onOpenSettings={() => onSelectModule(MODULES.SETTINGS)}
+        onOpenNotifications={() => setIsNotifModalOpen(true)}
+        onLogoutClick={() => setIsLogoutConfirmOpen(true)}
       />
 
       {/* Modal Central de Notificaciones y Alertas */}

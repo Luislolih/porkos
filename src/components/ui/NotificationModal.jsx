@@ -13,6 +13,7 @@ import Modal from './Modal';
 import Button from './Button';
 import { useNotifications } from '../../hooks/useNotifications';
 import { testChime, isChimeEnabled, setChimeEnabled } from '../../utils/audioChime';
+import { isSecureContextEnvironment } from '../../utils/notifications';
 
 /**
  * Modal centralizado de Notificaciones y Alertas para PORKOAPP.
@@ -166,14 +167,20 @@ export default function NotificationModal({ isOpen, onClose }) {
           )}
 
           {!supported && (
-            <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-400 space-y-1">
+            <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-400 space-y-1.5">
               <p className="font-bold text-amber-300 flex items-center gap-1.5">
                 <Info className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>Navegador en modo restringido o iOS Safari</span>
+                <span>Navegador en modo restringido o conexión local HTTP</span>
               </p>
-              <p className="text-[11px] text-zinc-300 leading-relaxed">
-                En iPhone o iPad, las notificaciones web solo funcionan si agregas la app a la Pantalla de Inicio (Toca Compartir &gt; "Agregar a pantalla de inicio").
-              </p>
+              {!isSecureContextEnvironment() ? (
+                <p className="text-[11px] text-zinc-300 leading-relaxed">
+                  Estás conectado mediante una IP local (<code>http://192.168...</code>). Por seguridad, los navegadores en móviles (Android Chrome y Safari) bloquean la API de notificaciones en conexiones HTTP sin cifrar. Para recibir alertas en el móvil utiliza <strong>HTTPS</strong> o agrega la app a tu Pantalla de Inicio. El timbre sonoro y vibración funcionan con la app abierta.
+                </p>
+              ) : (
+                <p className="text-[11px] text-zinc-300 leading-relaxed">
+                  En iPhone o iPad (iOS), las notificaciones web solo funcionan si agregas la app a la Pantalla de Inicio (Toca Compartir &gt; "Agregar a pantalla de inicio" e inicia desde allí).
+                </p>
+              )}
             </div>
           )}
 

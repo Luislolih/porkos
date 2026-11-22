@@ -1,15 +1,23 @@
-// PORKOAPP Service Worker - Modo Fuera de Línea
-const CACHE_NAME = 'porkoapp-cache-v1';
+// PORKOAPP Service Worker - Modo Fuera de Línea con Auto-Actualización
+const BUILD_ID = '__BUILD_ID__';
+const CACHE_NAME = `porkoapp-cache-${BUILD_ID}`;
 
+// NUNCA precachear index.html estáticamente: index.html debe ser siempre Network-First
+// para garantizar que los celulares carguen inmediatamente los scripts de la nueva versión
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/favicon.png',
   '/favicon.svg',
 ];
 
-// 1. Instalación: precargar shell de la aplicación
+// Permitir forzar activación inmediata mediante mensajes
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+// 1. Instalación: precargar activos estáticos mínimos y forzar activación inmediata
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -18,7 +26,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// 2. Activación: limpiar caches antiguas y tomar control de clientes
+// 2. Activación: limpiar de inmediato todas las caches antiguas y tomar control de clientes
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -42,6 +50,30 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
+  // NUNCA interceptar sw.js ni version.json para que el navegador siempre compruebe si hay nueva versión
+  if (
+    url.pathname.endsWith('/sw.js') ||
+    url.pathname.endsWith('/version.json') ||
+    url.pathname === '/sw.js' ||
+    url.pathname === '/version.json'
+  ) {
+    return;
+  }
+
+  // En desarrollo local (Vite HMR, módulos /src/, localhost, puerto 5173),
+  // NUNCA interceptar con caché para garantizar cambios inmediatos sin contenido estancado
+  if (
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.port === '5173' ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.includes('node_modules') ||
+    url.search.includes('t=')
+  ) {
+    return;
+  }
+
   // No interceptar llamadas a la API de Firebase ni WebSockets de Firestore
   // (Firestore maneja su propia persistencia en IndexedDB)
   if (
@@ -54,21 +86,35 @@ self.addEventListener('fetch', (event) => {
   }
 
   // A. Peticiones de navegación (cargar la página HTML)
-  // Estrategia: Red primero, fallback a caché de index.html
+  // Estrategia: ESTRICTAMENTE Red Primero (Network-First con no-cache)
+  // Solo usa la copia en caché si el celular está completamente fuera de línea (sin internet)
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => {
-        return caches.match('/index.html') || caches.match('/');
-      })
+      fetch(request, { cache: 'no-cache' })
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put('/index.html', responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match('/index.html') || caches.match('/');
+        })
     );
     return;
   }
 
-  // B. Archivos estáticos locales (JS, CSS, imágenes, fuentes)
-  // Estrategia: Stale-While-Revalidate
+  // B. Archivos estáticos con hash de Vite (JS, CSS, imágenes)
+  // Estrategia: Cache-First con revalidación y purga automática
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
-      const fetchPromise = fetch(request).then((networkResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -76,9 +122,7 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
-      }).catch(() => cachedResponse);
-
-      return cachedResponse || fetchPromise;
+      });
     })
   );
 });

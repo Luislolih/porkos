@@ -56,6 +56,7 @@ export default function CartView({
   const {
     items,
     updateItemQuantity,
+    setItemQuantity,
     updateItemConsumptionType,
     removeItem,
     clearCart,

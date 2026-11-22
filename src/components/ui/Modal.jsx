@@ -41,7 +41,7 @@ export default function Modal({
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'modal_title' : undefined}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain"
     >
       {/* Backdrop con desenfoque suave */}
       <div
