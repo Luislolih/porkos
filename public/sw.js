@@ -26,13 +26,16 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// 2. Activación: limpiar de inmediato todas las caches antiguas y tomar control de clientes
+// 2. Activación: limpiar de inmediato caches antiguas de la aplicación
+// NOTA UX: Conservar IMAGE_CACHE_NAME para que las imágenes de productos carguen al instante (0ms)
+const IMAGE_CACHE_NAME = 'porkoapp-images-v1';
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (key !== CACHE_NAME && key !== IMAGE_CACHE_NAME) {
             return caches.delete(key);
           }
         })
@@ -74,14 +77,44 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // No interceptar llamadas a la API de Firebase ni WebSockets de Firestore
-  // (Firestore maneja su propia persistencia en IndexedDB)
-  if (
+  // 1. Filtrar peticiones a las APIs de datos de Firebase (Firestore, Auth, Functions)
+  // Dejamos que Firestore maneje su propia persistencia en IndexedDB
+  const isFirebaseDataApi =
     url.hostname.includes('firebaseio.com') ||
-    url.hostname.includes('googleapis.com') ||
-    url.hostname.includes('google.com') ||
-    url.hostname.includes('firebasestorage.app')
-  ) {
+    url.hostname.includes('firestore.googleapis.com') ||
+    url.hostname.includes('identitytoolkit.googleapis.com') ||
+    url.hostname.includes('securetoken.googleapis.com') ||
+    url.hostname.includes('firebaseinstallations.googleapis.com');
+
+  if (isFirebaseDataApi) {
+    return;
+  }
+
+  // 2. Caché de Alto Rendimiento para IMÁGENES (Firebase Storage, fotos de catálogo, comandas)
+  // Estrategia: Cache-First con Stale-While-Revalidate (0ms de latencia percibida)
+  const isImageRequest =
+    request.destination === 'image' ||
+    url.hostname.includes('firebasestorage.googleapis.com') ||
+    url.hostname.includes('firebasestorage.app') ||
+    /\.(webp|png|jpg|jpeg|svg|gif|avif)$/i.test(url.pathname);
+
+  if (isImageRequest) {
+    event.respondWith(
+      caches.open(IMAGE_CACHE_NAME).then((cache) => {
+        return cache.match(request).then((cachedResponse) => {
+          const fetchPromise = fetch(request)
+            .then((networkResponse) => {
+              if (networkResponse && networkResponse.status === 200) {
+                cache.put(request, networkResponse.clone());
+              }
+              return networkResponse;
+            })
+            .catch(() => cachedResponse);
+
+          return cachedResponse || fetchPromise;
+        });
+      })
+    );
     return;
   }
 

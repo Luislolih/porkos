@@ -119,6 +119,9 @@ export default function NotificationModal({ isOpen, onClose }) {
                   <span>Probar Timbre</span>
                 </button>
               </div>
+              <p className="text-[11px] text-zinc-500 leading-normal pt-1">
+                💡 En escritorio (Mac o Windows), si no salta el banner tras hacer la prueba, comprueba que tu navegador tenga permitido mostrar notificaciones en los Ajustes del Sistema de tu computadora y que no esté activo el modo &quot;No Molestar&quot;.
+              </p>
             </div>
           )}
 

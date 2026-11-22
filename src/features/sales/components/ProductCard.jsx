@@ -7,6 +7,7 @@ export default function ProductCard({
   product,
   onQuickAdd,
   isMarketMode = false,
+  priority = false,
 }) {
   const isMarketItem = isMarketMode || product.type === 'MARKET' || product.line === 'MARKET';
   const isBeverage = isProductBeverage(product);
@@ -29,7 +30,7 @@ export default function ProductCard({
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      className="group relative bg-[#121216] border border-[var(--color-porkos-border)] hover:border-[var(--color-porkos-orange)]/60 rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-150 hover:shadow-xl hover:shadow-black/60 active:scale-[0.98] cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-[var(--color-porkos-orange)]/50 touch-manipulation"
+      className="group relative bg-[#121216] border border-[var(--color-porkos-border)] hover:border-zinc-700 hover:ring-1 hover:ring-[var(--color-porkos-orange)]/35 rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/40 active:scale-[0.99] active:duration-100 cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-[var(--color-porkos-orange)]/50 touch-manipulation"
       title={`Toca para añadir "${product.name}" a la comanda`}
     >
       {/* Product Image Area */}
@@ -40,7 +41,8 @@ export default function ProductCard({
           name={product.name}
           isBeverage={isBeverage}
           isDessert={isDessert}
-          className="w-full h-full object-cover rounded-none transition-transform duration-300 group-hover:scale-105"
+          priority={priority}
+          className="w-full h-full object-cover rounded-none transition-transform duration-500 ease-out group-hover:scale-[1.03]"
           iconSize="w-8 h-8 sm:w-10 sm:h-10"
         />
 
@@ -67,7 +69,7 @@ export default function ProductCard({
         </div>
 
         {/* Botón flotante para añadir rápido */}
-        <div className="absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-black/80 group-hover:bg-[var(--color-porkos-orange)] text-zinc-300 group-hover:text-zinc-950 flex items-center justify-center transition-all duration-120 shadow-md border border-zinc-800 group-hover:border-[var(--color-porkos-orange)]">
+        <div className="absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-black/80 group-hover:bg-[var(--color-porkos-orange)] text-zinc-300 group-hover:text-zinc-950 flex items-center justify-center transition-all duration-250 ease-out group-hover:scale-105 shadow-md border border-zinc-800 group-hover:border-[var(--color-porkos-orange)]">
           <Plus className="w-4 h-4 stroke-[3]" />
         </div>
 
@@ -81,13 +83,13 @@ export default function ProductCard({
 
       {/* Info inferior */}
       <div className="p-2.5 sm:p-3 flex-1 flex flex-col justify-between gap-1.5 bg-[#121216]">
-        <h4 className="font-bold text-xs sm:text-sm text-zinc-100 line-clamp-2 group-hover:text-[var(--color-porkos-orange)] transition-colors leading-snug">
+        <h4 className="font-bold text-xs sm:text-sm text-zinc-100 line-clamp-2 group-hover:text-[var(--color-porkos-orange)] transition-colors duration-250 ease-out leading-snug">
           {product.name}
         </h4>
 
         <div className="flex items-center justify-between text-[11px] text-zinc-400 pt-0.5 font-medium">
           <span className="truncate">{isMarketItem ? 'Venta directa' : 'Personalizable'}</span>
-          <span className="text-[var(--color-porkos-orange)] font-black text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-[var(--color-porkos-orange)] font-black text-[11px] opacity-0 group-hover:opacity-100 transition-all duration-250 ease-out group-hover:translate-x-0.5">
             + Añadir
           </span>
         </div>

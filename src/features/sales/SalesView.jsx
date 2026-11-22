@@ -7,6 +7,7 @@ import CategoryTabs from './components/CategoryTabs';
 import ProductCard from './components/ProductCard';
 import QuickCustomizerModal from './components/QuickCustomizerModal';
 import CartView from './components/CartView';
+import MobileCartDrawer from './components/MobileCartDrawer';
 import QuickPaymentModal from './components/QuickPaymentModal';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
 import { formatCurrency } from '../../utils/formatters';
@@ -56,9 +57,6 @@ export default function SalesView({
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(() => Boolean(editingOrder));
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [drawerDragY, setDrawerDragY] = useState(0);
-  const [isDraggingDrawer, setIsDraggingDrawer] = useState(false);
-  const drawerStartYRef = useRef(0);
   const lastEditingOrderIdRef = useRef(null);
   const toastTimerRef = useRef(null);
 
@@ -81,50 +79,9 @@ export default function SalesView({
     }
   }, [editingOrder]);
 
-  const handleDrawerTouchStart = (e) => {
-    if (!e.touches || e.touches.length === 0) return;
-    drawerStartYRef.current = e.touches[0].clientY;
-    setIsDraggingDrawer(true);
-  };
-
-  const handleDrawerTouchMove = (e) => {
-    if (!isDraggingDrawer || !e.touches || e.touches.length === 0) return;
-    const currentY = e.touches[0].clientY;
-    const deltaY = currentY - drawerStartYRef.current;
-    if (deltaY > 0) {
-      setDrawerDragY(deltaY);
-    } else {
-      setDrawerDragY(0);
-    }
-  };
-
-  const handleDrawerTouchEnd = () => {
-    if (!isDraggingDrawer) return;
-    setIsDraggingDrawer(false);
-    if (drawerDragY > 60) {
-      setIsMobileCartOpen(false);
-    }
-    setDrawerDragY(0);
-  };
-
   const [successToast, setSuccessToast] = useState(null);
 
   const { products, categories = [], packagings: catalogPackagings, recordProductSales } = useCatalog();
-
-  // Prevenir scroll en el fondo (ventas) al abrir el cajón de comanda en móvil
-  useEffect(() => {
-    if (!isMobileCartOpen) return;
-    const originalOverflow = document.body.style.overflow;
-    const originalTouchAction = document.body.style.touchAction;
-
-    document.body.style.overflow = 'hidden';
-    document.body.style.touchAction = 'none';
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      document.body.style.touchAction = originalTouchAction;
-    };
-  }, [isMobileCartOpen]);
 
   // Filtrar productos por Categorías principales: TODAS, CLÁSICO, ARTESANAL, MARKET y Búsqueda
   // Ordenados POR DEFECTO de mayor a menor salida según el histórico (salesCount)
@@ -625,10 +582,11 @@ export default function SalesView({
 
           {/* Grid de Productos (Ordenados de mayor a menor salida) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-3.5">
-            {filteredAndSortedProducts.map((product) => (
+            {filteredAndSortedProducts.map((product, idx) => (
               <ProductCard
                 key={product.id}
                 product={product}
+                priority={idx < 12}
                 onQuickAdd={handleQuickAdd}
                 onCustomize={handleOpenCustomizer}
                 isMarketMode={salesMode === SALES_MODES.MARKET}
@@ -702,50 +660,24 @@ export default function SalesView({
         </div>
       )}
 
-      {/* Mobile Cart Drawer */}
-      {isMobileCartOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end overscroll-contain">
-          <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm touch-none transition-opacity"
-            style={{ opacity: Math.max(0.2, 1 - drawerDragY / 300) }}
-            onClick={() => setIsMobileCartOpen(false)}
-          />
-          <div
-            className="relative z-10 max-h-[88vh] h-full flex flex-col bg-[var(--color-porkos-surface)] rounded-t-3xl border-t border-[var(--color-porkos-border)] shadow-2xl overflow-hidden overscroll-contain"
-            style={{
-              transform: drawerDragY > 0 ? `translateY(${drawerDragY}px)` : undefined,
-              transition: isDraggingDrawer ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-          >
-            {/* Tirador superior deslizante: arrastrar hacia abajo para cerrar o pulsar */}
-            <div
-              className="w-full py-2.5 flex items-center justify-center cursor-grab active:cursor-grabbing shrink-0 touch-none bg-black/40 border-b border-zinc-800/80 group select-none"
-              onTouchStart={handleDrawerTouchStart}
-              onTouchMove={handleDrawerTouchMove}
-              onTouchEnd={handleDrawerTouchEnd}
-              onClick={() => setIsMobileCartOpen(false)}
-              title="Desliza hacia abajo o toca para cerrar"
-            >
-              <div className="w-16 h-1.5 bg-zinc-500 rounded-full group-hover:bg-[var(--color-porkos-orange)] transition-colors shadow-xs" />
-            </div>
-
-            <div className="flex-1 overflow-hidden flex flex-col">
-              <CartView
-                isMarketMode={salesMode === SALES_MODES.MARKET}
-                onSendToKitchen={handleSendToKitchen}
-                onCheckout={handleOpenCheckout}
-                onSettleTable={onSettleTableOrder}
-                onEditItem={handleEditCartItem}
-                onCloseMobileCart={() => setIsMobileCartOpen(false)}
-                tables={tables}
-                onSaveEditedOrder={handleSaveEditedOrder}
-                onCancelEditing={handleCancelEditing}
-                isSubmitting={isSubmitting}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Mobile Cart Drawer con Gestos Fluidos y Leyes UX */}
+      <MobileCartDrawer
+        isOpen={isMobileCartOpen}
+        onClose={() => setIsMobileCartOpen(false)}
+      >
+        <CartView
+          isMarketMode={salesMode === SALES_MODES.MARKET}
+          onSendToKitchen={handleSendToKitchen}
+          onCheckout={handleOpenCheckout}
+          onSettleTable={onSettleTableOrder}
+          onEditItem={handleEditCartItem}
+          onCloseMobileCart={() => setIsMobileCartOpen(false)}
+          tables={tables}
+          onSaveEditedOrder={handleSaveEditedOrder}
+          onCancelEditing={handleCancelEditing}
+          isSubmitting={isSubmitting}
+        />
+      </MobileCartDrawer>
 
       {/* Quick Customizer Modal */}
       <QuickCustomizerModal

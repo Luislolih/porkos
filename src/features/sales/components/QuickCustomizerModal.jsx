@@ -172,6 +172,14 @@ function CustomizerForm({
     return initialCustomization?.itemNotes || '';
   });
 
+  // 8. Precio Manual Opcional
+  const [manualPriceInput, setManualPriceInput] = useState(() => {
+    if (initialCustomization?.manualPrice !== undefined && initialCustomization?.manualPrice !== null) {
+      return String(initialCustomization.manualPrice);
+    }
+    return '';
+  });
+
   const toggleCream = (creamId) => {
     setSelectedCreams((prev) =>
       prev.includes(creamId) ? prev.filter((id) => id !== creamId) : [...prev, creamId]
@@ -217,7 +225,9 @@ function CustomizerForm({
     0
   );
   const packagingPrice = selectedPackaging?.price || 0;
-  const currentTotal = product.price + extrasTotal + packagingPrice;
+  const autoCalculatedTotal = Math.round((product.price + extrasTotal + packagingPrice) * 100) / 100;
+  const isCustomPriceActive = manualPriceInput !== '' && !isNaN(parseFloat(manualPriceInput)) && parseFloat(manualPriceInput) >= 0;
+  const currentTotal = isCustomPriceActive ? Math.round(parseFloat(manualPriceInput) * 100) / 100 : autoCalculatedTotal;
 
   // Confirmar
   const handleConfirm = () => {
@@ -285,6 +295,8 @@ function CustomizerForm({
       selectedExtras,
       packaging: selectedPackaging,
       itemNotes: notes.trim(),
+      manualPrice: isCustomPriceActive ? currentTotal : null,
+      isManualPrice: isCustomPriceActive,
     };
 
     onConfirm(product, customization);
@@ -651,10 +663,10 @@ function CustomizerForm({
         </div>
       )}
 
-      {/* 7. NOTA RÁPIDA */}
+      {/* NOTA */}
       <div className="bg-[#0C0C0F] p-3 sm:p-3.5 rounded-2xl border border-[var(--color-porkos-border)] space-y-2">
         <span className="text-[11px] font-black text-zinc-300 uppercase tracking-wider block">
-          7. Nota Especial
+          NOTA
         </span>
 
         {isBeverage && (
@@ -695,6 +707,79 @@ function CustomizerForm({
           placeholder={isBeverage ? 'Indicación para despacho (ej. vaso extra)...' : 'Indicación para cocina (ej. carne bien cocida)...'}
           className="w-full bg-[#141418] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
         />
+      </div>
+
+      {/* PRECIO CON STEPPERS (+/- 0.5) */}
+      <div className="bg-[#0C0C0F] p-3 sm:p-3.5 rounded-2xl border border-[var(--color-porkos-border)] space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-black text-zinc-300 uppercase tracking-wider block">
+            PRECIO
+          </span>
+          {isCustomPriceActive && (
+            <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-lg font-black">
+              Manual S/ {parseFloat(manualPriceInput).toFixed(2)}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Flecha/Botón Menos (-0.50) */}
+          <button
+            type="button"
+            onClick={() => {
+              const currentVal = manualPriceInput !== '' && !isNaN(parseFloat(manualPriceInput))
+                ? parseFloat(manualPriceInput)
+                : autoCalculatedTotal;
+              const nextVal = Math.max(0, Math.round((currentVal - 0.5) * 100) / 100);
+              setManualPriceInput(nextVal.toFixed(2));
+            }}
+            className="w-11 h-11 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-90 text-zinc-200 hover:text-white flex items-center justify-center font-black transition-all cursor-pointer border border-zinc-700/80 shrink-0 touch-manipulation"
+            title="Disminuir S/ 0.50"
+            aria-label="Restar 0.50"
+          >
+            <Minus className="w-4 h-4 stroke-[2.5]" />
+          </button>
+
+          {/* Campo Central Editable */}
+          <div className="relative flex-1">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 font-bold text-xs sm:text-sm pointer-events-none">
+              S/
+            </span>
+            <input
+              type="number"
+              step="0.50"
+              min="0"
+              value={manualPriceInput !== '' ? manualPriceInput : autoCalculatedTotal.toFixed(2)}
+              onChange={(e) => setManualPriceInput(e.target.value)}
+              onFocus={(e) => {
+                if (manualPriceInput === '') {
+                  setManualPriceInput(autoCalculatedTotal.toFixed(2));
+                }
+                e.target.select();
+              }}
+              placeholder={autoCalculatedTotal.toFixed(2)}
+              className="w-full bg-[#141418] border border-zinc-800 focus:border-amber-500 rounded-xl pl-9 pr-3 py-2.5 text-center text-sm sm:text-base text-white font-black focus:outline-none transition-colors"
+              title="Clic para editar el precio manualmente"
+            />
+          </div>
+
+          {/* Flecha/Botón Más (+0.50) */}
+          <button
+            type="button"
+            onClick={() => {
+              const currentVal = manualPriceInput !== '' && !isNaN(parseFloat(manualPriceInput))
+                ? parseFloat(manualPriceInput)
+                : autoCalculatedTotal;
+              const nextVal = Math.round((currentVal + 0.5) * 100) / 100;
+              setManualPriceInput(nextVal.toFixed(2));
+            }}
+            className="w-11 h-11 rounded-xl bg-[var(--color-porkos-orange)]/20 hover:bg-[var(--color-porkos-orange)] text-[var(--color-porkos-orange)] hover:text-zinc-950 active:scale-90 flex items-center justify-center font-black transition-all cursor-pointer border border-orange-500/40 shrink-0 touch-manipulation"
+            title="Aumentar S/ 0.50"
+            aria-label="Aumentar 0.50"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+          </button>
+        </div>
       </div>
 
       {/* Botón flotante de confirmación sticky */}

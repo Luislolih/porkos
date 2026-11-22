@@ -245,6 +245,20 @@ export function CartProvider({ children }) {
             null
           : null;
 
+        // Si el precio fue modificado manualmente, respetamos el precio unitario ingresado por el usuario
+        if (item.isManualPrice) {
+          return {
+            ...item,
+            consumptionType: defaultConsumptionType,
+            subtotal: Math.round(item.unitPrice * item.quantity * 100) / 100,
+            customization: {
+              ...item.customization,
+              consumptionType: defaultConsumptionType,
+              packaging: updatedPackaging,
+            },
+          };
+        }
+
         const extrasTotal = (item.customization?.selectedExtras || []).reduce(
           (sum, ext) => sum + ext.unitPrice * (ext.quantity || 1),
           0
@@ -325,7 +339,14 @@ export function CartProvider({ children }) {
         0
       ) || 0;
     const packagingPrice = custom?.packaging?.price || 0;
-    const unitPrice = Math.round((product.price + extrasTotal + packagingPrice) * 100) / 100;
+    let unitPrice = Math.round((product.price + extrasTotal + packagingPrice) * 100) / 100;
+    let isManualPrice = false;
+
+    if (custom?.isManualPrice && custom?.manualPrice !== null && !isNaN(custom?.manualPrice)) {
+      unitPrice = Math.round(parseFloat(custom.manualPrice) * 100) / 100;
+      isManualPrice = true;
+    }
+
     const itemId = `${product.id}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
     const isMarket = isProductMarket(product);
@@ -348,6 +369,7 @@ export function CartProvider({ children }) {
       availablePackagingIds: product.availablePackagingIds || [],
       consumptionType: custom.consumptionType || defaultConsumption,
       unitPrice,
+      isManualPrice,
       quantity: 1,
       requiresKitchen: Boolean(itemRequiresKitchen),
       isMarket: Boolean(isMarket),
@@ -406,7 +428,9 @@ export function CartProvider({ children }) {
         0
       );
       const pkgPrice = targetPackaging?.price || 0;
-      const newUnitPrice = Math.round((item.basePrice + extrasTotal + pkgPrice) * 100) / 100;
+      const newUnitPrice = item.isManualPrice
+        ? item.unitPrice
+        : Math.round((item.basePrice + extrasTotal + pkgPrice) * 100) / 100;
 
       // Si la cantidad es 1, actualizar directamente el ítem sin auto-agrupar para preservar personalización individual
       if (item.quantity === 1) {
@@ -504,12 +528,75 @@ export function CartProvider({ children }) {
             0
           ) || 0;
           const packagingPrice = newCustomization?.packaging?.price || 0;
-          const newUnitPrice = item.basePrice + extrasTotal + packagingPrice;
+          let newUnitPrice = item.basePrice + extrasTotal + packagingPrice;
+          let isManual = false;
+
+          if (
+            newCustomization?.manualPrice !== undefined &&
+            newCustomization?.manualPrice !== null &&
+            !isNaN(parseFloat(newCustomization?.manualPrice))
+          ) {
+            newUnitPrice = parseFloat(newCustomization.manualPrice);
+            isManual = true;
+          } else if (item.isManualPrice && (newCustomization?.manualPrice === undefined || newCustomization?.manualPrice === null)) {
+            newUnitPrice = item.unitPrice;
+            isManual = true;
+          }
+
+          const roundedUnitPrice = Math.round(newUnitPrice * 100) / 100;
           return {
             ...item,
-            unitPrice: newUnitPrice,
+            unitPrice: roundedUnitPrice,
+            isManualPrice: isManual,
             customization: newCustomization,
-            subtotal: newUnitPrice * item.quantity,
+            subtotal: Math.round(roundedUnitPrice * item.quantity * 100) / 100,
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  /**
+   * Modificar manualmente el precio unitario de un ítem en la comanda
+   */
+  const updateItemUnitPrice = (itemId, newUnitPrice) => {
+    const parsed = parseFloat(newUnitPrice);
+    if (isNaN(parsed) || parsed < 0) return;
+    const rounded = Math.round(parsed * 100) / 100;
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.itemId === itemId) {
+          return {
+            ...item,
+            unitPrice: rounded,
+            isManualPrice: true,
+            subtotal: Math.round(rounded * item.quantity * 100) / 100,
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  /**
+   * Restablecer el precio unitario al cálculo automático base + extras + táper
+   */
+  const resetItemUnitPrice = (itemId) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.itemId === itemId) {
+          const extrasTotal = item.customization?.selectedExtras?.reduce(
+            (sum, ext) => sum + (ext.unitPrice * (ext.quantity || 1)),
+            0
+          ) || 0;
+          const packagingPrice = item.customization?.packaging?.price || 0;
+          const calcUnitPrice = Math.round((item.basePrice + extrasTotal + packagingPrice) * 100) / 100;
+          return {
+            ...item,
+            unitPrice: calcUnitPrice,
+            isManualPrice: false,
+            subtotal: Math.round(calcUnitPrice * item.quantity * 100) / 100,
           };
         }
         return item;
@@ -619,6 +706,8 @@ export function CartProvider({ children }) {
     setItemQuantity,
     updateItemCustomization,
     updateItemConsumptionType,
+    updateItemUnitPrice,
+    resetItemUnitPrice,
     removeItem,
     clearCart,
     itemsSubtotal,

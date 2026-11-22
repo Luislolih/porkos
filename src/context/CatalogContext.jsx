@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { CatalogContext } from './catalog-context';
 import { DEFAULT_CATEGORIES } from '../types/defaultCatalog';
 import { isProductBeverage, isProductMarket, isProductDessert } from '../utils/productCategories';
+import { preloadImage } from '../utils/imagePreloader';
 import {
   subscribeToProducts,
   saveProductToFirestore,
@@ -256,6 +257,15 @@ export function CatalogProvider({ children }) {
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
   const [firestoreError, setFirestoreError] = useState(null);
   const [isFirestoreConnected, setIsFirestoreConnected] = useState(false);
+
+  // Precalentar miniaturas inmediatamente en background para apertura a 0ms en Ventas y Comanda
+  useEffect(() => {
+    if (!products || products.length === 0) return;
+    products.forEach((p) => {
+      const url = p.thumbnailUrl || p.image;
+      if (url) preloadImage(url);
+    });
+  }, [products]);
 
   // Inicializar y sincronizar con Firestore en tiempo real (con timeout de seguridad para evitar spinner infinito)
   useEffect(() => {

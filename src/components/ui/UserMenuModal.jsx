@@ -159,17 +159,6 @@ export default function UserMenuModal({
             <ChevronRight className="w-4 h-4 text-rose-500/60 group-hover:text-rose-400" />
           </button>
         </div>
-
-        {/* Botón Volver / Cerrar */}
-        <div className="pt-1">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full py-2.5 rounded-xl text-xs font-bold text-zinc-400 hover:text-white bg-zinc-800/80 hover:bg-zinc-700 transition-colors cursor-pointer"
-          >
-            Cerrar Ventana
-          </button>
-        </div>
       </div>
     </Modal>
   );

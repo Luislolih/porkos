@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
 
 export default function SearchInput({
@@ -5,12 +6,27 @@ export default function SearchInput({
   onChange,
   onClear,
   placeholder = 'Buscar...',
+  mobilePlaceholder,
   className = '',
   size = 'md',
   autoFocus = false,
   disabled = false,
   ...props
 }) {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const activePlaceholder = isMobile && mobilePlaceholder ? mobilePlaceholder : placeholder;
   const sizeClasses = {
     sm: 'py-1.5 pl-8 pr-7 text-xs min-h-[36px]',
     md: 'py-2.5 pl-9 pr-8 text-sm min-h-[42px]',
@@ -41,7 +57,7 @@ export default function SearchInput({
         type="text"
         value={value}
         onChange={onChange}
-        placeholder={placeholder}
+        placeholder={activePlaceholder}
         autoFocus={autoFocus}
         disabled={disabled}
         className={`

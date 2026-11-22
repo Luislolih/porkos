@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export default function Modal({
@@ -36,16 +37,16 @@ export default function Modal({
 
   if (!isOpen) return null;
 
-  return (
+  const modalNode = (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'modal_title' : undefined}
-      className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain"
     >
       {/* Backdrop con desenfoque suave */}
       <div
-        className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity duration-200 touch-none"
+        className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity duration-200 touch-none z-0"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -104,4 +105,9 @@ export default function Modal({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(modalNode, document.body);
+  }
+  return modalNode;
 }
