@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { SALES_MODES, ORDER_MODALITIES } from '../../types/constants';
 import { useCart } from '../../context/useCart';
 import { useCatalog } from '../../context/useCatalog';
@@ -10,7 +10,6 @@ import CustomMenuItemModal from './components/CustomMenuItemModal';
 import CartView from './components/CartView';
 import MobileCartDrawer from './components/MobileCartDrawer';
 import QuickPaymentModal from './components/QuickPaymentModal';
-import ReorderCategoryModal from './components/ReorderCategoryModal';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
 import { formatCurrency } from '../../utils/formatters';
 import { getNextOrderNumber } from '../../utils/orderNumber';
@@ -20,7 +19,7 @@ import { forceUnlockScroll } from '../../utils/scrollLock';
 import { useAuth } from '../../context/useAuth';
 import Toast from '../../components/ui/Toast';
 import EmptyState from '../../components/ui/EmptyState';
-import { UtensilsCrossed, Edit3, Plus, ArrowUpDown } from 'lucide-react';
+import { UtensilsCrossed, Edit3, Plus, ArrowUpDown, Check, Loader2 } from 'lucide-react';
 
 export default function SalesView({
   onOrderCreated,
@@ -31,6 +30,7 @@ export default function SalesView({
   onReturnToOrders,
 }) {
   const { user } = useAuth();
+  const isAdminOrOwner = user?.role === 'ADMIN' || user?.role === 'OWNER';
   const {
     items,
     addItem,
@@ -62,9 +62,18 @@ export default function SalesView({
   const [isCustomMenuOpen, setIsCustomMenuOpen] = useState(false);
   const [editingCustomItem, setEditingCustomItem] = useState(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(() => Boolean(editingOrder));
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Estado para modo de reordenar carta (solo Admin y Owner)
+  const [isReorderMode, setIsReorderMode] = useState(false);
+  const [reorderProducts, setReorderProducts] = useState([]);
+  const [hasReorderChanges, setHasReorderChanges] = useState(false);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const [draggedProductId, setDraggedProductId] = useState(null);
+  const [dragOverProductId, setDragOverProductId] = useState(null);
+  const prevSelectedLineRef = useRef(selectedLine);
+
   const lastEditingOrderIdRef = useRef(null);
   const toastTimerRef = useRef(null);
 
@@ -77,10 +86,10 @@ export default function SalesView({
 
   // Failsafe: cuando no hay ningún modal ni drawer abierto en Ventas, asegurar que el body scroll esté libre
   useEffect(() => {
-    if (!isMobileCartOpen && !customizingProduct && !isCustomMenuOpen && !isPaymentOpen && !isReorderModalOpen) {
+    if (!isMobileCartOpen && !customizingProduct && !isCustomMenuOpen && !isPaymentOpen) {
       forceUnlockScroll();
     }
-  }, [isMobileCartOpen, customizingProduct, isCustomMenuOpen, isPaymentOpen, isReorderModalOpen]);
+  }, [isMobileCartOpen, customizingProduct, isCustomMenuOpen, isPaymentOpen]);
 
   // Al entrar a editar una comanda (desde Mesas o Pedidos), abrir automáticamente la comanda desplegada
   useEffect(() => {
@@ -96,6 +105,19 @@ export default function SalesView({
   }, [editingOrder]);
 
   const [successToast, setSuccessToast] = useState(null);
+
+  const showToast = useCallback((message, duration = 1200) => {
+    setSuccessToast(message);
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = setTimeout(() => {
+      setSuccessToast(null);
+    }, duration);
+  }, []);
+
+  // Modo reordenar solo activo efectivamente si el usuario es Admin u Owner
+  const isReorderActive = Boolean(isReorderMode && isAdminOrOwner);
 
   const {
     products,
@@ -185,6 +207,193 @@ export default function SalesView({
     if (selectedLine === 'MARKET') return 'Market';
     return 'Toda la Carta';
   }, [salesMode, selectedLine]);
+
+  // Productos mostrados en la cuadrícula (en modo reordenar se muestra el orden local fluido)
+  const displayedProducts = isReorderActive ? reorderProducts : filteredAndSortedProducts;
+
+  // Sincronizar productos en modo reordenar cuando cambia la categoría seleccionada
+  useEffect(() => {
+    if (!isReorderActive) {
+      prevSelectedLineRef.current = selectedLine;
+      return;
+    }
+
+    if (prevSelectedLineRef.current !== selectedLine) {
+      // Si el usuario tenía cambios en la categoría previa, guardarlos automáticamente
+      if (hasReorderChanges && prevSelectedLineRef.current) {
+        const prevCat = prevSelectedLineRef.current;
+        const ids = reorderProducts.map((p) => p.id);
+        saveCategoryOrder(prevCat, ids).catch(console.error);
+        showToast('Orden guardado para la categoría anterior');
+      }
+
+      prevSelectedLineRef.current = selectedLine;
+      setReorderProducts([...filteredAndSortedProducts]);
+      setHasReorderChanges(false);
+      setDraggedProductId(null);
+      setDragOverProductId(null);
+    }
+  }, [selectedLine, isReorderActive, hasReorderChanges, reorderProducts, filteredAndSortedProducts, saveCategoryOrder, showToast]);
+
+  // Activar o desactivar el modo de reordenar carta (solo Admin y Owner)
+  const handleToggleReorderMode = () => {
+    if (!isAdminOrOwner) return;
+
+    if (isReorderMode) {
+      handleSaveAndClose();
+    } else {
+      setSearchQuery('');
+      setReorderProducts([...filteredAndSortedProducts]);
+      setHasReorderChanges(false);
+      setIsReorderMode(true);
+      setDraggedProductId(null);
+      setDragOverProductId(null);
+      prevSelectedLineRef.current = selectedLine;
+    }
+  };
+
+  // Mover producto una posición arriba o abajo (nativa y fluida)
+  const handleMoveProduct = useCallback((index, direction) => {
+    const targetIndex = index + direction;
+    setReorderProducts((prev) => {
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const copy = [...prev];
+      const [item] = copy.splice(index, 1);
+      copy.splice(targetIndex, 0, item);
+      return copy;
+    });
+    setHasReorderChanges(true);
+  }, []);
+
+  // Handlers para Desktop (HTML5 Drag & Drop)
+  const handleDragStart = (e, product) => {
+    e.dataTransfer.setData('text/plain', product.id);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedProductId(product.id);
+  };
+
+  const handleDragOver = (e, product) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedProductId && draggedProductId !== product.id && dragOverProductId !== product.id) {
+      setDragOverProductId(product.id);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedProductId(null);
+    setDragOverProductId(null);
+  };
+
+  const handleDrop = (e, targetIndex, targetProduct) => {
+    e.preventDefault();
+    if (!draggedProductId || draggedProductId === targetProduct.id) {
+      setDraggedProductId(null);
+      setDragOverProductId(null);
+      return;
+    }
+
+    setReorderProducts((prev) => {
+      const fromIndex = prev.findIndex((p) => p.id === draggedProductId);
+      if (fromIndex === -1 || fromIndex === targetIndex) return prev;
+      const copy = [...prev];
+      const [item] = copy.splice(fromIndex, 1);
+      copy.splice(targetIndex, 0, item);
+      return copy;
+    });
+    setHasReorderChanges(true);
+    setDraggedProductId(null);
+    setDragOverProductId(null);
+  };
+
+  // Handlers táctiles para móviles y tablets
+  const handleTouchStart = (product) => {
+    setDraggedProductId(product.id);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!draggedProductId) return;
+    const touch = e.touches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    const card = element?.closest('[data-product-id]');
+    if (card) {
+      const targetId = card.getAttribute('data-product-id');
+      if (targetId && targetId !== draggedProductId && targetId !== dragOverProductId) {
+        setDragOverProductId(targetId);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (draggedProductId && dragOverProductId && draggedProductId !== dragOverProductId) {
+      setReorderProducts((prev) => {
+        const fromIndex = prev.findIndex((p) => p.id === draggedProductId);
+        const toIndex = prev.findIndex((p) => p.id === dragOverProductId);
+        if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return prev;
+        const copy = [...prev];
+        const [item] = copy.splice(fromIndex, 1);
+        copy.splice(toIndex, 0, item);
+        return copy;
+      });
+      setHasReorderChanges(true);
+    }
+    setDraggedProductId(null);
+    setDragOverProductId(null);
+  };
+
+  // Guardar y salir del modo reordenar
+  const handleSaveAndClose = async () => {
+    if (hasReorderChanges) {
+      setIsSavingOrder(true);
+      try {
+        const ids = reorderProducts.map((p) => p.id);
+        await saveCategoryOrder(selectedLine, ids);
+        showToast(`Orden de carta guardado para ${selectedCategoryLabel}`);
+      } catch (err) {
+        console.error('Error al guardar orden:', err);
+        showToast('Error al guardar el nuevo orden');
+      } finally {
+        setIsSavingOrder(false);
+        setIsReorderMode(false);
+        setHasReorderChanges(false);
+        setDraggedProductId(null);
+        setDragOverProductId(null);
+      }
+    } else {
+      setIsReorderMode(false);
+      setDraggedProductId(null);
+      setDragOverProductId(null);
+    }
+  };
+
+  // Restablecer al orden por más vendidos
+  const handleResetOrder = async () => {
+    if (!isAdminOrOwner) return;
+    if (window.confirm(`¿Restablecer el orden de ${selectedCategoryLabel} al orden automático por más vendidos?`)) {
+      setIsSavingOrder(true);
+      try {
+        await resetCategoryOrder(selectedLine);
+        showToast(`Orden de ${selectedCategoryLabel} restablecido a más vendidos`);
+        setIsReorderMode(false);
+        setHasReorderChanges(false);
+        setDraggedProductId(null);
+        setDragOverProductId(null);
+      } catch (err) {
+        console.error('Error al restablecer orden:', err);
+        showToast('Error al restablecer el orden');
+      } finally {
+        setIsSavingOrder(false);
+      }
+    }
+  };
+
+  // Cancelar reordenamiento sin guardar
+  const handleCancelReorder = () => {
+    setIsReorderMode(false);
+    setHasReorderChanges(false);
+    setDraggedProductId(null);
+    setDragOverProductId(null);
+  };
 
   // Añadir rápido (Por defecto SIN cremas marcadas, el usuario las personaliza o pide directo)
   const handleQuickAdd = (product) => {
@@ -280,11 +489,6 @@ export default function SalesView({
     showToast(`"${product.name}" añadido`);
   };
 
-  const handleOpenCustomizer = (product) => {
-    setEditingCartItem(null);
-    setCustomizingProduct(product);
-  };
-
   const handleEditCartItem = (cartItem) => {
     if (cartItem.isCustomMenuItem || cartItem.productId?.startsWith('custom_')) {
       setEditingCustomItem(cartItem);
@@ -325,16 +529,6 @@ export default function SalesView({
       addItem(product, customization);
       showToast(`"${product.name}" personalizado añadido`);
     }
-  };
-
-  const showToast = (message, duration = 1200) => {
-    setSuccessToast(message);
-    if (toastTimerRef.current) {
-      clearTimeout(toastTimerRef.current);
-    }
-    toastTimerRef.current = setTimeout(() => {
-      setSuccessToast(null);
-    }, duration);
   };
 
   // Crear la orden y enviar a cocina (con protección de concurrencia y doble clic)
@@ -669,36 +863,120 @@ export default function SalesView({
           {/* Barra fija: número de productos + botón icono 'Ordenar Carta' */}
           <div className="flex items-center justify-between gap-2 px-1 pt-1 pb-0.5 select-none">
             <span className="text-[11px] font-bold text-zinc-400 bg-[#121216] border border-zinc-800 px-2.5 py-0.5 rounded-full shrink-0">
-              {filteredAndSortedProducts.length} {filteredAndSortedProducts.length === 1 ? 'producto' : 'productos'}
+              {displayedProducts.length} {displayedProducts.length === 1 ? 'producto' : 'productos'}
             </span>
 
-            {/* Botón Ordenar Carta: solo icono, sin puntos ni parpadeo */}
-            <button
-              type="button"
-              onClick={() => setIsReorderModalOpen(true)}
-              className="w-8 h-8 rounded-xl bg-[var(--color-porkos-orange)] hover:bg-[var(--color-porkos-orange-hover)] text-zinc-950 flex items-center justify-center shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
-              title={`Ordenar carta (${selectedCategoryLabel})`}
-              aria-label="Ordenar carta"
-            >
-              <ArrowUpDown className="w-4 h-4 stroke-[2.5]" />
-            </button>
+            {/* Botón Ordenar Carta: solo visible para ADMIN u OWNER */}
+            {isAdminOrOwner && (
+              <button
+                type="button"
+                onClick={handleToggleReorderMode}
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-xs active:scale-95 transition-all cursor-pointer shrink-0 ${
+                  isReorderActive
+                    ? 'bg-orange-500 hover:bg-orange-400 text-zinc-950 ring-2 ring-orange-300'
+                    : 'bg-[var(--color-porkos-orange)] hover:bg-[var(--color-porkos-orange-hover)] text-zinc-950'
+                }`}
+                title={isReorderActive ? 'Finalizar ordenamiento de carta' : `Ordenar carta (${selectedCategoryLabel})`}
+                aria-label="Ordenar carta"
+              >
+                {isReorderActive ? <Check className="w-4 h-4 stroke-[2.5]" /> : <ArrowUpDown className="w-4 h-4 stroke-[2.5]" />}
+              </button>
+            )}
           </div>
 
-          {/* Grid de Productos (Ordenados de mayor a menor salida) */}
+          {/* Banner de Modo Reordenar Carta (Solo Admin/Owner) */}
+          {isReorderActive && (
+            <div className="bg-gradient-to-r from-orange-500/15 via-[#18181f] to-[#18181f] border border-orange-500/40 rounded-2xl p-2.5 sm:p-3 flex flex-wrap items-center justify-between gap-2.5 shadow-md select-none animate-fadeIn">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-[var(--color-porkos-orange)] text-zinc-950 flex items-center justify-center shrink-0 shadow-sm">
+                  <ArrowUpDown className="w-4 h-4 stroke-[2.5]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-black text-xs sm:text-sm text-white">
+                      Modo Ordenar Carta:
+                    </span>
+                    <span className="text-[11px] font-black text-orange-400 bg-orange-500/20 border border-orange-500/40 px-2 py-0.5 rounded-full uppercase">
+                      {selectedCategoryLabel}
+                    </span>
+                    {hasReorderChanges && (
+                      <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded-md">
+                        Cambios pendientes
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                    Arrastra las tarjetas o usa las flechas (↑ / ↓) para ordenar los productos
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 ml-auto shrink-0">
+                {Boolean(categoryOrderMap?.[selectedLine]) && (
+                  <button
+                    type="button"
+                    onClick={handleResetOrder}
+                    disabled={isSavingOrder}
+                    className="px-2.5 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-zinc-300 hover:text-white border border-zinc-700 text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                    title="Restablecer al orden automático por más vendidos"
+                  >
+                    Restablecer
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleCancelReorder}
+                  disabled={isSavingOrder}
+                  className="px-2.5 py-1.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 active:scale-95 text-zinc-400 hover:text-zinc-200 border border-zinc-700/60 text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveAndClose}
+                  disabled={isSavingOrder}
+                  className="px-3.5 py-1.5 rounded-xl bg-[var(--color-porkos-orange)] hover:bg-[var(--color-porkos-orange-hover)] active:scale-95 text-zinc-950 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-orange-500/20 disabled:opacity-50"
+                >
+                  {isSavingOrder ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                  )}
+                  <span>{hasReorderChanges ? 'Guardar Cambios' : 'Listo'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Grid de Productos */}
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-3.5">
-            {filteredAndSortedProducts.map((product, idx) => (
+            {displayedProducts.map((product, idx) => (
               <ProductCard
                 key={product.id}
                 product={product}
                 priority={idx < 12}
                 onQuickAdd={handleQuickAdd}
-                onCustomize={handleOpenCustomizer}
-                isMarketMode={salesMode === SALES_MODES.MARKET}
+                isReorderMode={isReorderActive}
+                orderIndex={idx}
+                totalItems={displayedProducts.length}
+                onMoveUp={() => handleMoveProduct(idx, -1)}
+                onMoveDown={() => handleMoveProduct(idx, 1)}
+                isDragging={draggedProductId === product.id}
+                isDragOver={dragOverProductId === product.id && draggedProductId !== product.id}
+                onDragStart={(e) => handleDragStart(e, product)}
+                onDragOver={(e) => handleDragOver(e, product)}
+                onDragEnd={handleDragEnd}
+                onDrop={(e) => handleDrop(e, idx, product)}
+                onTouchStart={() => handleTouchStart(product)}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
               />
             ))}
           </div>
 
-          {filteredAndSortedProducts.length === 0 && (
+          {displayedProducts.length === 0 && (
             <div className="space-y-3">
               <EmptyState
                 icon={UtensilsCrossed}
@@ -833,21 +1111,6 @@ export default function SalesView({
         total={total}
         onConfirmPayment={handleConfirmPayment}
         isSubmitting={isSubmitting}
-      />
-
-      {/* Reorder Category Modal (Ordenar Carta) */}
-      <ReorderCategoryModal
-        key={`${selectedLine}_${isReorderModalOpen}`}
-        isOpen={isReorderModalOpen}
-        onClose={() => setIsReorderModalOpen(false)}
-        initialCategory={selectedLine}
-        salesMode={salesMode}
-        products={products}
-        categories={categories}
-        categoryOrderMap={categoryOrderMap}
-        onSaveOrder={saveCategoryOrder}
-        onResetOrder={resetCategoryOrder}
-        onShowToast={showToast}
       />
 
       {/* Flecha flotante a la derecha en mobile y al borde del catálogo en desktop */}
