@@ -3,6 +3,8 @@ import {
   doc,
   setDoc,
   deleteDoc,
+  writeBatch,
+  deleteField,
   onSnapshot,
   getDocs,
   getDoc,
@@ -953,9 +955,9 @@ export function subscribeToCategoryOrder(onUpdate, onError) {
       docRef,
       (docSnap) => {
         if (docSnap.exists()) {
-          onUpdate(docSnap.data()?.orderMap || null);
+          onUpdate(docSnap.data()?.orderMap || {});
         } else {
-          onUpdate(null);
+          onUpdate({});
         }
       },
       (err) => {
@@ -981,6 +983,57 @@ export async function saveCategoryOrderToFirestore(orderMap) {
     return { success: true };
   } catch (err) {
     console.error('Error al guardar category_order en Firestore:', err);
+    return { success: false, error: err };
+  }
+}
+
+// Actualizar sortOrder masivamente en la colección /products para sincronización global entre todos los usuarios
+export async function updateProductsSortOrderInFirestore(orderedProductIds) {
+  if (!Array.isArray(orderedProductIds) || orderedProductIds.length === 0) {
+    return { success: true };
+  }
+  try {
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < orderedProductIds.length; i += CHUNK_SIZE) {
+      const chunk = orderedProductIds.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      chunk.forEach((id, chunkIdx) => {
+        const globalIdx = i + chunkIdx;
+        const productRef = doc(db, 'products', id);
+        batch.set(
+          productRef,
+          { sortOrder: globalIdx, updatedAt: serverTimestamp() },
+          { merge: true }
+        );
+      });
+      await batch.commit();
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Error al actualizar sortOrder de productos en Firestore:', err);
+    return { success: false, error: err };
+  }
+}
+
+// Eliminar sortOrder de productos en Firestore al restablecer a orden automático
+export async function resetProductsSortOrderInFirestore(productIds) {
+  if (!Array.isArray(productIds) || productIds.length === 0) {
+    return { success: true };
+  }
+  try {
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < productIds.length; i += CHUNK_SIZE) {
+      const chunk = productIds.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      chunk.forEach((id) => {
+        const productRef = doc(db, 'products', id);
+        batch.update(productRef, { sortOrder: deleteField() });
+      });
+      await batch.commit();
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Error al restablecer sortOrder de productos en Firestore:', err);
     return { success: false, error: err };
   }
 }

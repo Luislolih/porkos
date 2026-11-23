@@ -72,6 +72,7 @@ export default function SalesView({
   const [hasReorderChanges, setHasReorderChanges] = useState(false);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
   const previousCategoryBeforeReorderRef = useRef(null);
+  const initialReorderProductsRef = useRef(null);
 
   // Estados y referencias para arrastrar y desplazar fluidamente en vivo
   const [activeDragItem, setActiveDragItem] = useState(null);
@@ -189,19 +190,36 @@ export default function SalesView({
     // y dicho orden maestro se respeta automáticamente en todas las demás categorías
     const masterKey = salesMode === SALES_MODES.MARKET ? 'MARKET_ALL' : 'ALL';
     const masterOrder = categoryOrderMap?.[masterKey] || categoryOrderMap?.[selectedLine];
+
+    // 1. Si existe un orden maestro explícito por IDs en categoryOrderMap
     if (Array.isArray(masterOrder) && masterOrder.length > 0) {
-      return list.sort((a, b) => {
+      return [...list].sort((a, b) => {
         const indexA = masterOrder.indexOf(a.id);
         const indexB = masterOrder.indexOf(b.id);
         if (indexA !== -1 && indexB !== -1) return indexA - indexB;
         if (indexA !== -1) return -1;
         if (indexB !== -1) return 1;
-        return (b.salesCount || 0) - (a.salesCount || 0);
+        if (typeof a.sortOrder === 'number' && typeof b.sortOrder === 'number') {
+          return a.sortOrder - b.sortOrder;
+        }
+        if (typeof a.sortOrder === 'number') return -1;
+        if (typeof b.sortOrder === 'number') return 1;
+        return 0;
       });
     }
 
-    // Orden por defecto: de mayor salida a menor salida (salesCount)
-    return list.sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0));
+    // 2. Si los productos traen sortOrder (sincronizado directamente desde Firestore)
+    const hasAnySortOrder = list.some((p) => typeof p.sortOrder === 'number');
+    if (hasAnySortOrder) {
+      return [...list].sort((a, b) => {
+        const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 999999;
+        const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 999999;
+        return orderA - orderB;
+      });
+    }
+
+    // 3. Fallback: Mantener el orden natural de la carta (sin forzar salesCount)
+    return list;
   }, [products, categories, salesMode, selectedLine, searchQuery, categoryOrderMap]);
 
   // Etiqueta legible de la categoría actualmente seleccionada
@@ -246,18 +264,29 @@ export default function SalesView({
       });
 
       if (Array.isArray(masterOrder) && masterOrder.length > 0) {
-        allProducts = allProducts.sort((a, b) => {
+        allProducts = [...allProducts].sort((a, b) => {
           const indexA = masterOrder.indexOf(a.id);
           const indexB = masterOrder.indexOf(b.id);
           if (indexA !== -1 && indexB !== -1) return indexA - indexB;
           if (indexA !== -1) return -1;
           if (indexB !== -1) return 1;
-          return (b.salesCount || 0) - (a.salesCount || 0);
+          if (typeof a.sortOrder === 'number' && typeof b.sortOrder === 'number') {
+            return a.sortOrder - b.sortOrder;
+          }
+          if (typeof a.sortOrder === 'number') return -1;
+          if (typeof b.sortOrder === 'number') return 1;
+          return 0;
         });
-      } else {
-        allProducts = allProducts.sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0));
+      } else if (allProducts.some((p) => typeof p.sortOrder === 'number')) {
+        allProducts = [...allProducts].sort((a, b) => {
+          const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 999999;
+          const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 999999;
+          return orderA - orderB;
+        });
       }
 
+      // Guardar snapshot intacto para restaurar en caso de cancelar
+      initialReorderProductsRef.current = [...allProducts];
       setReorderProducts([...allProducts]);
       setHasReorderChanges(false);
       setIsReorderMode(true);
@@ -388,6 +417,7 @@ export default function SalesView({
         const ids = reorderProducts.map((p) => p.id);
         await saveCategoryOrder(masterKey, ids);
         showToast('Orden de Toda la Carta guardado exitosamente');
+        initialReorderProductsRef.current = null;
       } catch (err) {
         console.error('Error al guardar orden:', err);
         showToast('Error al guardar el nuevo orden');
@@ -401,6 +431,7 @@ export default function SalesView({
         }
       }
     } else {
+      initialReorderProductsRef.current = null;
       setIsReorderMode(false);
       if (previousCategoryBeforeReorderRef.current) {
         setSelectedLine(previousCategoryBeforeReorderRef.current);
@@ -419,6 +450,7 @@ export default function SalesView({
       try {
         await resetCategoryOrder(masterKey);
         showToast(`Orden de ${masterLabel} restablecido a más vendidos`);
+        initialReorderProductsRef.current = null;
         setIsReorderMode(false);
         setHasReorderChanges(false);
         if (previousCategoryBeforeReorderRef.current) {
@@ -434,10 +466,18 @@ export default function SalesView({
     }
   };
 
-  // Cancelar reordenamiento sin guardar
+  // Cancelar reordenamiento sin guardar (revierte fielmente al orden previo)
   const handleCancelReorder = () => {
+    if (initialReorderProductsRef.current) {
+      setReorderProducts([...initialReorderProductsRef.current]);
+      initialReorderProductsRef.current = null;
+    }
     setIsReorderMode(false);
     setHasReorderChanges(false);
+    setActiveDragItem(null);
+    dragStartInfoRef.current = null;
+    currentSlotIndexRef.current = null;
+    isDraggingActiveRef.current = false;
     if (previousCategoryBeforeReorderRef.current) {
       setSelectedLine(previousCategoryBeforeReorderRef.current);
       previousCategoryBeforeReorderRef.current = null;

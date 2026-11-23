@@ -22,6 +22,7 @@ import {
   clearAllDemoCatalogFromFirestore,
   subscribeToCategoryOrder,
   saveCategoryOrderToFirestore,
+  updateProductsSortOrderInFirestore,
 } from '../services/firestoreService';
 
 const STORAGE_KEYS = {
@@ -415,9 +416,16 @@ export function CatalogProvider({ children }) {
     const unsubCategoryOrder = subscribeToCategoryOrder(
       (remoteMap) => {
         if (!isMounted) return;
-        if (remoteMap && typeof remoteMap === 'object') {
+        if (remoteMap && typeof remoteMap === 'object' && Object.keys(remoteMap).length > 0) {
           setCategoryOrderMap(remoteMap);
           saveLocal(STORAGE_KEYS.CATEGORY_ORDER, remoteMap);
+        } else {
+          // Si Firestore aún no tiene categoría guardada pero este dispositivo sí tiene una localmente,
+          // sincronizarla a Firestore para que todos los usuarios la reciban de inmediato
+          const localOrder = loadLocal(STORAGE_KEYS.CATEGORY_ORDER, {});
+          if (localOrder && typeof localOrder === 'object' && Object.keys(localOrder).length > 0) {
+            saveCategoryOrderToFirestore(localOrder);
+          }
         }
       },
       (err) => handleError('category_order', err)
@@ -458,6 +466,10 @@ export function CatalogProvider({ children }) {
       }
       for (const pkg of packagings) {
         const res = await savePackagingToFirestore(pkg);
+        if (!res.success) lastError = res.error;
+      }
+      if (categoryOrderMap && typeof categoryOrderMap === 'object' && Object.keys(categoryOrderMap).length > 0) {
+        const res = await saveCategoryOrderToFirestore(categoryOrderMap);
         if (!res.success) lastError = res.error;
       }
 
@@ -1008,11 +1020,43 @@ export function CatalogProvider({ children }) {
     };
     setCategoryOrderMap(updatedMap);
     saveLocal(STORAGE_KEYS.CATEGORY_ORDER, updatedMap);
+
+    // Si se guarda el orden maestro de Toda la Carta ('ALL' o 'MARKET_ALL')
+    // reflejar de inmediato el sortOrder en los productos locales y en Firestore
+    if (categoryKey === 'ALL' || categoryKey === 'MARKET_ALL') {
+      const orderLookup = new Map(orderedProductIds.map((id, idx) => [id, idx]));
+      const updatedProducts = products.map((p) => {
+        if (orderLookup.has(p.id)) {
+          return { ...p, sortOrder: orderLookup.get(p.id) };
+        }
+        return p;
+      });
+      setProducts(updatedProducts);
+      saveLocal(STORAGE_KEYS.PRODUCTS, updatedProducts);
+
+      // Persistir sortOrder en la colección /products para sincronización global con todos los roles
+      updateProductsSortOrderInFirestore(orderedProductIds).catch((err) => {
+        console.warn('Error en actualización batch de sortOrder en products:', err);
+      });
+    }
+
     return await saveCategoryOrderToFirestore(updatedMap);
   };
 
   // Restablecer categoría al orden automático por más vendidos (salesCount)
   const resetCategoryOrder = async (categoryKey) => {
+    // Si se restablece Toda la Carta, calcular el orden por salesCount
+    // y guardarlo de forma unificada para que todos los usuarios vean exactamente lo mismo
+    if (categoryKey === 'ALL' || categoryKey === 'MARKET_ALL') {
+      let targetProducts = [...products];
+      if (categoryKey === 'MARKET_ALL') {
+        targetProducts = targetProducts.filter((p) => isProductMarket(p, categories));
+      }
+      const sortedBySales = targetProducts.sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0));
+      const sortedIds = sortedBySales.map((p) => p.id);
+      return await saveCategoryOrder(categoryKey, sortedIds);
+    }
+
     const updatedMap = { ...categoryOrderMap };
     delete updatedMap[categoryKey];
     setCategoryOrderMap(updatedMap);
