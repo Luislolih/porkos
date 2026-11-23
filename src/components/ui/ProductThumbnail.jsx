@@ -75,7 +75,7 @@ export default function ProductThumbnail({
         src={effectiveSrc}
         alt={alt || name}
         onError={() => setFailedSrc(effectiveSrc)}
-        className="relative z-1 w-full h-full object-cover"
+        className="w-full h-full object-cover"
         loading={priority ? 'eager' : 'lazy'}
         fetchPriority={priority ? 'high' : 'auto'}
         decoding="auto"

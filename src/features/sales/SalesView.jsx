@@ -20,7 +20,7 @@ import { forceUnlockScroll } from '../../utils/scrollLock';
 import { useAuth } from '../../context/useAuth';
 import Toast from '../../components/ui/Toast';
 import EmptyState from '../../components/ui/EmptyState';
-import { UtensilsCrossed, Edit3, Plus } from 'lucide-react';
+import { UtensilsCrossed, Edit3, Plus, ArrowUpDown } from 'lucide-react';
 
 export default function SalesView({
   onOrderCreated,
@@ -170,6 +170,21 @@ export default function SalesView({
     // Orden por defecto: de mayor salida a menor salida (salesCount)
     return list.sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0));
   }, [products, categories, salesMode, selectedLine, searchQuery, categoryOrderMap]);
+
+  // Etiqueta legible de la categoría actualmente seleccionada
+  const selectedCategoryLabel = useMemo(() => {
+    if (salesMode === SALES_MODES.MARKET) {
+      if (selectedLine === 'MARKET_BEBIDAS') return 'Bebidas Market';
+      if (selectedLine === 'MARKET_SNACKS') return 'Snacks Market';
+      if (selectedLine === 'MARKET_POSTRES') return 'Postres Market';
+      return 'Market (Todo)';
+    }
+    if (selectedLine === 'COMIDA') return 'Comida';
+    if (selectedLine === 'BEBIDAS') return 'Bebidas';
+    if (selectedLine === 'POSTRES') return 'Postres';
+    if (selectedLine === 'MARKET') return 'Market';
+    return 'Toda la Carta';
+  }, [salesMode, selectedLine]);
 
   // Añadir rápido (Por defecto SIN cremas marcadas, el usuario las personaliza o pide directo)
   const handleQuickAdd = (product) => {
@@ -641,6 +656,37 @@ export default function SalesView({
             isCustomOrderActive={Boolean(categoryOrderMap?.[selectedLine])}
           />
 
+          {/* Barra fija visible: título de sección + botón destacado 'Ordenar Carta' */}
+          <div className="flex items-center justify-between gap-2 px-1 pt-1 pb-0.5 select-none">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider truncate">
+                {selectedCategoryLabel}
+              </span>
+              <span className="text-[11px] font-bold text-zinc-400 bg-[#121216] border border-zinc-800 px-2 py-0.5 rounded-full shrink-0">
+                {filteredAndSortedProducts.length} {filteredAndSortedProducts.length === 1 ? 'producto' : 'productos'}
+              </span>
+              {categoryOrderMap?.[selectedLine] && (
+                <span className="text-[10px] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/30 px-2 py-0.5 rounded-full shrink-0 hidden sm:inline-flex">
+                  Orden Carta Activo
+                </span>
+              )}
+            </div>
+
+            {/* Botón directo y siempre visible: Ordenar Carta */}
+            <button
+              type="button"
+              onClick={() => setIsReorderModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 active:scale-95 text-orange-300 hover:text-orange-200 border border-orange-500/40 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0"
+              title={`Organizar el orden de los productos en ${selectedCategoryLabel} para que coincida con tu carta física`}
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 text-[var(--color-porkos-orange)] stroke-[2.5]" />
+              <span>Ordenar Carta</span>
+              {categoryOrderMap?.[selectedLine] && (
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-porkos-orange)] animate-pulse" />
+              )}
+            </button>
+          </div>
+
           {/* Grid de Productos (Ordenados de mayor a menor salida) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-3.5">
             {filteredAndSortedProducts.map((product, idx) => (
@@ -794,6 +840,7 @@ export default function SalesView({
 
       {/* Reorder Category Modal (Ordenar Carta) */}
       <ReorderCategoryModal
+        key={`${selectedLine}_${isReorderModalOpen}`}
         isOpen={isReorderModalOpen}
         onClose={() => setIsReorderModalOpen(false)}
         initialCategory={selectedLine}
