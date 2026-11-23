@@ -20,6 +20,8 @@ import {
   savePackagingToFirestore,
   deletePackagingFromFirestore,
   clearAllDemoCatalogFromFirestore,
+  subscribeToCategoryOrder,
+  saveCategoryOrderToFirestore,
 } from '../services/firestoreService';
 
 const STORAGE_KEYS = {
@@ -28,6 +30,7 @@ const STORAGE_KEYS = {
   CREAMS: 'porkos_catalog_creams',
   EXTRAS: 'porkos_catalog_extras',
   PACKAGINGS: 'porkos_catalog_packagings',
+  CATEGORY_ORDER: 'porkos_sales_category_order_map',
 };
 
 // Normalizar producto a las categorías oficiales: COMIDA, BEBIDAS, POSTRES, MARKET
@@ -253,6 +256,7 @@ export function CatalogProvider({ children }) {
   const [creams, setCreams] = useState(() => loadLocal(STORAGE_KEYS.CREAMS, []));
   const [extras, setExtras] = useState(() => loadLocal(STORAGE_KEYS.EXTRAS, []));
   const [packagings, setPackagings] = useState(() => loadLocal(STORAGE_KEYS.PACKAGINGS, []));
+  const [categoryOrderMap, setCategoryOrderMap] = useState(() => loadLocal(STORAGE_KEYS.CATEGORY_ORDER, {}));
 
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
   const [firestoreError, setFirestoreError] = useState(null);
@@ -408,6 +412,17 @@ export function CatalogProvider({ children }) {
       (err) => handleError('packagings', err)
     );
 
+    const unsubCategoryOrder = subscribeToCategoryOrder(
+      (remoteMap) => {
+        if (!isMounted) return;
+        if (remoteMap && typeof remoteMap === 'object') {
+          setCategoryOrderMap(remoteMap);
+          saveLocal(STORAGE_KEYS.CATEGORY_ORDER, remoteMap);
+        }
+      },
+      (err) => handleError('category_order', err)
+    );
+
     return () => {
       isMounted = false;
       clearTimeout(safetyTimeout);
@@ -416,6 +431,7 @@ export function CatalogProvider({ children }) {
       unsubCreams();
       unsubExtras();
       unsubPackagings();
+      unsubCategoryOrder();
     };
   }, []);
 
@@ -984,12 +1000,35 @@ export function CatalogProvider({ children }) {
     setIsLoadingCatalog(false);
   };
 
+  // Guardar y sincronizar orden manual de productos por categoría
+  const saveCategoryOrder = async (categoryKey, orderedProductIds) => {
+    const updatedMap = {
+      ...categoryOrderMap,
+      [categoryKey]: orderedProductIds,
+    };
+    setCategoryOrderMap(updatedMap);
+    saveLocal(STORAGE_KEYS.CATEGORY_ORDER, updatedMap);
+    return await saveCategoryOrderToFirestore(updatedMap);
+  };
+
+  // Restablecer categoría al orden automático por más vendidos (salesCount)
+  const resetCategoryOrder = async (categoryKey) => {
+    const updatedMap = { ...categoryOrderMap };
+    delete updatedMap[categoryKey];
+    setCategoryOrderMap(updatedMap);
+    saveLocal(STORAGE_KEYS.CATEGORY_ORDER, updatedMap);
+    return await saveCategoryOrderToFirestore(updatedMap);
+  };
+
   const value = {
     products,
     creams,
     categories,
     extras,
     packagings,
+    categoryOrderMap,
+    saveCategoryOrder,
+    resetCategoryOrder,
     isLoadingCatalog,
     firestoreError,
     isFirestoreConnected,

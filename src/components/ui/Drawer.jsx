@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { lockScroll, unlockScroll } from '../../utils/scrollLock';
+import { scrollIntoViewCenter } from '../../utils/scrollIntoViewHelper';
 
 export default function Drawer({
   isOpen,
@@ -12,6 +13,8 @@ export default function Drawer({
   position = 'bottom', // 'bottom' | 'right'
   className = '',
 }) {
+  const contentRef = useRef(null);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -24,9 +27,29 @@ export default function Drawer({
     };
     window.addEventListener('keydown', handleKeyDown);
 
+    const container = contentRef.current;
+    const handleFocusIn = (e) => {
+      const target = e.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      ) {
+        scrollIntoViewCenter(target, 80);
+        scrollIntoViewCenter(target, 240);
+      }
+    };
+
+    if (container) {
+      container.addEventListener('focusin', handleFocusIn);
+    }
+
     return () => {
       unlockScroll();
       window.removeEventListener('keydown', handleKeyDown);
+      if (container) {
+        container.removeEventListener('focusin', handleFocusIn);
+      }
     };
   }, [isOpen, onClose]);
 
@@ -81,7 +104,7 @@ export default function Drawer({
           )}
 
           {/* Content */}
-          <div className={`p-4 sm:p-6 overflow-y-auto space-y-4 overscroll-contain flex-1 ${className}`}>
+          <div ref={contentRef} className={`p-4 sm:p-6 overflow-y-auto space-y-4 overscroll-contain flex-1 ${className}`}>
             {children}
           </div>
 

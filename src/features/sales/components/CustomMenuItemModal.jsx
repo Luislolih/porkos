@@ -3,6 +3,7 @@ import Modal from '../../../components/ui/Modal';
 import { formatCurrency } from '../../../utils/formatters';
 import { Plus, Minus, Utensils, Package, Flame, Zap, ShoppingBag, Users } from 'lucide-react';
 import { useCatalog } from '../../../context/useCatalog';
+import { handleInputFocusScroll } from '../../../utils/scrollIntoViewHelper';
 
 function CustomMenuItemForm({
   editingItem = null,
@@ -83,6 +84,7 @@ function CustomMenuItemForm({
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
+          onFocus={handleInputFocusScroll}
           placeholder="Ej. Menú Ejecutivo, Porción Especial de Chicharrón, Plato del Día..."
           className="w-full bg-[#121216] border border-zinc-800 hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] focus:ring-1 focus:ring-[var(--color-porkos-orange)]/40 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white placeholder:text-zinc-500 focus:outline-none transition-colors"
         />
@@ -115,6 +117,10 @@ function CustomMenuItemForm({
                 min="0"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
+                onFocus={(e) => {
+                  e.target.select();
+                  handleInputFocusScroll(e);
+                }}
                 placeholder="0.00"
                 className="w-full bg-[#141418] border border-zinc-800 focus:border-amber-500 rounded-lg pl-8 pr-2 py-2 text-center text-sm font-black text-white focus:outline-none transition-colors"
               />
@@ -299,6 +305,7 @@ function CustomMenuItemForm({
           type="text"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
+          onFocus={handleInputFocusScroll}
           placeholder="Ej. Sin cebolla, término medio, cremas aparte..."
           className="w-full bg-[#121216] border border-zinc-800 hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-500 font-medium focus:outline-none transition-colors"
         />

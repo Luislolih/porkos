@@ -4,6 +4,7 @@ import Modal from '../../../components/ui/Modal';
 import { formatCurrency } from '../../../utils/formatters';
 import { useCatalog } from '../../../context/useCatalog';
 import { isProductBeverage, isProductMarket } from '../../../utils/productCategories';
+import { handleInputFocusScroll } from '../../../utils/scrollIntoViewHelper';
 
 function CustomizerForm({
   product,
@@ -706,6 +707,7 @@ function CustomizerForm({
           type="text"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
+          onFocus={handleInputFocusScroll}
           placeholder={isBeverage ? 'Indicación para despacho (ej. vaso extra)...' : 'Indicación para cocina (ej. carne bien cocida)...'}
           className="w-full bg-[#141418] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
         />
@@ -758,6 +760,7 @@ function CustomizerForm({
                   setManualPriceInput(autoCalculatedTotal.toFixed(2));
                 }
                 e.target.select();
+                handleInputFocusScroll(e);
               }}
               placeholder={autoCalculatedTotal.toFixed(2)}
               className="w-full bg-[#141418] border border-zinc-800 focus:border-amber-500 rounded-xl pl-9 pr-3 py-2.5 text-center text-sm sm:text-base text-white font-black focus:outline-none transition-colors"
@@ -783,6 +786,9 @@ function CustomizerForm({
           </button>
         </div>
       </div>
+
+      {/* Espacio holgado inferior para que el teclado móvil o el botón sticky no tapen el campo al escribir */}
+      <div className="h-20 sm:h-24 pointer-events-none" />
 
       {/* Botón flotante de confirmación sticky */}
       <div className="sticky -bottom-4 sm:-bottom-6 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-[#121215]/95 backdrop-blur-md border-t border-[var(--color-porkos-border)] z-20 shadow-2xl">

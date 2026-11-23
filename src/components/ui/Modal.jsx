@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { lockScroll, unlockScroll } from '../../utils/scrollLock';
+import { scrollIntoViewCenter } from '../../utils/scrollIntoViewHelper';
 
 export default function Modal({
   isOpen,
@@ -13,6 +14,8 @@ export default function Modal({
   maxWidth = 'max-w-lg',
   showClose = true,
 }) {
+  const contentRef = useRef(null);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -25,9 +28,30 @@ export default function Modal({
     };
     window.addEventListener('keydown', handleKeyDown);
 
+    // Auto-scroll al elemento activo para asegurar visibilidad en móviles y pantallas medianas
+    const container = contentRef.current;
+    const handleFocusIn = (e) => {
+      const target = e.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      ) {
+        scrollIntoViewCenter(target, 80);
+        scrollIntoViewCenter(target, 240);
+      }
+    };
+
+    if (container) {
+      container.addEventListener('focusin', handleFocusIn);
+    }
+
     return () => {
       unlockScroll();
       window.removeEventListener('keydown', handleKeyDown);
+      if (container) {
+        container.removeEventListener('focusin', handleFocusIn);
+      }
     };
   }, [isOpen, onClose]);
 
@@ -88,7 +112,7 @@ export default function Modal({
         )}
 
         {/* Contenido / Campos con scroll fluido */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 overscroll-contain flex-1">
+        <div ref={contentRef} className="p-4 sm:p-6 overflow-y-auto space-y-4 overscroll-contain flex-1">
           {children}
         </div>
 

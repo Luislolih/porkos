@@ -10,6 +10,7 @@ import CustomMenuItemModal from './components/CustomMenuItemModal';
 import CartView from './components/CartView';
 import MobileCartDrawer from './components/MobileCartDrawer';
 import QuickPaymentModal from './components/QuickPaymentModal';
+import ReorderCategoryModal from './components/ReorderCategoryModal';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
 import { formatCurrency } from '../../utils/formatters';
 import { getNextOrderNumber } from '../../utils/orderNumber';
@@ -61,6 +62,7 @@ export default function SalesView({
   const [isCustomMenuOpen, setIsCustomMenuOpen] = useState(false);
   const [editingCustomItem, setEditingCustomItem] = useState(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(() => Boolean(editingOrder));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const lastEditingOrderIdRef = useRef(null);
@@ -75,10 +77,10 @@ export default function SalesView({
 
   // Failsafe: cuando no hay ningún modal ni drawer abierto en Ventas, asegurar que el body scroll esté libre
   useEffect(() => {
-    if (!isMobileCartOpen && !customizingProduct && !isCustomMenuOpen && !isPaymentOpen) {
+    if (!isMobileCartOpen && !customizingProduct && !isCustomMenuOpen && !isPaymentOpen && !isReorderModalOpen) {
       forceUnlockScroll();
     }
-  }, [isMobileCartOpen, customizingProduct, isCustomMenuOpen, isPaymentOpen]);
+  }, [isMobileCartOpen, customizingProduct, isCustomMenuOpen, isPaymentOpen, isReorderModalOpen]);
 
   // Al entrar a editar una comanda (desde Mesas o Pedidos), abrir automáticamente la comanda desplegada
   useEffect(() => {
@@ -95,10 +97,18 @@ export default function SalesView({
 
   const [successToast, setSuccessToast] = useState(null);
 
-  const { products, categories = [], packagings: catalogPackagings, recordProductSales } = useCatalog();
+  const {
+    products,
+    categories = [],
+    packagings: catalogPackagings,
+    recordProductSales,
+    categoryOrderMap = {},
+    saveCategoryOrder,
+    resetCategoryOrder,
+  } = useCatalog();
 
   // Filtrar productos por Categorías principales: TODAS, CLÁSICO, ARTESANAL, MARKET y Búsqueda
-  // Ordenados POR DEFECTO de mayor a menor salida según el histórico (salesCount)
+  // Ordenados según la carta física configurada manualmente, o por mayor salida (salesCount)
   const filteredAndSortedProducts = useMemo(() => {
     const list = products.filter((prod) => {
       // 1. En modo MARKET (Caja Rápida): mostrar productos de Market filtrados por sus categorías
@@ -144,9 +154,22 @@ export default function SalesView({
       return true;
     });
 
-    // Ordenar de mayor salida a menor salida
+    // Ordenamiento: si la categoría tiene un orden manual configurado por la administración para la carta, respetarlo
+    const manualOrder = categoryOrderMap?.[selectedLine];
+    if (Array.isArray(manualOrder) && manualOrder.length > 0) {
+      return list.sort((a, b) => {
+        const indexA = manualOrder.indexOf(a.id);
+        const indexB = manualOrder.indexOf(b.id);
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        return (b.salesCount || 0) - (a.salesCount || 0);
+      });
+    }
+
+    // Orden por defecto: de mayor salida a menor salida (salesCount)
     return list.sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0));
-  }, [products, categories, salesMode, selectedLine, searchQuery]);
+  }, [products, categories, salesMode, selectedLine, searchQuery, categoryOrderMap]);
 
   // Añadir rápido (Por defecto SIN cremas marcadas, el usuario las personaliza o pide directo)
   const handleQuickAdd = (product) => {
@@ -614,6 +637,8 @@ export default function SalesView({
             selectedLine={selectedLine}
             onSelectLine={setSelectedLine}
             onOpenCustomMenu={salesMode !== SALES_MODES.MARKET ? handleOpenCustomMenu : undefined}
+            onOpenReorder={() => setIsReorderModalOpen(true)}
+            isCustomOrderActive={Boolean(categoryOrderMap?.[selectedLine])}
           />
 
           {/* Grid de Productos (Ordenados de mayor a menor salida) */}
@@ -765,6 +790,20 @@ export default function SalesView({
         total={total}
         onConfirmPayment={handleConfirmPayment}
         isSubmitting={isSubmitting}
+      />
+
+      {/* Reorder Category Modal (Ordenar Carta) */}
+      <ReorderCategoryModal
+        isOpen={isReorderModalOpen}
+        onClose={() => setIsReorderModalOpen(false)}
+        initialCategory={selectedLine}
+        salesMode={salesMode}
+        products={products}
+        categories={categories}
+        categoryOrderMap={categoryOrderMap}
+        onSaveOrder={saveCategoryOrder}
+        onResetOrder={resetCategoryOrder}
+        onShowToast={showToast}
       />
 
       {/* Flecha flotante a la derecha en mobile y al borde del catálogo en desktop */}

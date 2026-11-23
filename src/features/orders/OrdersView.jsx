@@ -33,6 +33,7 @@ import SearchInput from '../../components/ui/SearchInput';
 import Button from '../../components/ui/Button';
 import Toast from '../../components/ui/Toast';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
+import { handleInputFocusScroll } from '../../utils/scrollIntoViewHelper';
 import { isProductBeverage, isProductDessert } from '../../utils/productCategories';
 import { useAuth } from '../../context/useAuth';
 import { useCatalog } from '../../context/useCatalog';
@@ -1507,6 +1508,7 @@ export default function OrdersView({
                   type="text"
                   value={manualCustomerName}
                   onChange={(e) => setManualCustomerName(e.target.value)}
+                  onFocus={handleInputFocusScroll}
                   placeholder={manualModality === 'DELIVERY' ? 'Nombre para entrega (opcional)' : 'Nombre del cliente (opcional)'}
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)]"
                 />
@@ -1540,6 +1542,7 @@ export default function OrdersView({
                       type="text"
                       value={productSearch}
                       onChange={(e) => setProductSearch(e.target.value)}
+                      onFocus={handleInputFocusScroll}
                       placeholder="Buscar plato o bebida en carta..."
                       className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] rounded-xl pl-8 pr-8 py-2 text-xs text-white placeholder-zinc-500 font-medium focus:outline-none transition-colors"
                     />
@@ -1725,6 +1728,7 @@ export default function OrdersView({
                         type="text"
                         value={customItemName}
                         onChange={(e) => setCustomItemName(e.target.value)}
+                        onFocus={handleInputFocusScroll}
                         placeholder="Ej. Combo Especial de Temporada, Porción Extra..."
                         className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-medium text-xs focus:outline-none focus:border-[var(--color-porkos-orange)]"
                       />
@@ -1799,6 +1803,7 @@ export default function OrdersView({
                         type="text"
                         value={itemDetails}
                         onChange={(e) => setItemDetails(e.target.value)}
+                        onFocus={handleInputFocusScroll}
                         placeholder="Ej. Sin cebolla, papas al hilo, término medio, cremas aparte..."
                         className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] rounded-xl px-3 py-2 text-white font-medium text-xs focus:outline-none transition-colors"
                       />
@@ -1875,6 +1880,10 @@ export default function OrdersView({
                               onChange={(e) => {
                                 setItemPrice(e.target.value);
                                 setIsPriceCustomized(true);
+                              }}
+                              onFocus={(e) => {
+                                e.target.select();
+                                handleInputFocusScroll(e);
                               }}
                               placeholder="0.00"
                               className="w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-xl pl-7 pr-2 py-2 text-center text-white font-bold text-xs focus:outline-none"
@@ -2194,6 +2203,7 @@ export default function OrdersView({
                   type="text"
                   value={manualNotes}
                   onChange={(e) => setManualNotes(e.target.value)}
+                  onFocus={handleInputFocusScroll}
                   placeholder="Ej. Registro pasado del turno tarde..."
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-medium focus:outline-none focus:border-[var(--color-porkos-orange)]"
                 />

@@ -28,6 +28,7 @@ import Button from '../../../components/ui/Button';
 import ProductThumbnail from '../../../components/ui/ProductThumbnail';
 import Modal from '../../../components/ui/Modal';
 import ConfirmDialog from '../../../components/ui/ConfirmDialog';
+import { handleInputFocusScroll } from '../../../utils/scrollIntoViewHelper';
 
 function getPapasText(customization) {
   const papasMod = customization?.selectedModifiers?.find(
@@ -359,6 +360,7 @@ export default function CartView({
                 setCustomerName(val);
                 setCustomer((prev) => ({ ...prev, name: val }));
               }}
+              onFocus={handleInputFocusScroll}
               placeholder="Nombre del cliente..."
               className="w-full bg-[#121216] border border-zinc-800 hover:border-zinc-700 focus:border-[var(--color-porkos-orange)] rounded-xl pl-8 pr-7 py-2 text-xs text-white placeholder-zinc-500 font-semibold focus:outline-none transition-colors"
             />
@@ -837,6 +839,7 @@ export default function CartView({
                 type="tel"
                 value={customer.phone || ''}
                 onChange={(e) => setCustomer((prev) => ({ ...prev, phone: e.target.value }))}
+                onFocus={handleInputFocusScroll}
                 placeholder="Teléfono / Celular"
                 className="w-full bg-[#141418] border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 font-medium"
               />
@@ -849,6 +852,7 @@ export default function CartView({
                 type="text"
                 value={customer.address || ''}
                 onChange={(e) => setCustomer((prev) => ({ ...prev, address: e.target.value }))}
+                onFocus={handleInputFocusScroll}
                 placeholder="Dirección exacta"
                 className="w-full bg-[#141418] border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 font-medium"
               />
@@ -862,6 +866,7 @@ export default function CartView({
                   type="text"
                   value={customer.reference || ''}
                   onChange={(e) => setCustomer((prev) => ({ ...prev, reference: e.target.value }))}
+                  onFocus={handleInputFocusScroll}
                   placeholder="Referencia de llegada"
                   className="w-full bg-[#141418] border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
                 />
@@ -875,6 +880,7 @@ export default function CartView({
                   min="0"
                   value={customer.deliveryFee ?? ''}
                   onChange={(e) => setCustomer((prev) => ({ ...prev, deliveryFee: e.target.value }))}
+                  onFocus={handleInputFocusScroll}
                   placeholder="Costo envío"
                   className="w-full bg-[#141418] border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white font-bold placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
                 />
@@ -890,6 +896,7 @@ export default function CartView({
               type="text"
               value={generalNotes}
               onChange={(e) => setGeneralNotes(e.target.value)}
+              onFocus={handleInputFocusScroll}
               placeholder="Nota general de la comanda..."
               className="w-full bg-[#0E0E12] border border-[var(--color-porkos-border)] rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[var(--color-porkos-orange)] transition-colors"
             />

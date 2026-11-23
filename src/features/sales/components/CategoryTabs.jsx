@@ -1,4 +1,4 @@
-import { Utensils, UtensilsCrossed, CupSoda, Cake, Store, Cookie, Plus } from 'lucide-react';
+import { Utensils, UtensilsCrossed, CupSoda, Cake, Store, Cookie, Plus, ArrowUpDown } from 'lucide-react';
 import { SALES_MODES } from '../../../types/constants';
 
 const RESTAURANT_TABS = [
@@ -21,6 +21,8 @@ export default function CategoryTabs({
   selectedLine = 'ALL',
   onSelectLine,
   onOpenCustomMenu,
+  onOpenReorder,
+  isCustomOrderActive = false,
 }) {
   const isMarket = salesMode === SALES_MODES.MARKET;
   const tabs = isMarket ? MARKET_TABS : RESTAURANT_TABS;
@@ -64,6 +66,25 @@ export default function CategoryTabs({
         >
           <Plus className="w-3.5 h-3.5 text-amber-400 stroke-[2.5]" />
           <span>Fuera de Carta</span>
+        </button>
+      )}
+
+      {onOpenReorder && (
+        <button
+          type="button"
+          onClick={onOpenReorder}
+          className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap transition-all duration-120 flex items-center gap-1.5 cursor-pointer border active:scale-95 touch-manipulation shadow-xs shrink-0 ${
+            isCustomOrderActive
+              ? 'bg-zinc-800 text-orange-400 border-orange-500/40 hover:border-orange-500 hover:bg-zinc-700/80'
+              : 'bg-[#121215] text-zinc-400 hover:text-white border-[var(--color-porkos-border)] hover:border-zinc-700 hover:bg-[#18181D]'
+          }`}
+          title="Organizar productos de esta categoría según la carta física"
+        >
+          <ArrowUpDown className={`w-3.5 h-3.5 ${isCustomOrderActive ? 'text-orange-400 stroke-[2.5]' : 'text-zinc-500'}`} />
+          <span>Ordenar Carta</span>
+          {isCustomOrderActive && (
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-porkos-orange)]" />
+          )}
         </button>
       )}
     </div>

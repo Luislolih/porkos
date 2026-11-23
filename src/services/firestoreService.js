@@ -946,3 +946,43 @@ export async function saveDeliveryConfigToFirestore(config) {
   }
 }
 
+export function subscribeToCategoryOrder(onUpdate, onError) {
+  try {
+    const docRef = doc(db, 'app_config', 'category_order');
+    return onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          onUpdate(docSnap.data()?.orderMap || null);
+        } else {
+          onUpdate(null);
+        }
+      },
+      (err) => {
+        console.warn('Advertencia en Firestore category_order:', err.message);
+        if (onError) onError(err);
+      }
+    );
+  } catch (err) {
+    console.warn('Error en suscripción de category_order:', err);
+    if (onError) onError(err);
+    return () => {};
+  }
+}
+
+export async function saveCategoryOrderToFirestore(orderMap) {
+  try {
+    const docRef = doc(db, 'app_config', 'category_order');
+    await setDoc(
+      docRef,
+      { orderMap: sanitizePayload(orderMap), updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+    return { success: true };
+  } catch (err) {
+    console.error('Error al guardar category_order en Firestore:', err);
+    return { success: false, error: err };
+  }
+}
+
+

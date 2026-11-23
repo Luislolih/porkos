@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { lockScroll, unlockScroll } from '../../../utils/scrollLock';
+import { scrollIntoViewCenter } from '../../../utils/scrollIntoViewHelper';
 
 /**
  * MobileCartDrawer — Deslizador táctil de comanda optimizado con Leyes UX:
@@ -60,9 +61,30 @@ export default function MobileCartDrawer({ isOpen, onClose, children }) {
     };
     window.addEventListener('keydown', handleKeyDown);
 
+    // Auto-scroll al input activo dentro de la comanda móvil
+    const container = sheetRef.current;
+    const handleFocusIn = (e) => {
+      const target = e.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      ) {
+        scrollIntoViewCenter(target, 80);
+        scrollIntoViewCenter(target, 240);
+      }
+    };
+
+    if (container) {
+      container.addEventListener('focusin', handleFocusIn);
+    }
+
     return () => {
       unlockScroll();
       window.removeEventListener('keydown', handleKeyDown);
+      if (container) {
+        container.removeEventListener('focusin', handleFocusIn);
+      }
     };
   }, [isOpen, handleTriggerClose]);
 
