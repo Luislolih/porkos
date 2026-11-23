@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
-  Eye,
   Clock,
   CheckCircle2,
   Flame,
@@ -17,14 +16,15 @@ import {
   Trash2,
   Lock,
   UserCheck,
-  Calendar,
   User,
   Plus,
   Minus,
   Search,
   ClipboardList,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
-import { formatCurrency, formatTime, formatDate, formatElapsedTime, generateOrderNumber } from '../../utils/formatters';
+import { formatCurrency, formatTime, formatElapsedTime, generateOrderNumber } from '../../utils/formatters';
 import { ORDER_STATUS, PAYMENT_STATUS } from '../../types/constants';
 import Modal from '../../components/ui/Modal';
 import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
@@ -63,6 +63,22 @@ export default function OrdersView({
   const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'HISTORY'
   const [filterModality, setFilterModality] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem('porkos_orders_view_mode') || 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+
+  const handleSetViewMode = (mode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('porkos_orders_view_mode', mode);
+    } catch {
+      // ignore
+    }
+  };
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingCustomerNameOrder, setEditingCustomerNameOrder] = useState(null);
   const [tempCustomerName, setTempCustomerName] = useState('');
@@ -747,62 +763,205 @@ export default function OrdersView({
           </div>
         </div>
 
-        {/* Filter Pills: Modalidad */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none text-xs pt-1 border-t border-[var(--color-porkos-border)]">
-          <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider shrink-0 mr-1">
-            Modalidad:
-          </span>
-          {[
-            { id: 'ALL', label: 'Todas' },
-            { id: 'MESA', label: 'Mesas' },
-            { id: 'PARA_LLEVAR', label: 'Para Llevar' },
-            { id: 'DELIVERY', label: 'Delivery' },
-            { id: 'MARKET', label: 'Market' },
-          ].map((m) => {
-            const isSelected = filterModality === m.id;
-            return (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setFilterModality(m.id)}
-                className={`
-                  px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer border active:scale-95 touch-manipulation
-                  ${
-                    isSelected
-                      ? 'bg-zinc-800 text-white border-zinc-600 font-black shadow-xs'
-                      : 'bg-[#141418] text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-white'
-                  }
-                `}
-              >
-                {m.label}
-              </button>
-            );
-          })}
+        {/* Filter Pills: Modalidad + Selector de Vista (Tarjetas / Lista) */}
+        <div className="flex items-center justify-between gap-2 overflow-x-auto pb-0.5 scrollbar-none text-xs pt-1 border-t border-[var(--color-porkos-border)]">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+            <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider shrink-0 mr-1">
+              Modalidad:
+            </span>
+            {[
+              { id: 'ALL', label: 'Todas' },
+              { id: 'MESA', label: 'Mesas' },
+              { id: 'PARA_LLEVAR', label: 'Para Llevar' },
+              { id: 'DELIVERY', label: 'Delivery' },
+              { id: 'MARKET', label: 'Market' },
+            ].map((m) => {
+              const isSelected = filterModality === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setFilterModality(m.id)}
+                  className={`
+                    px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer border active:scale-95 touch-manipulation
+                    ${
+                      isSelected
+                        ? 'bg-zinc-800 text-white border-zinc-600 font-black shadow-xs'
+                        : 'bg-[#141418] text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-white'
+                    }
+                  `}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Toggle de Vista: Tarjetas vs Lista Compacta */}
+          <div className="flex items-center bg-[#0C0C0F] p-0.5 rounded-lg border border-zinc-800 shrink-0 ml-auto">
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('grid')}
+              className={`p-1.5 rounded-md text-xs transition-all cursor-pointer flex items-center gap-1 ${
+                viewMode === 'grid'
+                  ? 'bg-zinc-800 text-white font-bold shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+              title="Vista en cuadrícula de tarjetas"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('list')}
+              className={`p-1.5 rounded-md text-xs transition-all cursor-pointer flex items-center gap-1 ${
+                viewMode === 'list'
+                  ? 'bg-zinc-800 text-white font-bold shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+              title="Vista de lista compacta"
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Orders List / Cards */}
-      <div className="space-y-2.5">
-        {filteredOrders.length === 0 ? (
-          <EmptyState
-            icon={ClipboardList}
-            title="No se encontraron pedidos"
-            description={
-              searchQuery
-                ? 'No hay resultados que coincidan con la búsqueda actual.'
-                : 'No hay pedidos en la categoría o filtro seleccionado.'
-            }
-            action={
-              searchQuery
-                ? {
-                    label: 'Limpiar búsqueda',
-                    onClick: () => setSearchQuery(''),
+      {filteredOrders.length === 0 ? (
+        <EmptyState
+          icon={ClipboardList}
+          title="No se encontraron pedidos"
+          description={
+            searchQuery
+              ? 'No hay resultados que coincidan con la búsqueda actual.'
+              : 'No hay pedidos en la categoría o filtro seleccionado.'
+          }
+          action={
+            searchQuery
+              ? {
+                  label: 'Limpiar búsqueda',
+                  onClick: () => setSearchQuery(''),
+                }
+              : undefined
+          }
+        />
+      ) : viewMode === 'list' ? (
+        /* VISTA DE LISTA COMPACTA (Ultra-eficiente en espacio) */
+        <div className="space-y-1.5">
+          {filteredOrders.map((order) => {
+            const statusConf = ORDER_STATUS[order.status] || {};
+            const isTable = order.modality === 'MESA' || Boolean(order.tableId);
+            const effectivePaymentStatus = isTable ? (order.paymentStatus || 'PENDING') : 'PAID';
+            const payConf = PAYMENT_STATUS[effectivePaymentStatus] || {};
+
+            const itemsSummary = (order.items || [])
+              .map((it) => `${it.quantity}× ${it.name}`)
+              .join(', ');
+
+            return (
+              <div
+                key={order.orderNumber}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedOrder(order)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedOrder(order);
                   }
-                : undefined
-            }
-          />
-        ) : (
-          filteredOrders.map((order) => {
+                }}
+                className="group bg-[#121216] hover:bg-[#16161c] border border-[var(--color-porkos-border)] hover:border-zinc-700 rounded-xl px-3 py-2 transition-all cursor-pointer flex items-center justify-between gap-2.5 active:scale-[0.99] shadow-xs text-xs"
+                title="Toca para ver el detalle y seguimiento del pedido"
+              >
+                {/* Izquierda: Icono + Número + Mesa + Cliente */}
+                <div className="flex items-center gap-2.5 min-w-0 sm:w-64 shrink-0">
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
+                      order.status === 'ENTREGADO'
+                        ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
+                        : order.status === 'LISTO'
+                        ? 'bg-amber-950/40 border-amber-500/30 text-amber-400'
+                        : 'bg-orange-950/40 border-orange-500/30 text-[var(--color-porkos-orange)]'
+                    }`}
+                  >
+                    {getModalityIcon(order.modality)}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black text-white">{order.orderNumber}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 bg-zinc-800 text-zinc-300 rounded font-bold border border-zinc-700/80">
+                        {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Llevar' : order.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : order.modality === 'DELIVERY' ? 'Delivery' : 'Market')}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-amber-300/90 truncate font-semibold">
+                      {order.customerName || order.customer?.name || 'Cliente'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Centro: Resumen de productos en una sola línea */}
+                <div className="hidden md:flex flex-1 min-w-0 items-center gap-1.5 text-zinc-400 text-xs">
+                  <span className="truncate">
+                    {itemsSummary || 'Sin productos'}
+                  </span>
+                  {order.deliveryFee > 0 && (
+                    <span className="text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-1 rounded font-bold shrink-0">
+                      Delivery
+                    </span>
+                  )}
+                </div>
+
+                {/* Derecha: Estado + Total + Tiempo + Editar */}
+                <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 ml-auto">
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                      statusConf.badgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                    }`}
+                  >
+                    {statusConf.label || order.status}
+                  </span>
+
+                  <span
+                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full whitespace-nowrap hidden sm:inline ${
+                      payConf.badgeClass || 'text-zinc-400 bg-zinc-800'
+                    }`}
+                  >
+                    {payConf.label || effectivePaymentStatus}
+                  </span>
+
+                  <span className="font-black text-xs sm:text-sm text-white shrink-0 min-w-[65px] text-right">
+                    {formatCurrency(order.total)}
+                  </span>
+
+                  <span className="text-[10px] text-zinc-500 hidden sm:inline whitespace-nowrap min-w-[70px] text-right">
+                    {formatElapsedTime(order.createdAt)}
+                  </span>
+
+                  {((order.status !== 'ENTREGADO' && order.status !== 'CANCELADO') ||
+                    ((order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID' && order.status !== 'CANCELADO')) &&
+                    onEditOrderInSales && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditOrderInSales(order);
+                        }}
+                        className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white cursor-pointer active:scale-95 border border-zinc-700"
+                        title="Editar comanda"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                      </button>
+                    )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* VISTA DE CUADRÍCULA COMPACTA Y MODERNA (2 a 3 columnas) */
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 sm:gap-3">
+          {filteredOrders.map((order) => {
             const statusConf = ORDER_STATUS[order.status] || {};
             const isTable = order.modality === 'MESA' || Boolean(order.tableId);
             const effectivePaymentStatus = isTable ? (order.paymentStatus || 'PENDING') : 'PAID';
@@ -822,7 +981,7 @@ export default function OrdersView({
                   }
                 }}
                 className={`
-                  group bg-[#121216] hover:bg-[#16161c] border rounded-2xl p-3.5 sm:p-4 transition-colors duration-200 cursor-pointer flex flex-col gap-2.5 active:scale-[0.99] shadow-sm
+                  group bg-[#121216] hover:bg-[#16161c] border rounded-2xl p-3 sm:p-3.5 transition-colors duration-200 cursor-pointer flex flex-col justify-between gap-2 active:scale-[0.99] shadow-sm
                   ${
                     !isFinished
                       ? 'border-[var(--color-porkos-border)] hover:border-zinc-700'
@@ -832,10 +991,10 @@ export default function OrdersView({
                 title="Toca para ver el detalle y seguimiento del pedido"
               >
                 {/* Cabecera del pedido */}
-                <div className="flex flex-wrap items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <div
-                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
                         order.status === 'ENTREGADO'
                           ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
                           : order.status === 'LISTO'
@@ -847,17 +1006,17 @@ export default function OrdersView({
                     </div>
 
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-black text-sm sm:text-base text-white transition-colors">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-black text-sm text-white transition-colors">
                           {order.orderNumber}
                         </h4>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md text-[10px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
                           {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Para Llevar' : order.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : order.modality === 'DELIVERY' ? 'Delivery' : 'Market Directo')}
                         </span>
                       </div>
 
                       {/* Cliente inline con edición rápida */}
-                      <div className="flex items-center gap-2 text-xs text-zinc-400 mt-0.5">
+                      <div className="flex items-center gap-1 text-[11px] text-zinc-400 mt-0.5 min-w-0">
                         {editingCustomerNameOrder === order.orderNumber ? (
                           <div
                             className="flex items-center gap-1"
@@ -872,7 +1031,7 @@ export default function OrdersView({
                                 if (e.key === 'Enter') handleSaveCustomerName(order);
                                 if (e.key === 'Escape') setEditingCustomerNameOrder(null);
                               }}
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] font-bold w-32"
+                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] font-bold w-28"
                             />
                             <button
                               type="button"
@@ -897,66 +1056,50 @@ export default function OrdersView({
                               setEditingCustomerNameOrder(order.orderNumber);
                               setTempCustomerName(order.customerName || order.customer?.name || '');
                             }}
-                            className="group/cust inline-flex items-center gap-1 cursor-pointer text-amber-300 hover:text-amber-200 font-bold truncate"
+                            className="group/cust inline-flex items-center gap-1 cursor-pointer text-amber-300 hover:text-amber-200 font-bold truncate max-w-[140px]"
                             title="Clic para editar el nombre del cliente"
                           >
-                            <User className="w-3 h-3 text-zinc-500 group-hover/cust:text-amber-300 shrink-0" />
-                            <span>{order.customerName || order.customer?.name || 'Cliente'}</span>
+                            <User className="w-2.5 h-2.5 text-zinc-500 group-hover/cust:text-amber-300 shrink-0" />
+                            <span className="truncate">{order.customerName || order.customer?.name || 'Cliente'}</span>
                             <Edit3 className="w-2.5 h-2.5 text-zinc-500 group-hover/cust:text-amber-300 shrink-0" />
                           </button>
-                        )}
-
-                        {order.createdBy?.name && (
-                          <span className="text-zinc-500 text-[11px] font-medium hidden sm:inline">
-                            • Por: <strong className="text-zinc-400 font-semibold">{order.createdBy.name}</strong>
-                          </span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Derecha: Badges de Estado y Total */}
-                  <div className="flex items-center gap-3 shrink-0 ml-auto">
-                    <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-1.5">
+                  {/* Derecha: Total y Badges */}
+                  <div className="text-right shrink-0">
+                    <div className="font-black text-sm sm:text-base text-white">
+                      {formatCurrency(order.total)}
+                    </div>
+                    <div className="flex items-center justify-end gap-1 mt-0.5">
                       <span
-                        className={`text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full border whitespace-nowrap ${
+                        className={`text-[9px] font-black px-1.5 py-0.2 rounded-full border whitespace-nowrap ${
                           statusConf.badgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'
                         }`}
                       >
                         {statusConf.label || order.status}
                       </span>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full whitespace-nowrap ${
                           payConf.badgeClass || 'text-zinc-400 bg-zinc-800'
                         }`}
                       >
                         {payConf.label || effectivePaymentStatus}
                       </span>
                     </div>
-
-                    <div className="text-right pl-2 border-l border-zinc-800 shrink-0">
-                      <div className="font-black text-base sm:text-lg text-white transition-colors">
-                        {formatCurrency(order.total)}
-                      </div>
-                      <div className="text-[10px] text-zinc-400 flex items-center justify-end gap-1 font-medium">
-                        <Calendar className="w-2.5 h-2.5 text-zinc-500 shrink-0" />
-                        <span>{formatDate(order.createdAt)}</span>
-                        <span className="text-zinc-600">•</span>
-                        <Clock className="w-2.5 h-2.5 text-zinc-500 shrink-0" />
-                        <span>{formatTime(order.createdAt)}</span>
-                      </div>
-                    </div>
                   </div>
                 </div>
 
-                {/* Chips de Productos */}
-                <div className="bg-[#0C0C0F] rounded-xl p-2 sm:p-2.5 border border-zinc-900 flex flex-wrap items-center gap-1.5">
+                {/* Chips de Productos (resumen compacto) */}
+                <div className="bg-[#0C0C0F] rounded-xl p-2 border border-zinc-900 flex flex-wrap items-center gap-1">
                   {order.items && order.items.length > 0 ? (
                     <>
-                      {order.items.slice(0, 5).map((item, idx) => (
+                      {order.items.slice(0, 3).map((item, idx) => (
                         <span
                           key={idx}
-                          className="inline-flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 text-zinc-200 p-1 pr-2.5 rounded-lg text-xs"
+                          className="inline-flex items-center gap-1 bg-zinc-900 border border-zinc-800 text-zinc-200 px-1.5 py-0.5 rounded-md text-[11px]"
                         >
                           <ProductThumbnail
                             src={item.image}
@@ -964,21 +1107,21 @@ export default function OrdersView({
                             name={item.name}
                             isBeverage={isProductBeverage(item)}
                             isDessert={isProductDessert(item)}
-                            className="w-6 h-6 rounded-md shrink-0"
-                            iconSize="w-3.5 h-3.5"
+                            className="w-5 h-5 rounded shrink-0"
+                            iconSize="w-3 h-3"
                           />
                           <span className="font-black text-[var(--color-porkos-orange)]">
                             {item.quantity}×
                           </span>
-                          <span className="font-semibold text-zinc-300 truncate max-w-[130px] sm:max-w-[180px]">
+                          <span className="font-semibold text-zinc-300 truncate max-w-[100px] sm:max-w-[130px]">
                             {item.name}
                           </span>
                           <ItemConsumptionBadge item={item} orderModality={order.modality} />
                         </span>
                       ))}
-                      {order.items.length > 5 && (
-                        <span className="inline-flex items-center text-[11px] font-bold text-zinc-400 bg-zinc-800 px-2 py-1 rounded-lg border border-zinc-700">
-                          +{order.items.length - 5} más
+                      {order.items.length > 3 && (
+                        <span className="inline-flex items-center text-[10px] font-bold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded-md border border-zinc-700">
+                          +{order.items.length - 3} más
                         </span>
                       )}
                     </>
@@ -987,23 +1130,23 @@ export default function OrdersView({
                   )}
 
                   {order.deliveryFee > 0 && (
-                    <span className="inline-flex items-center gap-1 bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 px-2.5 py-1 rounded-lg text-[11px] font-bold">
-                      <Bike className="w-3.5 h-3.5 text-emerald-400" />
-                      Delivery ({formatCurrency(order.deliveryFee)})
+                    <span className="inline-flex items-center gap-1 bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 px-1.5 py-0.5 rounded-md text-[10px] font-bold ml-auto">
+                      <Bike className="w-3 h-3 text-emerald-400" />
+                      +{formatCurrency(order.deliveryFee)}
                     </span>
                   )}
                 </div>
 
                 {/* Barra inferior */}
-                <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--color-porkos-border)]/60 text-xs">
-                  <div className="flex items-center gap-2 text-zinc-500 text-[11px] min-w-0">
-                    <span className="inline-flex items-center gap-1 bg-[#0C0C0F] px-2 py-0.5 rounded-md border border-zinc-800 text-zinc-400 font-medium">
-                      <Clock className="w-3 h-3 text-zinc-500" />
+                <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-[var(--color-porkos-border)]/60 text-[10px]">
+                  <div className="flex items-center gap-1.5 text-zinc-500 min-w-0">
+                    <span className="inline-flex items-center gap-1 text-zinc-400">
+                      <Clock className="w-2.5 h-2.5 text-zinc-500" />
                       {formatElapsedTime(order.createdAt)}
                     </span>
                     {order.generalNotes && (
-                      <span className="truncate italic text-amber-300 max-w-[200px] sm:max-w-xs" title={order.generalNotes}>
-                        &ldquo;
+                      <span className="truncate italic text-amber-300 max-w-[120px] sm:max-w-[160px]" title={order.generalNotes}>
+                        • &ldquo;
                         {order.generalNotes.includes('histórico') || order.generalNotes.includes('administrador')
                           ? 'Registro manual'
                           : order.generalNotes}
@@ -1015,7 +1158,7 @@ export default function OrdersView({
                   <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                     {/* Botón Editar Comanda */}
                     {((order.status !== 'ENTREGADO' && order.status !== 'CANCELADO') ||
-                      ((order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID' && order.status !== 'CANCELADO')) ? (
+                      ((order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID' && order.status !== 'CANCELADO')) &&
                       onEditOrderInSales && (
                         <button
                           type="button"
@@ -1023,42 +1166,20 @@ export default function OrdersView({
                             e.stopPropagation();
                             onEditOrderInSales(order);
                           }}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-bold transition-colors cursor-pointer active:scale-95 border border-zinc-700/80 hover:border-zinc-600"
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-[11px] font-bold transition-colors cursor-pointer active:scale-95 border border-zinc-700/80 hover:border-zinc-600"
                           title="Editar comanda"
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Editar</span>
+                          <Edit3 className="w-3 h-3" />
+                          <span>Editar</span>
                         </button>
-                      )
-                    ) : (
-                      <span
-                        className="inline-flex items-center gap-1 px-2 py-0.5 text-zinc-500 text-[10px] font-semibold"
-                        title="Comanda finalizada"
-                      >
-                        <Lock className="w-3 h-3" />
-                        <span className="hidden sm:inline">Finalizada</span>
-                      </span>
-                    )}
-
-                    {/* Botón Ver Detalle */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedOrder(order);
-                      }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-bold transition-colors cursor-pointer active:scale-95 border border-zinc-700/80 hover:border-zinc-600"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Detalle</span>
-                    </button>
+                      )}
                   </div>
                 </div>
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
       {/* Modal de Detalle de Orden */}
       <Modal

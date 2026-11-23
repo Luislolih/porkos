@@ -450,7 +450,7 @@ export default function CartView({
             return (
               <div
                 key={item.itemId}
-                className="bg-[#0E0E12] border border-[var(--color-porkos-border)] hover:border-zinc-700/80 rounded-2xl p-3 space-y-2.5 transition-colors"
+                className="bg-[#0E0E12] border border-[var(--color-porkos-border)] hover:border-zinc-700/80 rounded-2xl p-2.5 sm:p-3 space-y-2 transition-colors"
               >
                 {/* Main row: Thumbnail, Title, Unit price, Total */}
                 <div
@@ -461,7 +461,7 @@ export default function CartView({
                 >
                   <div className="shrink-0 transition-transform group-hover:scale-105 active:scale-95">
                     {item.isCustomMenuItem || (!item.image && !getItemThumbnail(item)) ? (
-                      <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-black text-sm">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-black text-xs">
                         ★
                       </div>
                     ) : (
@@ -470,8 +470,8 @@ export default function CartView({
                         thumbnailUrl={getItemThumbnail(item)}
                         name={item.name}
                         priority={true}
-                        className="w-12 h-12 rounded-xl"
-                        iconSize="w-5 h-5"
+                        className="w-10 h-10 rounded-xl"
+                        iconSize="w-4 h-4"
                       />
                     )}
                   </div>
@@ -601,47 +601,47 @@ export default function CartView({
                 {!isMarketMode && modality !== 'DELIVERY' && (
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1 bg-[#141418] p-1 rounded-xl border border-zinc-800/80 w-fit touch-manipulation"
+                    className="flex items-center gap-1 bg-[#141418] p-0.5 rounded-lg border border-zinc-800/80 w-fit touch-manipulation"
                   >
                     <button
                       type="button"
                       onClick={() => updateItemConsumptionType(item.itemId, 'MESA')}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 touch-manipulation ${
+                      className={`px-2 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95 touch-manipulation ${
                         itemConsumption === 'MESA'
-                          ? 'bg-blue-600 text-white shadow-xs ring-1 ring-blue-400/50'
+                          ? 'bg-blue-600 text-white shadow-xs'
                           : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
                       }`}
                       title="Para comer en mesa / salón"
                     >
-                      <Utensils className="w-3 h-3 text-blue-300 shrink-0" />
+                      <Utensils className="w-2.5 h-2.5 text-blue-300 shrink-0" />
                       <span>Mesa</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => updateItemConsumptionType(item.itemId, 'CONSUMO_EXTERNO')}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 touch-manipulation ${
+                      className={`px-2 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95 touch-manipulation ${
                         itemConsumption === 'CONSUMO_EXTERNO'
-                          ? 'bg-purple-600 text-white shadow-xs ring-1 ring-purple-400/50'
+                          ? 'bg-purple-600 text-white shadow-xs'
                           : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
                       }`}
                       title="Para ir comiendo al paso"
                     >
-                      <Package className="w-3 h-3 text-purple-300 shrink-0" />
+                      <Package className="w-2.5 h-2.5 text-purple-300 shrink-0" />
                       <span>Ir comiendo</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => updateItemConsumptionType(item.itemId, 'PARA_LLEVAR')}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 touch-manipulation ${
+                      className={`px-2 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95 touch-manipulation ${
                         itemConsumption === 'PARA_LLEVAR'
-                          ? 'bg-amber-500 text-zinc-950 shadow-xs ring-1 ring-amber-400/50'
+                          ? 'bg-amber-500 text-zinc-950 shadow-xs'
                           : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
                       }`}
                       title="Para llevar"
                     >
-                      <ShoppingBag className="w-3 h-3 text-amber-950 shrink-0" />
+                      <ShoppingBag className="w-2.5 h-2.5 text-amber-950 shrink-0" />
                       <span>Llevar</span>
                     </button>
 

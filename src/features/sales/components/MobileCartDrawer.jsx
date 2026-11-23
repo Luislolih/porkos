@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { lockScroll, unlockScroll } from '../../../utils/scrollLock';
 
 /**
  * MobileCartDrawer — Deslizador táctil de comanda optimizado con Leyes UX:
@@ -44,16 +45,13 @@ export default function MobileCartDrawer({ isOpen, onClose, children }) {
     }, 220);
   }, [isClosing, onClose]);
 
-  // Prevenir scroll en el fondo (body) mientras la comanda esté abierta
   const isCurrentlyOpen = isOpen && !isClosing;
+
+  // Prevenir scroll en el fondo (body) mientras la comanda esté abierta
   useEffect(() => {
-    if (!isCurrentlyOpen) return;
+    if (!isOpen) return;
 
-    const originalOverflow = document.body.style.overflow;
-    const originalTouchAction = document.body.style.touchAction;
-
-    document.body.style.overflow = 'hidden';
-    document.body.style.touchAction = 'none';
+    lockScroll();
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -63,11 +61,10 @@ export default function MobileCartDrawer({ isOpen, onClose, children }) {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.body.style.overflow = originalOverflow;
-      document.body.style.touchAction = originalTouchAction;
+      unlockScroll();
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isCurrentlyOpen, handleTriggerClose]);
+  }, [isOpen, handleTriggerClose]);
 
   const handleTouchStart = (e) => {
     if (!e.touches || e.touches.length === 0 || isClosing) return;

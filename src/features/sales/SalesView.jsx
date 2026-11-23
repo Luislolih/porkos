@@ -15,6 +15,7 @@ import { formatCurrency } from '../../utils/formatters';
 import { getNextOrderNumber } from '../../utils/orderNumber';
 import { isProductBeverage, isProductMarket, isProductFood, isProductDessert, isProductSnack } from '../../utils/productCategories';
 import { sanitizeText, sanitizeNotes } from '../../utils/security';
+import { forceUnlockScroll } from '../../utils/scrollLock';
 import { useAuth } from '../../context/useAuth';
 import Toast from '../../components/ui/Toast';
 import EmptyState from '../../components/ui/EmptyState';
@@ -68,8 +69,16 @@ export default function SalesView({
   useEffect(() => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      forceUnlockScroll();
     };
   }, []);
+
+  // Failsafe: cuando no hay ningún modal ni drawer abierto en Ventas, asegurar que el body scroll esté libre
+  useEffect(() => {
+    if (!isMobileCartOpen && !customizingProduct && !isCustomMenuOpen && !isPaymentOpen) {
+      forceUnlockScroll();
+    }
+  }, [isMobileCartOpen, customizingProduct, isCustomMenuOpen, isPaymentOpen]);
 
   // Al entrar a editar una comanda (desde Mesas o Pedidos), abrir automáticamente la comanda desplegada
   useEffect(() => {
