@@ -656,7 +656,6 @@ export default function SalesView({
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             tables={tables}
-            onOpenReorder={() => setIsReorderModalOpen(true)}
           />
 
           {/* Categorías contextuales (Restaurante o Market) */}
@@ -665,38 +664,23 @@ export default function SalesView({
             selectedLine={selectedLine}
             onSelectLine={setSelectedLine}
             onOpenCustomMenu={salesMode !== SALES_MODES.MARKET ? handleOpenCustomMenu : undefined}
-            onOpenReorder={() => setIsReorderModalOpen(true)}
-            isCustomOrderActive={Boolean(categoryOrderMap?.[selectedLine])}
           />
 
-          {/* Barra fija visible: título de sección + botón destacado 'Ordenar Carta' */}
+          {/* Barra fija: número de productos + botón icono 'Ordenar Carta' */}
           <div className="flex items-center justify-between gap-2 px-1 pt-1 pb-0.5 select-none">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider truncate">
-                {selectedCategoryLabel}
-              </span>
-              <span className="text-[11px] font-bold text-zinc-400 bg-[#121216] border border-zinc-800 px-2 py-0.5 rounded-full shrink-0">
-                {filteredAndSortedProducts.length} {filteredAndSortedProducts.length === 1 ? 'producto' : 'productos'}
-              </span>
-              {categoryOrderMap?.[selectedLine] && (
-                <span className="text-[10px] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/30 px-2 py-0.5 rounded-full shrink-0 hidden sm:inline-flex">
-                  Orden Carta Activo
-                </span>
-              )}
-            </div>
+            <span className="text-[11px] font-bold text-zinc-400 bg-[#121216] border border-zinc-800 px-2.5 py-0.5 rounded-full shrink-0">
+              {filteredAndSortedProducts.length} {filteredAndSortedProducts.length === 1 ? 'producto' : 'productos'}
+            </span>
 
-            {/* Botón directo y siempre visible: Ordenar Carta */}
+            {/* Botón Ordenar Carta: solo icono, sin puntos ni parpadeo */}
             <button
               type="button"
               onClick={() => setIsReorderModalOpen(true)}
-              className="px-3.5 py-1.5 sm:py-2 rounded-xl bg-[var(--color-porkos-orange)] hover:bg-[var(--color-porkos-orange-hover)] text-zinc-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-orange-500/20 active:scale-95 transition-all cursor-pointer shrink-0"
-              title={`Organizar el orden de los productos en ${selectedCategoryLabel} para que coincida con tu carta física`}
+              className="w-8 h-8 rounded-xl bg-[var(--color-porkos-orange)] hover:bg-[var(--color-porkos-orange-hover)] text-zinc-950 flex items-center justify-center shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+              title={`Ordenar carta (${selectedCategoryLabel})`}
+              aria-label="Ordenar carta"
             >
               <ArrowUpDown className="w-4 h-4 stroke-[2.5]" />
-              <span>Ordenar Carta</span>
-              {categoryOrderMap?.[selectedLine] && (
-                <span className="w-2 h-2 rounded-full bg-zinc-950 animate-pulse" />
-              )}
             </button>
           </div>
 
