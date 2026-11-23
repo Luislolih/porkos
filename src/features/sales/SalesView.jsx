@@ -5,6 +5,7 @@ import { useCatalog } from '../../context/useCatalog';
 import SalesHeader from './components/SalesHeader';
 import CategoryTabs from './components/CategoryTabs';
 import ProductCard from './components/ProductCard';
+import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import QuickCustomizerModal from './components/QuickCustomizerModal';
 import CustomMenuItemModal from './components/CustomMenuItemModal';
 import CartView from './components/CartView';
@@ -65,14 +66,22 @@ export default function SalesView({
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(() => Boolean(editingOrder));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Estado para modo de reordenar carta (solo Admin y Owner)
+  // Estado para modo de reordenar carta (solo Admin y Owner, exclusivo de Toda la Carta)
   const [isReorderMode, setIsReorderMode] = useState(false);
   const [reorderProducts, setReorderProducts] = useState([]);
   const [hasReorderChanges, setHasReorderChanges] = useState(false);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
-  const [draggedProductId, setDraggedProductId] = useState(null);
-  const [dragOverProductId, setDragOverProductId] = useState(null);
-  const prevSelectedLineRef = useRef(selectedLine);
+  const previousCategoryBeforeReorderRef = useRef(null);
+
+  // Estados y referencias para arrastrar y desplazar fluidamente en vivo
+  const [activeDragItem, setActiveDragItem] = useState(null);
+  const [pointerPos, setPointerPos] = useState({ x: 0, y: 0 });
+  const [grabOffset, setGrabOffset] = useState({ x: 0, y: 0 });
+  const [cardDimensions, setCardDimensions] = useState({ width: 0, height: 0 });
+
+  const isDraggingActiveRef = useRef(false);
+  const dragStartInfoRef = useRef(null);
+  const currentSlotIndexRef = useRef(null);
 
   const lastEditingOrderIdRef = useRef(null);
   const toastTimerRef = useRef(null);
@@ -176,12 +185,14 @@ export default function SalesView({
       return true;
     });
 
-    // Ordenamiento: si la categoría tiene un orden manual configurado por la administración para la carta, respetarlo
-    const manualOrder = categoryOrderMap?.[selectedLine];
-    if (Array.isArray(manualOrder) && manualOrder.length > 0) {
+    // Ordenamiento: solo se organiza en "Toda la Carta" ('ALL' o 'MARKET_ALL')
+    // y dicho orden maestro se respeta automáticamente en todas las demás categorías
+    const masterKey = salesMode === SALES_MODES.MARKET ? 'MARKET_ALL' : 'ALL';
+    const masterOrder = categoryOrderMap?.[masterKey] || categoryOrderMap?.[selectedLine];
+    if (Array.isArray(masterOrder) && masterOrder.length > 0) {
       return list.sort((a, b) => {
-        const indexA = manualOrder.indexOf(a.id);
-        const indexB = manualOrder.indexOf(b.id);
+        const indexA = masterOrder.indexOf(a.id);
+        const indexB = masterOrder.indexOf(b.id);
         if (indexA !== -1 && indexB !== -1) return indexA - indexB;
         if (indexA !== -1) return -1;
         if (indexB !== -1) return 1;
@@ -208,47 +219,48 @@ export default function SalesView({
     return 'Toda la Carta';
   }, [salesMode, selectedLine]);
 
-  // Productos mostrados en la cuadrícula (en modo reordenar se muestra el orden local fluido)
+  // Productos mostrados en la cuadrícula (en modo reordenar se muestra el orden local fluido de Toda la Carta)
   const displayedProducts = isReorderActive ? reorderProducts : filteredAndSortedProducts;
+  const activeDragIndex = activeDragItem ? reorderProducts.findIndex((p) => p.id === activeDragItem.id) : -1;
 
-  // Sincronizar productos en modo reordenar cuando cambia la categoría seleccionada
-  useEffect(() => {
-    if (!isReorderActive) {
-      prevSelectedLineRef.current = selectedLine;
-      return;
-    }
-
-    if (prevSelectedLineRef.current !== selectedLine) {
-      // Si el usuario tenía cambios en la categoría previa, guardarlos automáticamente
-      if (hasReorderChanges && prevSelectedLineRef.current) {
-        const prevCat = prevSelectedLineRef.current;
-        const ids = reorderProducts.map((p) => p.id);
-        saveCategoryOrder(prevCat, ids).catch(console.error);
-        showToast('Orden guardado para la categoría anterior');
-      }
-
-      prevSelectedLineRef.current = selectedLine;
-      setReorderProducts([...filteredAndSortedProducts]);
-      setHasReorderChanges(false);
-      setDraggedProductId(null);
-      setDragOverProductId(null);
-    }
-  }, [selectedLine, isReorderActive, hasReorderChanges, reorderProducts, filteredAndSortedProducts, saveCategoryOrder, showToast]);
-
-  // Activar o desactivar el modo de reordenar carta (solo Admin y Owner)
+  // Activar o desactivar el modo de reordenar carta (solo Admin y Owner, exclusivo de Toda la Carta)
   const handleToggleReorderMode = () => {
     if (!isAdminOrOwner) return;
 
-    if (isReorderMode) {
+    if (isReorderActive) {
       handleSaveAndClose();
     } else {
+      const masterKey = salesMode === SALES_MODES.MARKET ? 'MARKET_ALL' : 'ALL';
+      previousCategoryBeforeReorderRef.current = selectedLine;
+
+      // Siempre organizar en Toda la Carta
+      setSelectedLine(masterKey);
       setSearchQuery('');
-      setReorderProducts([...filteredAndSortedProducts]);
+
+      const masterOrder = categoryOrderMap?.[masterKey];
+      let allProducts = products.filter((prod) => {
+        if (salesMode === SALES_MODES.MARKET) {
+          return isProductMarket(prod, categories);
+        }
+        return true;
+      });
+
+      if (Array.isArray(masterOrder) && masterOrder.length > 0) {
+        allProducts = allProducts.sort((a, b) => {
+          const indexA = masterOrder.indexOf(a.id);
+          const indexB = masterOrder.indexOf(b.id);
+          if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+          if (indexA !== -1) return -1;
+          if (indexB !== -1) return 1;
+          return (b.salesCount || 0) - (a.salesCount || 0);
+        });
+      } else {
+        allProducts = allProducts.sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0));
+      }
+
+      setReorderProducts([...allProducts]);
       setHasReorderChanges(false);
       setIsReorderMode(true);
-      setDraggedProductId(null);
-      setDragOverProductId(null);
-      prevSelectedLineRef.current = selectedLine;
     }
   };
 
@@ -265,90 +277,117 @@ export default function SalesView({
     setHasReorderChanges(true);
   }, []);
 
-  // Handlers para Desktop (HTML5 Drag & Drop)
-  const handleDragStart = (e, product) => {
-    e.dataTransfer.setData('text/plain', product.id);
-    e.dataTransfer.effectAllowed = 'move';
-    setDraggedProductId(product.id);
+  // Iniciar arrastre con puntero (mouse o touch)
+  const handleCardPointerDown = (e, index, product) => {
+    if (!isReorderActive) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('button')) return;
+
+    const cardEl = e.currentTarget;
+    const rect = cardEl.getBoundingClientRect();
+
+    dragStartInfoRef.current = {
+      index,
+      product,
+      startX: e.clientX,
+      startY: e.clientY,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+    currentSlotIndexRef.current = index;
+    isDraggingActiveRef.current = false;
   };
 
-  const handleDragOver = (e, product) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (draggedProductId && draggedProductId !== product.id && dragOverProductId !== product.id) {
-      setDragOverProductId(product.id);
-    }
-  };
+  // Efecto global de puntero (Mouse y Touch) para arrastrar y desplazar en vivo
+  useEffect(() => {
+    if (!isReorderActive) return;
 
-  const handleDragEnd = () => {
-    setDraggedProductId(null);
-    setDragOverProductId(null);
-  };
+    const handleWindowPointerMove = (e) => {
+      const info = dragStartInfoRef.current;
+      if (!info) return;
 
-  const handleDrop = (e, targetIndex, targetProduct) => {
-    e.preventDefault();
-    if (!draggedProductId || draggedProductId === targetProduct.id) {
-      setDraggedProductId(null);
-      setDragOverProductId(null);
-      return;
-    }
-
-    setReorderProducts((prev) => {
-      const fromIndex = prev.findIndex((p) => p.id === draggedProductId);
-      if (fromIndex === -1 || fromIndex === targetIndex) return prev;
-      const copy = [...prev];
-      const [item] = copy.splice(fromIndex, 1);
-      copy.splice(targetIndex, 0, item);
-      return copy;
-    });
-    setHasReorderChanges(true);
-    setDraggedProductId(null);
-    setDragOverProductId(null);
-  };
-
-  // Handlers táctiles para móviles y tablets
-  const handleTouchStart = (product) => {
-    setDraggedProductId(product.id);
-  };
-
-  const handleTouchMove = (e) => {
-    if (!draggedProductId) return;
-    const touch = e.touches[0];
-    const element = document.elementFromPoint(touch.clientX, touch.clientY);
-    const card = element?.closest('[data-product-id]');
-    if (card) {
-      const targetId = card.getAttribute('data-product-id');
-      if (targetId && targetId !== draggedProductId && targetId !== dragOverProductId) {
-        setDragOverProductId(targetId);
+      // Umbral mínimo de movimiento para iniciar el arrastre (4px)
+      if (!isDraggingActiveRef.current) {
+        const dist = Math.hypot(e.clientX - info.startX, e.clientY - info.startY);
+        if (dist > 4) {
+          isDraggingActiveRef.current = true;
+          setActiveDragItem(info.product);
+          setCardDimensions({ width: info.width, height: info.height });
+          setGrabOffset({ x: info.offsetX, y: info.offsetY });
+          setPointerPos({ x: e.clientX, y: e.clientY });
+          if (navigator.vibrate) navigator.vibrate(20);
+        } else {
+          return;
+        }
       }
-    }
-  };
 
-  const handleTouchEnd = () => {
-    if (draggedProductId && dragOverProductId && draggedProductId !== dragOverProductId) {
-      setReorderProducts((prev) => {
-        const fromIndex = prev.findIndex((p) => p.id === draggedProductId);
-        const toIndex = prev.findIndex((p) => p.id === dragOverProductId);
-        if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return prev;
-        const copy = [...prev];
-        const [item] = copy.splice(fromIndex, 1);
-        copy.splice(toIndex, 0, item);
-        return copy;
-      });
-      setHasReorderChanges(true);
-    }
-    setDraggedProductId(null);
-    setDragOverProductId(null);
-  };
+      if (e.cancelable) e.preventDefault();
+      setPointerPos({ x: e.clientX, y: e.clientY });
 
-  // Guardar y salir del modo reordenar
+      // Auto-scroll suave si el puntero se acerca a los bordes superior o inferior
+      const edgeThreshold = 75;
+      const scrollSpeed = 12;
+      if (e.clientY < edgeThreshold) {
+        window.scrollBy({ top: -scrollSpeed, behavior: 'instant' });
+      } else if (window.innerHeight - e.clientY < edgeThreshold) {
+        window.scrollBy({ top: scrollSpeed, behavior: 'instant' });
+      }
+
+      // Detectar la tarjeta de destino debajo de la posición del puntero
+      const element = document.elementFromPoint(e.clientX, e.clientY);
+      const card = element?.closest('[data-reorder-index]');
+      if (card) {
+        const targetIdx = Number(card.dataset.reorderIndex);
+        if (!isNaN(targetIdx) && targetIdx !== currentSlotIndexRef.current) {
+          const fromIdx = currentSlotIndexRef.current;
+          setReorderProducts((prev) => {
+            if (fromIdx < 0 || fromIdx >= prev.length || targetIdx < 0 || targetIdx >= prev.length) {
+              return prev;
+            }
+            const copy = [...prev];
+            const [item] = copy.splice(fromIdx, 1);
+            copy.splice(targetIdx, 0, item);
+            return copy;
+          });
+          currentSlotIndexRef.current = targetIdx;
+          setHasReorderChanges(true);
+          if (navigator.vibrate) navigator.vibrate(12);
+        }
+      }
+    };
+
+    const handleWindowPointerUp = () => {
+      if (isDraggingActiveRef.current) {
+        if (navigator.vibrate) navigator.vibrate(15);
+      }
+      isDraggingActiveRef.current = false;
+      dragStartInfoRef.current = null;
+      currentSlotIndexRef.current = null;
+      setActiveDragItem(null);
+    };
+
+    window.addEventListener('pointermove', handleWindowPointerMove, { passive: false });
+    window.addEventListener('pointerup', handleWindowPointerUp);
+    window.addEventListener('pointercancel', handleWindowPointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove);
+      window.removeEventListener('pointerup', handleWindowPointerUp);
+      window.removeEventListener('pointercancel', handleWindowPointerUp);
+    };
+  }, [isReorderActive]);
+
+  // Guardar y salir del modo reordenar (Guarda el orden maestro de Toda la Carta)
   const handleSaveAndClose = async () => {
+    const masterKey = salesMode === SALES_MODES.MARKET ? 'MARKET_ALL' : 'ALL';
     if (hasReorderChanges) {
       setIsSavingOrder(true);
       try {
         const ids = reorderProducts.map((p) => p.id);
-        await saveCategoryOrder(selectedLine, ids);
-        showToast(`Orden de carta guardado para ${selectedCategoryLabel}`);
+        await saveCategoryOrder(masterKey, ids);
+        showToast('Orden de Toda la Carta guardado exitosamente');
       } catch (err) {
         console.error('Error al guardar orden:', err);
         showToast('Error al guardar el nuevo orden');
@@ -356,28 +395,36 @@ export default function SalesView({
         setIsSavingOrder(false);
         setIsReorderMode(false);
         setHasReorderChanges(false);
-        setDraggedProductId(null);
-        setDragOverProductId(null);
+        if (previousCategoryBeforeReorderRef.current) {
+          setSelectedLine(previousCategoryBeforeReorderRef.current);
+          previousCategoryBeforeReorderRef.current = null;
+        }
       }
     } else {
       setIsReorderMode(false);
-      setDraggedProductId(null);
-      setDragOverProductId(null);
+      if (previousCategoryBeforeReorderRef.current) {
+        setSelectedLine(previousCategoryBeforeReorderRef.current);
+        previousCategoryBeforeReorderRef.current = null;
+      }
     }
   };
 
   // Restablecer al orden por más vendidos
   const handleResetOrder = async () => {
     if (!isAdminOrOwner) return;
-    if (window.confirm(`¿Restablecer el orden de ${selectedCategoryLabel} al orden automático por más vendidos?`)) {
+    const masterKey = salesMode === SALES_MODES.MARKET ? 'MARKET_ALL' : 'ALL';
+    const masterLabel = salesMode === SALES_MODES.MARKET ? 'Market (Todo)' : 'Toda la Carta';
+    if (window.confirm(`¿Restablecer el orden de ${masterLabel} al orden automático por más vendidos?`)) {
       setIsSavingOrder(true);
       try {
-        await resetCategoryOrder(selectedLine);
-        showToast(`Orden de ${selectedCategoryLabel} restablecido a más vendidos`);
+        await resetCategoryOrder(masterKey);
+        showToast(`Orden de ${masterLabel} restablecido a más vendidos`);
         setIsReorderMode(false);
         setHasReorderChanges(false);
-        setDraggedProductId(null);
-        setDragOverProductId(null);
+        if (previousCategoryBeforeReorderRef.current) {
+          setSelectedLine(previousCategoryBeforeReorderRef.current);
+          previousCategoryBeforeReorderRef.current = null;
+        }
       } catch (err) {
         console.error('Error al restablecer orden:', err);
         showToast('Error al restablecer el orden');
@@ -391,8 +438,10 @@ export default function SalesView({
   const handleCancelReorder = () => {
     setIsReorderMode(false);
     setHasReorderChanges(false);
-    setDraggedProductId(null);
-    setDragOverProductId(null);
+    if (previousCategoryBeforeReorderRef.current) {
+      setSelectedLine(previousCategoryBeforeReorderRef.current);
+      previousCategoryBeforeReorderRef.current = null;
+    }
   };
 
   // Añadir rápido (Por defecto SIN cremas marcadas, el usuario las personaliza o pide directo)
@@ -844,11 +893,18 @@ export default function SalesView({
           <SalesHeader
             salesMode={salesMode}
             setSalesMode={(mode) => {
+              if (isReorderActive) {
+                showToast('Guarda o cancela el ordenamiento antes de cambiar de modo');
+                return;
+              }
               setSalesMode(mode);
               setSelectedLine(mode === SALES_MODES.MARKET ? 'MARKET_ALL' : 'ALL');
             }}
             searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
+            setSearchQuery={(query) => {
+              if (isReorderActive) return;
+              setSearchQuery(query);
+            }}
             tables={tables}
           />
 
@@ -856,7 +912,13 @@ export default function SalesView({
           <CategoryTabs
             salesMode={salesMode}
             selectedLine={selectedLine}
-            onSelectLine={setSelectedLine}
+            onSelectLine={(line) => {
+              if (isReorderActive) {
+                showToast('El orden se define en Toda la Carta y se aplica a todas las categorías');
+                return;
+              }
+              setSelectedLine(line);
+            }}
             onOpenCustomMenu={salesMode !== SALES_MODES.MARKET ? handleOpenCustomMenu : undefined}
           />
 
@@ -894,10 +956,10 @@ export default function SalesView({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-black text-xs sm:text-sm text-white">
-                      Modo Ordenar Carta:
+                      Modo Ordenar Toda la Carta
                     </span>
-                    <span className="text-[11px] font-black text-orange-400 bg-orange-500/20 border border-orange-500/40 px-2 py-0.5 rounded-full uppercase">
-                      {selectedCategoryLabel}
+                    <span className="text-[10px] font-black text-orange-400 bg-orange-500/20 border border-orange-500/40 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Orden Maestro
                     </span>
                     {hasReorderChanges && (
                       <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded-md">
@@ -906,13 +968,13 @@ export default function SalesView({
                     )}
                   </div>
                   <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-                    Arrastra las tarjetas o usa las flechas (↑ / ↓) para ordenar los productos
+                    Arrastra los productos para desplazarlos en vivo o usa las flechas (↑ / ↓). El orden se reflejará en todas las categorías.
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 ml-auto shrink-0">
-                {Boolean(categoryOrderMap?.[selectedLine]) && (
+                {Boolean(categoryOrderMap?.[salesMode === SALES_MODES.MARKET ? 'MARKET_ALL' : 'ALL']) && (
                   <button
                     type="button"
                     onClick={handleResetOrder}
@@ -963,15 +1025,8 @@ export default function SalesView({
                 totalItems={displayedProducts.length}
                 onMoveUp={() => handleMoveProduct(idx, -1)}
                 onMoveDown={() => handleMoveProduct(idx, 1)}
-                isDragging={draggedProductId === product.id}
-                isDragOver={dragOverProductId === product.id && draggedProductId !== product.id}
-                onDragStart={(e) => handleDragStart(e, product)}
-                onDragOver={(e) => handleDragOver(e, product)}
-                onDragEnd={handleDragEnd}
-                onDrop={(e) => handleDrop(e, idx, product)}
-                onTouchStart={() => handleTouchStart(product)}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
+                isPlaceholder={activeDragItem?.id === product.id}
+                onPointerDown={(e) => handleCardPointerDown(e, idx, product)}
               />
             ))}
           </div>
@@ -1121,6 +1176,44 @@ export default function SalesView({
             : "bottom-20 right-4 sm:bottom-20 sm:right-6 lg:bottom-6 lg:right-[43%] xl:right-[35%]"
         }
       />
+
+      {/* Tarjeta flotante arrastrada (efecto fluido que sigue al cursor/dedo con desplazamiento en vivo) */}
+      {activeDragItem && cardDimensions.width > 0 && (
+        <div
+          className="fixed top-0 left-0 pointer-events-none z-50 select-none shadow-2xl ring-2 ring-orange-500 rounded-2xl overflow-hidden bg-[#121216] border border-orange-400/80 opacity-95 transition-shadow duration-150"
+          style={{
+            width: `${cardDimensions.width}px`,
+            transform: `translate3d(${pointerPos.x - grabOffset.x}px, ${pointerPos.y - grabOffset.y}px, 0) scale(1.04) rotate(1.5deg)`,
+            transformOrigin: 'center center',
+            willChange: 'transform',
+          }}
+        >
+          <div className="relative h-28 sm:h-34 w-full overflow-hidden bg-zinc-950 flex items-center justify-center">
+            <ProductThumbnail
+              src={activeDragItem.image}
+              thumbnailUrl={activeDragItem.thumbnailUrl}
+              name={activeDragItem.name}
+              isBeverage={isProductBeverage(activeDragItem)}
+              isDessert={isProductDessert(activeDragItem)}
+              className="w-full h-full object-cover rounded-none"
+              iconSize="w-8 h-8 sm:w-10 sm:h-10"
+            />
+            <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-lg bg-zinc-950/95 border border-orange-500/50 text-[var(--color-porkos-orange)] font-black text-xs shadow-md">
+              Moviendo #{activeDragIndex !== -1 ? activeDragIndex + 1 : 1}
+            </div>
+          </div>
+          <div className="p-2.5 sm:p-3 bg-[#121216]">
+            <h4 className="font-bold text-xs sm:text-sm text-zinc-100 line-clamp-2 leading-snug">
+              {activeDragItem.name}
+            </h4>
+            <div className="pt-1 mt-1 border-t border-zinc-800/60 flex items-center justify-between">
+              <span className="text-[var(--color-porkos-orange)] font-black text-xs sm:text-sm">
+                {formatCurrency(activeDragItem.price)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

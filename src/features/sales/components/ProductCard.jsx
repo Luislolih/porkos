@@ -12,21 +12,15 @@ export default function ProductCard({
   totalItems = 0,
   onMoveUp,
   onMoveDown,
-  isDragging = false,
-  isDragOver = false,
-  onDragStart,
-  onDragOver,
-  onDragEnd,
-  onDrop,
-  onTouchStart,
-  onTouchMove,
-  onTouchEnd,
+  isPlaceholder = false,
+  onPointerDown,
 }) {
   const isBeverage = isProductBeverage(product);
   const isDessert = isProductDessert(product);
 
-  const handleClick = () => {
+  const handleClick = (e) => {
     if (isReorderMode) return;
+    if (e.target.closest('button')) return;
     onQuickAdd?.(product);
   };
 
@@ -44,29 +38,20 @@ export default function ProductCard({
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
+      onPointerDown={isReorderMode ? onPointerDown : undefined}
+      data-product-card="true"
       data-product-id={product.id}
       data-reorder-index={orderIndex}
-      draggable={isReorderMode}
-      onDragStart={isReorderMode ? onDragStart : undefined}
-      onDragOver={isReorderMode ? onDragOver : undefined}
-      onDragEnd={isReorderMode ? onDragEnd : undefined}
-      onDrop={isReorderMode ? onDrop : undefined}
       className={`group relative bg-[#121216] rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-200 select-none ${
-        isReorderMode
-          ? 'cursor-grab active:cursor-grabbing border-2 border-orange-500/40 hover:border-orange-500 hover:shadow-orange-500/10 hover:shadow-lg'
+        isPlaceholder
+          ? 'border-2 border-dashed border-orange-500/70 bg-orange-500/10 opacity-50 scale-95'
+          : isReorderMode
+          ? 'cursor-grab active:cursor-grabbing border-2 border-orange-500/40 hover:border-orange-500 hover:shadow-orange-500/15 hover:shadow-lg touch-none'
           : 'border border-[var(--color-porkos-border)] hover:border-zinc-700 hover:ring-1 hover:ring-[var(--color-porkos-orange)]/35 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/40 active:scale-[0.99] cursor-pointer touch-manipulation'
-      } ${
-        isDragging
-          ? 'opacity-35 scale-95 border-orange-500 ring-2 ring-orange-500 shadow-2xl'
-          : ''
-      } ${
-        isDragOver
-          ? 'ring-2 ring-[var(--color-porkos-orange)] border-[var(--color-porkos-orange)] bg-orange-500/10 scale-[1.02]'
-          : ''
       }`}
       title={
         isReorderMode
-          ? `Arrastra o usa las flechas para ordenar "${product.name}"`
+          ? `Arrastra para desplazar o usa las flechas para mover "${product.name}"`
           : `Toca para añadir "${product.name}" a la comanda`
       }
     >
@@ -80,26 +65,23 @@ export default function ProductCard({
       {/* Handle de arrastre táctil en modo reordenar */}
       {isReorderMode && (
         <div
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-          className="absolute top-2 right-2 z-20 w-8 h-8 rounded-xl bg-zinc-950/95 hover:bg-zinc-900 border border-orange-500/50 text-[var(--color-porkos-orange)] shadow-md flex items-center justify-center cursor-grab active:cursor-grabbing backdrop-blur-xs select-none touch-none"
+          className="absolute top-2 right-2 z-20 w-8 h-8 rounded-xl bg-zinc-950/95 border border-orange-500/50 text-[var(--color-porkos-orange)] shadow-md flex items-center justify-center backdrop-blur-xs select-none pointer-events-none"
           title="Arrastra para mover de posición"
         >
           <GripVertical className="w-4 h-4" />
         </div>
       )}
 
-      {/* Overlay al pasar por encima al arrastrar */}
-      {isDragOver && (
-        <div className="absolute inset-0 z-30 bg-orange-500/15 border-2 border-[var(--color-porkos-orange)] rounded-2xl flex items-center justify-center pointer-events-none backdrop-blur-[1px]">
+      {/* Placeholder visual durante el arrastre */}
+      {isPlaceholder && (
+        <div className="absolute inset-0 z-30 bg-orange-500/15 border-2 border-dashed border-orange-500/80 rounded-2xl flex items-center justify-center pointer-events-none backdrop-blur-[1px]">
           <span className="bg-zinc-950/95 text-[var(--color-porkos-orange)] border border-orange-500/60 font-black text-xs px-2.5 py-1 rounded-xl shadow-lg">
-            Soltar en #{orderIndex + 1}
+            Moviendo #{orderIndex + 1}
           </span>
         </div>
       )}
 
-      {/* Product Image Area - Totalmente limpio sin etiquetas ni gradientes para PNGs transparentes */}
+      {/* Product Image Area */}
       <div className="relative h-28 sm:h-34 w-full overflow-hidden bg-zinc-950 flex items-center justify-center">
         <ProductThumbnail
           src={product.image}
