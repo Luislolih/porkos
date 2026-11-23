@@ -644,6 +644,7 @@ export default function SalesView({
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             tables={tables}
+            onOpenReorder={() => setIsReorderModalOpen(true)}
           />
 
           {/* Categorías contextuales (Restaurante o Market) */}
@@ -676,13 +677,13 @@ export default function SalesView({
             <button
               type="button"
               onClick={() => setIsReorderModalOpen(true)}
-              className="px-3 py-1.5 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 active:scale-95 text-orange-300 hover:text-orange-200 border border-orange-500/40 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0"
+              className="px-3.5 py-1.5 sm:py-2 rounded-xl bg-[var(--color-porkos-orange)] hover:bg-[var(--color-porkos-orange-hover)] text-zinc-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-orange-500/20 active:scale-95 transition-all cursor-pointer shrink-0"
               title={`Organizar el orden de los productos en ${selectedCategoryLabel} para que coincida con tu carta física`}
             >
-              <ArrowUpDown className="w-3.5 h-3.5 text-[var(--color-porkos-orange)] stroke-[2.5]" />
+              <ArrowUpDown className="w-4 h-4 stroke-[2.5]" />
               <span>Ordenar Carta</span>
               {categoryOrderMap?.[selectedLine] && (
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-porkos-orange)] animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-zinc-950 animate-pulse" />
               )}
             </button>
           </div>

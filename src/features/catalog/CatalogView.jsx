@@ -12,6 +12,7 @@ import {
   Loader2,
   AlertTriangle,
   HardDrive,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useCatalog } from '../../context/useCatalog';
 import { formatCurrency } from '../../utils/formatters';
@@ -32,6 +33,7 @@ import LoadingState from '../../components/ui/LoadingState';
 import Toast from '../../components/ui/Toast';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
+import ReorderCategoryModal from '../sales/components/ReorderCategoryModal';
 import { isProductBeverage, isProductDessert, isProductSnack } from '../../utils/productCategories';
 
 export default function CatalogView() {
@@ -65,6 +67,9 @@ export default function CatalogView() {
     updatePackaging,
     deletePackaging,
     togglePackagingActive,
+    categoryOrderMap = {},
+    saveCategoryOrder,
+    resetCategoryOrder,
   } = useCatalog();
 
   // Estadísticas de almacenamiento de fotos WebP
@@ -72,6 +77,7 @@ export default function CatalogView() {
 
   const [activeTab, setActiveTab] = useState('products'); // 'products' | 'categories' | 'creams' | 'extras' | 'packagings'
   const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
 
   const filteredProducts = useMemo(() => {
     if (!productSearchQuery.trim()) return products;
@@ -730,14 +736,25 @@ export default function CatalogView() {
         actions={
           <div className="flex items-center gap-2">
             {activeTab === 'products' && (
-              <Button
-                onClick={handleOpenNewProduct}
-                icon={Plus}
-                size="sm"
-                className="font-bold text-xs"
-              >
-                Nuevo Producto
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsReorderModalOpen(true)}
+                  icon={ArrowUpDown}
+                  size="sm"
+                  className="font-bold text-xs"
+                >
+                  Ordenar Carta
+                </Button>
+                <Button
+                  onClick={handleOpenNewProduct}
+                  icon={Plus}
+                  size="sm"
+                  className="font-bold text-xs"
+                >
+                  Nuevo Producto
+                </Button>
+              </>
             )}
             {activeTab === 'categories' && (
               <Button
@@ -2523,6 +2540,21 @@ service firebase.storage {
           </div>
         </div>
       </Modal>
+
+      {/* Modal para Organizar / Ordenar la Carta */}
+      <ReorderCategoryModal
+        key={`catalog_reorder_${isReorderModalOpen}`}
+        isOpen={isReorderModalOpen}
+        onClose={() => setIsReorderModalOpen(false)}
+        initialCategory="COMIDA"
+        salesMode="RESTAURANT"
+        products={products}
+        categories={categories}
+        categoryOrderMap={categoryOrderMap}
+        onSaveOrder={saveCategoryOrder}
+        onResetOrder={resetCategoryOrder}
+        onShowToast={(msg) => setStatusToast({ type: 'success', msg })}
+      />
 
       {/* Flecha flotante para subir al inicio */}
       <ScrollToTopButton />

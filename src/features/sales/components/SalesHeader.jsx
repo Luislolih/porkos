@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Utensils, Store, Search, Users, Bike, ShoppingBag, User, X } from 'lucide-react';
+import { Utensils, Store, Search, Users, Bike, ShoppingBag, User, X, ArrowUpDown } from 'lucide-react';
 import { SALES_MODES, ORDER_MODALITIES } from '../../../types/constants';
 import { useCart } from '../../../context/useCart';
 
@@ -9,6 +9,7 @@ export default function SalesHeader({
   searchQuery,
   setSearchQuery,
   tables = [],
+  onOpenReorder,
 }) {
   const {
     modality,
@@ -108,6 +109,19 @@ export default function SalesHeader({
             </button>
           )}
         </div>
+
+        {/* Botón Ordenar Carta en Header */}
+        {onOpenReorder && (
+          <button
+            type="button"
+            onClick={onOpenReorder}
+            className="h-10 px-3 rounded-2xl bg-[#121216] hover:bg-zinc-800 border border-[var(--color-porkos-border)] hover:border-orange-500/50 text-zinc-300 hover:text-white text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer shadow-xs active:scale-95"
+            title="Organizar la carta física"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5 text-[var(--color-porkos-orange)] stroke-[2.5]" />
+            <span className="hidden sm:inline">Ordenar Carta</span>
+          </button>
+        )}
       </div>
 
       {/* Control de Operación en Restaurante: Modalidades de atención y Mesas */}

@@ -46,8 +46,8 @@ export default function ProductCard({
           iconSize="w-8 h-8 sm:w-10 sm:h-10"
         />
 
-        {/* Gradiente sutil */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/30 pointer-events-none z-10" />
+        {/* Gradiente suave solo en el borde inferior para contraste del precio */}
+        <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/80 to-transparent pointer-events-none z-10" />
 
         {/* Badges superiores - VISIBLES SIEMPRE ENCIMA DE LA FOTO (z-20) */}
         <div className="absolute top-2 left-2 z-20 flex items-center gap-1 flex-wrap pointer-events-none">
