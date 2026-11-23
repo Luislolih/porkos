@@ -45,30 +45,52 @@ function CustomizerForm({
     return initialCustomization?.saladDetail?.mode || 'CON_ENSALADA';
   });
 
-  // 2. Papas: Fritas, Al Hilo, Sin Papas (Solo para comida)
+  // 2. Papas: Fritas, Al Hilo, Sin Papas (Solo si el producto lo tiene explícitamente configurado)
   const hasPapasModifier = Boolean(
     !isBeverage &&
     !isMarketProduct &&
-    (product.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas' || m.name?.toLowerCase().includes('papa')) ||
-      product.categoryId === 'cat_comida' ||
-      product.categoryId === 'cat_clasico' ||
-      product.categoryId === 'cat_artesanal' ||
-      product.line === 'COMIDA' ||
-      product.line === 'CLASICO' ||
-      product.line === 'ARTESANAL')
+    !product.isDessert &&
+    product.line !== 'POSTRES' &&
+    product.categoryId !== 'cat_postres' &&
+    (product.hasPapas === true ||
+      product.papasConfig?.enabled === true ||
+      (product.hasPapas !== false &&
+        product.papasConfig?.enabled !== false &&
+        product.modifiers?.some(
+          (m) =>
+            m.id === 'mod_papas' ||
+            m.id === 'mod_corte_papas' ||
+            m.name?.toLowerCase().includes('papa')
+        )))
   );
 
   const [selectedModifiers, setSelectedModifiers] = useState(() => {
     const initialMods = {};
     if (initialCustomization?.selectedModifiers?.length > 0) {
       initialCustomization.selectedModifiers.forEach((m) => {
+        if (
+          !hasPapasModifier &&
+          (m.groupId === 'mod_papas' ||
+            m.groupId === 'mod_corte_papas' ||
+            m.groupName?.toLowerCase()?.includes('papa'))
+        ) {
+          return;
+        }
         initialMods[m.groupId] = m.optionId;
       });
     } else if (product.modifiers?.length > 0) {
       product.modifiers.forEach((mod) => {
+        const isPapaMod =
+          mod.id === 'mod_papas' ||
+          mod.id === 'mod_corte_papas' ||
+          mod.name?.toLowerCase().includes('papa');
+        if (isPapaMod && !hasPapasModifier) {
+          return;
+        }
         initialMods[mod.id] = mod.defaultOptionId;
       });
-    } else if (hasPapasModifier) {
+    }
+    if (hasPapasModifier && !initialMods['mod_papas'] && !initialMods['mod_corte_papas']) {
       initialMods['mod_papas'] = 'fritas';
     }
     return initialMods;
@@ -252,6 +274,13 @@ function CustomizerForm({
     const formattedModifiers = [];
     if (product.modifiers?.length > 0) {
       product.modifiers.forEach((mod) => {
+        const isPapaMod =
+          mod.id === 'mod_papas' ||
+          mod.id === 'mod_corte_papas' ||
+          mod.name?.toLowerCase().includes('papa');
+        if (isPapaMod && !hasPapasModifier) {
+          return;
+        }
         const optId = selectedModifiers[mod.id];
         const opt = mod.options?.find((o) => o.id === optId);
         if (opt) {
@@ -264,7 +293,15 @@ function CustomizerForm({
           });
         }
       });
-    } else if (hasPapasModifier) {
+    }
+
+    const alreadyHasPapaMod = formattedModifiers.some(
+      (m) =>
+        m.groupId === 'mod_papas' ||
+        m.groupId === 'mod_corte_papas' ||
+        m.groupName?.toLowerCase()?.includes('papa')
+    );
+    if (hasPapasModifier && !alreadyHasPapaMod) {
       const papaOptId = selectedModifiers['mod_papas'] || 'fritas';
       const papaNames = {
         fritas: 'Papas Fritas',

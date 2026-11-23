@@ -380,7 +380,15 @@ export default function CatalogView() {
     setImageStorageSource(existingImg.startsWith('http') ? 'web_url' : null);
     setProdDescription(prod.description || '');
     setProdKitchen(isMarketProd ? false : (prod.requiresKitchen ?? (cat !== 'cat_postres')));
-    setProdHasPapas(Boolean(prod.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas')));
+    setProdHasPapas(
+      Boolean(
+        prod.hasPapas === true ||
+        prod.papasConfig?.enabled === true ||
+        (prod.hasPapas !== false &&
+          prod.papasConfig?.enabled !== false &&
+          prod.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas' || m.name?.toLowerCase().includes('papa')))
+      )
+    );
     setProdHasSalad(Boolean(prod.saladConfig?.enabled === true || prod.hasSalad === true));
     setProdHasTemperature(Boolean(isBeverage || subtype === 'BEBIDA' || subtype === 'JUGO'));
     setProdSelectedCreams(prod.creamsConfig?.availableCreamIds || creams.map((c) => c.id));
@@ -436,6 +444,7 @@ export default function CatalogView() {
       const isDessert = isMarket
         ? prodMarketSubtype === 'POSTRE'
         : (prodCategory === 'cat_postres' || prodLine === 'POSTRES');
+      const hasPapas = Boolean(!isMarket && !isDrink && !isDessert && prodHasPapas && prodType === 'RESTAURANTE');
 
       const productPayload = {
         name: prodName.trim(),
@@ -457,6 +466,10 @@ export default function CatalogView() {
         requiresKitchen: isMarket ? false : (isDessert ? false : prodKitchen),
         modifiers,
         availablePackagingIds: prodAvailablePackagingIds,
+        hasPapas,
+        papasConfig: {
+          enabled: hasPapas,
+        },
         hasSalad: Boolean(!isMarket && !isDrink && !isDessert && prodHasSalad && prodType === 'RESTAURANTE'),
         saladConfig: !isMarket && !isDrink && !isDessert && prodHasSalad && prodType === 'RESTAURANTE'
           ? {
@@ -1068,7 +1081,11 @@ export default function CatalogView() {
 
                         {/* Modificadores dinámicos */}
                         <div className="flex flex-wrap gap-1 text-[10px] text-zinc-400 pt-2 border-t border-zinc-800/80">
-                          {p.modifiers?.some((m) => m.id === 'mod_papas') && (
+                          {(p.hasPapas === true ||
+                            p.papasConfig?.enabled === true ||
+                            (p.hasPapas !== false &&
+                              p.papasConfig?.enabled !== false &&
+                              p.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas' || m.name?.toLowerCase().includes('papa')))) && (
                             <span className="bg-black/50 px-2 py-0.5 rounded border border-zinc-800">
                               🍟 Papas
                             </span>

@@ -234,7 +234,19 @@ export default function SalesView({
       });
     } else {
       const defaultMods = [];
+      const hasPapas = Boolean(
+        product.hasPapas === true ||
+        product.papasConfig?.enabled === true ||
+        (product.hasPapas !== false &&
+          product.papasConfig?.enabled !== false &&
+          product.modifiers?.some((m) => m.id === 'mod_papas' || m.id === 'mod_corte_papas' || m.name?.toLowerCase().includes('papa')))
+      );
+
       product.modifiers?.forEach((mod) => {
+        const isPapaMod = mod.id === 'mod_papas' || mod.id === 'mod_corte_papas' || mod.name?.toLowerCase().includes('papa');
+        if (isPapaMod && !hasPapas) {
+          return;
+        }
         const defaultOpt = mod.options.find((o) => o.id === mod.defaultOptionId) || mod.options[0];
         if (defaultOpt) {
           defaultMods.push({
