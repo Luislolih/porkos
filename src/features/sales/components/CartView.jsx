@@ -14,7 +14,6 @@ import {
   MapPin,
   Navigation,
   Utensils,
-  Edit2,
   Edit3,
   Check,
   X,
@@ -62,7 +61,6 @@ export default function CartView({
     updateItemQuantity,
     setItemQuantity,
     updateItemConsumptionType,
-    updateItemUnitPrice,
     resetItemUnitPrice,
     removeItem,
     clearCart,
@@ -100,27 +98,6 @@ export default function CartView({
         (item?.name && p.name && p.name.trim().toLowerCase() === item.name.trim().toLowerCase())
     );
     return match?.thumbnailUrl || match?.image || null;
-  };
-  const [editingPriceItemId, setEditingPriceItemId] = useState(null);
-  const [tempPriceValue, setTempPriceValue] = useState('');
-
-  const handleStartEditPrice = (item, e) => {
-    e.stopPropagation();
-    setEditingPriceItemId(item.itemId);
-    setTempPriceValue(item.unitPrice !== undefined ? String(item.unitPrice) : '');
-  };
-
-  const handleSavePrice = (itemId) => {
-    const val = parseFloat(tempPriceValue);
-    if (!isNaN(val) && val >= 0) {
-      updateItemUnitPrice(itemId, val);
-    }
-    setEditingPriceItemId(null);
-  };
-
-  const handleCancelEditPrice = () => {
-    setEditingPriceItemId(null);
-    setTempPriceValue('');
   };
 
   const hasKitchenItems = items.some((item) => Boolean(item.requiresKitchen) && !isProductMarket(item));
@@ -409,10 +386,10 @@ export default function CartView({
           <button
             type="button"
             onClick={onOpenCustomMenu}
-            className="w-full py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-dashed border-amber-500/40 hover:border-amber-500/70 text-amber-300 hover:text-amber-200 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98] shadow-xs"
+            className="w-full py-2 px-3 rounded-xl bg-zinc-900/60 hover:bg-zinc-800/80 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 text-xs font-medium transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98] group"
           >
-            <Plus className="w-3.5 h-3.5 text-amber-400 stroke-[2.5]" />
-            <span>+ Menú / Plato Fuera de Carta</span>
+            <Plus className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
+            <span>Personalizado</span>
           </button>
         )}
 
@@ -429,7 +406,7 @@ export default function CartView({
             <p className="text-[11px] text-zinc-500 mt-1 max-w-xs">
               {isMarketMode
                 ? 'Toca cualquier producto del catálogo para cobrarlo al instante'
-                : 'Selecciona productos de la carta o agrega un menú fuera de carta'}
+                : 'Selecciona productos de la carta o agrega un ítem personalizado'}
             </p>
           </div>
         ) : (
@@ -487,109 +464,33 @@ export default function CartView({
                         {item.name}
                       </h5>
                       {item.isCustomMenuItem && (
-                        <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded font-bold shrink-0">
-                          Fuera de carta
+                        <span className="text-[9px] bg-zinc-800 text-zinc-300 border border-zinc-700/80 px-1.5 py-0.2 rounded font-medium shrink-0">
+                          Personalizado
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      {editingPriceItemId === item.itemId ? (
-                        <div
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex items-center gap-1 bg-[#18181D] border border-amber-500/80 rounded-lg px-1.5 py-0.5 shadow-lg ring-1 ring-amber-500/30"
-                        >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const curr = parseFloat(tempPriceValue) || 0;
-                              const nextVal = Math.max(0, Math.round((curr - 0.5) * 100) / 100);
-                              setTempPriceValue(nextVal.toFixed(2));
-                            }}
-                            className="p-0.5 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded cursor-pointer"
-                            title="Restar 0.50"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="text-[11px] font-bold text-amber-400">S/</span>
-                          <input
-                            type="number"
-                            step="0.50"
-                            min="0"
-                            autoFocus
-                            value={tempPriceValue}
-                            onChange={(e) => setTempPriceValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                handleSavePrice(item.itemId);
-                              } else if (e.key === 'Escape') {
-                                handleCancelEditPrice();
-                              }
-                            }}
-                            className="w-14 bg-transparent text-white font-black text-xs text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            placeholder="0.00"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const curr = parseFloat(tempPriceValue) || 0;
-                              const nextVal = Math.round((curr + 0.5) * 100) / 100;
-                              setTempPriceValue(nextVal.toFixed(2));
-                            }}
-                            className="p-0.5 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded cursor-pointer"
-                            title="Aumentar 0.50"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSavePrice(item.itemId)}
-                            className="p-1 bg-amber-500 hover:bg-amber-400 text-zinc-950 rounded font-black text-xs cursor-pointer active:scale-90 transition-transform"
-                            title="Guardar precio"
-                          >
-                            <Check className="w-3 h-3 stroke-[3]" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleCancelEditPrice}
-                            className="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded text-xs cursor-pointer"
-                            title="Cancelar"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={(e) => handleStartEditPrice(item, e)}
-                            className="flex items-center gap-1 text-[11px] font-semibold text-zinc-400 hover:text-amber-300 bg-zinc-900/60 hover:bg-zinc-800 px-1.5 py-0.5 rounded-lg border border-transparent hover:border-zinc-700 transition-colors cursor-pointer group/price"
-                            title="Toca para editar el precio manualmente"
-                          >
-                            <span className={item.isManualPrice ? 'text-amber-300 font-black' : ''}>
-                              {formatCurrency(item.unitPrice)} c/u
-                            </span>
-                            <Edit2 className="w-2.5 h-2.5 text-zinc-500 group-hover/price:text-amber-400 transition-colors" />
-                          </button>
+                      <span className={`text-[11px] font-semibold ${item.isManualPrice ? 'text-amber-300 font-bold' : 'text-zinc-400'}`}>
+                        {formatCurrency(item.unitPrice)} c/u
+                      </span>
 
-                          {item.isManualPrice && (
-                            <span className="flex items-center gap-1 text-[9px] bg-amber-500/15 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded font-black">
-                              <span>Manual</span>
-                              {resetItemUnitPrice && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    resetItemUnitPrice(item.itemId);
-                                  }}
-                                  className="text-zinc-400 hover:text-white ml-0.5 cursor-pointer font-bold"
-                                  title="Restablecer precio original"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </span>
+                      {item.isManualPrice && (
+                        <span className="flex items-center gap-1 text-[9px] bg-amber-500/15 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded font-black">
+                          <span>Manual</span>
+                          {resetItemUnitPrice && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                resetItemUnitPrice(item.itemId);
+                              }}
+                              className="text-zinc-400 hover:text-white ml-0.5 cursor-pointer font-bold"
+                              title="Restablecer precio original"
+                            >
+                              ✕
+                            </button>
                           )}
-                        </div>
+                        </span>
                       )}
                     </div>
                   </div>
