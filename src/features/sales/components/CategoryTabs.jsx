@@ -1,4 +1,4 @@
-import { Utensils, UtensilsCrossed, CupSoda, Cake, Store, Cookie } from 'lucide-react';
+import { Utensils, UtensilsCrossed, CupSoda, Cake, Store, Cookie, Plus } from 'lucide-react';
 import { SALES_MODES } from '../../../types/constants';
 
 const RESTAURANT_TABS = [
@@ -20,6 +20,7 @@ export default function CategoryTabs({
   salesMode = SALES_MODES.RESTAURANT,
   selectedLine = 'ALL',
   onSelectLine,
+  onOpenCustomMenu,
 }) {
   const isMarket = salesMode === SALES_MODES.MARKET;
   const tabs = isMarket ? MARKET_TABS : RESTAURANT_TABS;
@@ -53,6 +54,18 @@ export default function CategoryTabs({
           </button>
         );
       })}
+
+      {onOpenCustomMenu && (
+        <button
+          type="button"
+          onClick={onOpenCustomMenu}
+          className="px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap transition-all duration-120 flex items-center gap-1.5 cursor-pointer border active:scale-95 touch-manipulation bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 border-amber-500/30 hover:border-amber-500/60 shadow-xs shrink-0"
+          title="Agregar menú o producto fuera de carta"
+        >
+          <Plus className="w-3.5 h-3.5 text-amber-400 stroke-[2.5]" />
+          <span>Fuera de Carta</span>
+        </button>
+      )}
     </div>
   );
 }

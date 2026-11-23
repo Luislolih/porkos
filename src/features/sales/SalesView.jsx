@@ -6,6 +6,7 @@ import SalesHeader from './components/SalesHeader';
 import CategoryTabs from './components/CategoryTabs';
 import ProductCard from './components/ProductCard';
 import QuickCustomizerModal from './components/QuickCustomizerModal';
+import CustomMenuItemModal from './components/CustomMenuItemModal';
 import CartView from './components/CartView';
 import MobileCartDrawer from './components/MobileCartDrawer';
 import QuickPaymentModal from './components/QuickPaymentModal';
@@ -17,7 +18,7 @@ import { sanitizeText, sanitizeNotes } from '../../utils/security';
 import { useAuth } from '../../context/useAuth';
 import Toast from '../../components/ui/Toast';
 import EmptyState from '../../components/ui/EmptyState';
-import { UtensilsCrossed, Edit3 } from 'lucide-react';
+import { UtensilsCrossed, Edit3, Plus } from 'lucide-react';
 
 export default function SalesView({
   onOrderCreated,
@@ -31,6 +32,8 @@ export default function SalesView({
   const {
     items,
     addItem,
+    addCustomItem,
+    updateCustomItem,
     updateItemCustomization,
     total,
     itemCount,
@@ -54,6 +57,8 @@ export default function SalesView({
   const [searchQuery, setSearchQuery] = useState('');
   const [customizingProduct, setCustomizingProduct] = useState(null);
   const [editingCartItem, setEditingCartItem] = useState(null);
+  const [isCustomMenuOpen, setIsCustomMenuOpen] = useState(false);
+  const [editingCustomItem, setEditingCustomItem] = useState(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(() => Boolean(editingOrder));
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -222,6 +227,11 @@ export default function SalesView({
   };
 
   const handleEditCartItem = (cartItem) => {
+    if (cartItem.isCustomMenuItem || cartItem.productId?.startsWith('custom_')) {
+      setEditingCustomItem(cartItem);
+      setIsCustomMenuOpen(true);
+      return;
+    }
     const baseProd = products.find((p) => p.id === cartItem.productId) || {
       id: cartItem.productId,
       name: cartItem.name,
@@ -229,6 +239,22 @@ export default function SalesView({
     };
     setEditingCartItem(cartItem);
     setCustomizingProduct(baseProd);
+  };
+
+  const handleOpenCustomMenu = () => {
+    setEditingCustomItem(null);
+    setIsCustomMenuOpen(true);
+  };
+
+  const handleConfirmCustomItem = (customData) => {
+    if (editingCustomItem) {
+      updateCustomItem(editingCustomItem.itemId, customData);
+      showToast(`"${customData.name}" actualizado en comanda`);
+      setEditingCustomItem(null);
+    } else {
+      addCustomItem(customData);
+      showToast(`"${customData.name}" añadido a la comanda`);
+    }
   };
 
   const handleConfirmCustomization = (product, customization) => {
@@ -578,6 +604,7 @@ export default function SalesView({
             salesMode={salesMode}
             selectedLine={selectedLine}
             onSelectLine={setSelectedLine}
+            onOpenCustomMenu={salesMode !== SALES_MODES.MARKET ? handleOpenCustomMenu : undefined}
           />
 
           {/* Grid de Productos (Ordenados de mayor a menor salida) */}
@@ -595,23 +622,37 @@ export default function SalesView({
           </div>
 
           {filteredAndSortedProducts.length === 0 && (
-            <EmptyState
-              icon={UtensilsCrossed}
-              title={products.length === 0 ? 'El catálogo está vacío' : 'No se encontraron productos'}
-              description={
-                products.length === 0
-                  ? 'Agrega productos en el módulo de Catálogo para empezar a vender.'
-                  : 'No hay productos que coincidan con la búsqueda o categoría seleccionada.'
-              }
-              action={
-                searchQuery
-                  ? {
-                      label: 'Limpiar búsqueda',
-                      onClick: () => setSearchQuery(''),
-                    }
-                  : undefined
-              }
-            />
+            <div className="space-y-3">
+              <EmptyState
+                icon={UtensilsCrossed}
+                title={products.length === 0 ? 'El catálogo está vacío' : 'No se encontraron productos'}
+                description={
+                  products.length === 0
+                    ? 'Agrega productos en el módulo de Catálogo para empezar a vender.'
+                    : `No hay productos en la carta que coincidan con "${searchQuery}".`
+                }
+                action={
+                  searchQuery
+                    ? {
+                        label: 'Limpiar búsqueda',
+                        onClick: () => setSearchQuery(''),
+                      }
+                    : undefined
+                }
+              />
+              {searchQuery && (
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCustomMenu()}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold text-xs transition-all cursor-pointer shadow-sm active:scale-95"
+                  >
+                    <Plus className="w-4 h-4 text-amber-400 stroke-[2.5]" />
+                    <span>Agregar &ldquo;{searchQuery}&rdquo; como menú fuera de carta</span>
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -623,6 +664,7 @@ export default function SalesView({
             onCheckout={handleOpenCheckout}
             onSettleTable={onSettleTableOrder}
             onEditItem={handleEditCartItem}
+            onOpenCustomMenu={handleOpenCustomMenu}
             tables={tables}
             onSaveEditedOrder={handleSaveEditedOrder}
             onCancelEditing={handleCancelEditing}
@@ -671,6 +713,7 @@ export default function SalesView({
           onCheckout={handleOpenCheckout}
           onSettleTable={onSettleTableOrder}
           onEditItem={handleEditCartItem}
+          onOpenCustomMenu={handleOpenCustomMenu}
           onCloseMobileCart={() => setIsMobileCartOpen(false)}
           tables={tables}
           onSaveEditedOrder={handleSaveEditedOrder}
@@ -691,6 +734,19 @@ export default function SalesView({
         initialCustomization={editingCartItem?.customization || null}
         modality={modality}
         onConfirm={handleConfirmCustomization}
+      />
+
+      {/* Custom Menu Item Modal (Fuera de carta) */}
+      <CustomMenuItemModal
+        isOpen={isCustomMenuOpen}
+        onClose={() => {
+          setIsCustomMenuOpen(false);
+          setEditingCustomItem(null);
+        }}
+        editingItem={editingCustomItem}
+        initialName={searchQuery}
+        modality={modality}
+        onConfirm={handleConfirmCustomItem}
       />
 
       {/* Quick Payment Modal */}

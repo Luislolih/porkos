@@ -48,6 +48,7 @@ export default function CartView({
   onSendToKitchen,
   onCheckout,
   onEditItem,
+  onOpenCustomMenu,
   isMarketMode = false,
   tables = [],
   onSaveEditedOrder,
@@ -402,6 +403,17 @@ export default function CartView({
 
       {/* Items list */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-3.5 space-y-2.5 overscroll-contain">
+        {onOpenCustomMenu && (
+          <button
+            type="button"
+            onClick={onOpenCustomMenu}
+            className="w-full py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-dashed border-amber-500/40 hover:border-amber-500/70 text-amber-300 hover:text-amber-200 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98] shadow-xs"
+          >
+            <Plus className="w-3.5 h-3.5 text-amber-400 stroke-[2.5]" />
+            <span>+ Menú / Plato Fuera de Carta</span>
+          </button>
+        )}
+
         {items.length === 0 ? (
           <div className="h-56 flex flex-col items-center justify-center text-center p-6 text-zinc-500">
             {isMarketMode ? (
@@ -415,7 +427,7 @@ export default function CartView({
             <p className="text-[11px] text-zinc-500 mt-1 max-w-xs">
               {isMarketMode
                 ? 'Toca cualquier producto del catálogo para cobrarlo al instante'
-                : 'Selecciona productos de la carta para añadirlos a la comanda'}
+                : 'Selecciona productos de la carta o agrega un menú fuera de carta'}
             </p>
           </div>
         ) : (
@@ -448,24 +460,35 @@ export default function CartView({
                   }`}
                 >
                   <div className="shrink-0 transition-transform group-hover:scale-105 active:scale-95">
-                    <ProductThumbnail
-                      src={item.image}
-                      thumbnailUrl={getItemThumbnail(item)}
-                      name={item.name}
-                      priority={true}
-                      className="w-12 h-12 rounded-xl"
-                      iconSize="w-5 h-5"
-                    />
+                    {item.isCustomMenuItem || (!item.image && !getItemThumbnail(item)) ? (
+                      <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-black text-sm">
+                        ★
+                      </div>
+                    ) : (
+                      <ProductThumbnail
+                        src={item.image}
+                        thumbnailUrl={getItemThumbnail(item)}
+                        name={item.name}
+                        priority={true}
+                        className="w-12 h-12 rounded-xl"
+                        iconSize="w-5 h-5"
+                      />
+                    )}
                   </div>
 
                   <div className="flex-1 min-w-0 pt-0.5">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {item.requiresKitchen && (
                         <Flame className="w-3.5 h-3.5 text-[var(--color-porkos-orange)] shrink-0" />
                       )}
-                      <h5 className={`font-bold text-xs sm:text-sm text-zinc-100 leading-snug truncate ${isCustomizable ? 'group-hover:text-[var(--color-porkos-orange)]' : ''}`}>
+                      <h5 className={`font-bold text-xs sm:text-sm text-zinc-100 leading-snug line-clamp-2 ${isCustomizable ? 'group-hover:text-[var(--color-porkos-orange)]' : ''}`}>
                         {item.name}
                       </h5>
+                      {item.isCustomMenuItem && (
+                        <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded font-bold shrink-0">
+                          Fuera de carta
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       {editingPriceItemId === item.itemId ? (

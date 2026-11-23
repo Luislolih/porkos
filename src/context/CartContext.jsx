@@ -604,6 +604,123 @@ export function CartProvider({ children }) {
     );
   };
 
+  /**
+   * Agregar un menú o plato fuera de carta (personalizado)
+   */
+  const addCustomItem = ({
+    name,
+    price = 0,
+    quantity = 1,
+    notes = '',
+    requiresKitchen = true,
+    consumptionType = null,
+    packaging = null,
+  }) => {
+    const isNowTakeoutOrDelivery =
+      modality === ORDER_MODALITIES.PARA_LLEVAR.id ||
+      modality === ORDER_MODALITIES.DELIVERY.id ||
+      modality === 'PARA_LLEVAR' ||
+      modality === 'DELIVERY' ||
+      modality === 'LLEVAR';
+
+    const defaultConsumption =
+      consumptionType ||
+      (isNowTakeoutOrDelivery
+        ? modality === 'DELIVERY' || modality === ORDER_MODALITIES.DELIVERY.id
+          ? 'DELIVERY'
+          : 'PARA_LLEVAR'
+        : modality === ORDER_MODALITIES.CONSUMO_EXTERNO.id || modality === 'CONSUMO_EXTERNO'
+        ? 'CONSUMO_EXTERNO'
+        : 'MESA');
+
+    const cleanName = (name || '').trim() || 'Menú fuera de carta';
+    const parsedPrice = Math.max(0, parseFloat(price) || 0);
+    const unitPrice = Math.round(parsedPrice * 100) / 100;
+    const qty = Math.max(1, parseInt(quantity, 10) || 1);
+    const itemId = `custom_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+
+    const newItem = {
+      itemId,
+      productId: `custom_${Date.now()}`,
+      name: cleanName,
+      basePrice: unitPrice,
+      unitPrice,
+      isManualPrice: true,
+      quantity: qty,
+      requiresKitchen: Boolean(requiresKitchen),
+      isMarket: false,
+      isCustomMenuItem: true,
+      image: null,
+      thumbnailUrl: null,
+      consumptionType: defaultConsumption,
+      availablePackagingIds: [],
+      customization: {
+        consumptionType: defaultConsumption,
+        itemNotes: (notes || '').trim(),
+        packaging: packaging || null,
+        creamsSummary: '',
+        creamsDetail: { selected: [], removed: [], lowQuantity: [] },
+        selectedModifiers: [],
+        selectedExtras: [],
+        isManualPrice: true,
+        manualPrice: unitPrice,
+      },
+      subtotal: Math.round(unitPrice * qty * 100) / 100,
+    };
+
+    setItems((prev) => [...prev, newItem]);
+    return newItem;
+  };
+
+  /**
+   * Actualizar un menú o plato fuera de carta existente
+   */
+  const updateCustomItem = (
+    itemId,
+    { name, price, quantity, notes, requiresKitchen, consumptionType, packaging }
+  ) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.itemId !== itemId) return item;
+        const cleanName =
+          name !== undefined ? (name || '').trim() || item.name : item.name;
+        const parsedPrice =
+          price !== undefined ? Math.max(0, parseFloat(price) || 0) : item.unitPrice;
+        const unitPrice = Math.round(parsedPrice * 100) / 100;
+        const qty =
+          quantity !== undefined ? Math.max(1, parseInt(quantity, 10) || 1) : item.quantity;
+        const reqKitchen =
+          requiresKitchen !== undefined ? Boolean(requiresKitchen) : item.requiresKitchen;
+        const cType =
+          consumptionType !== undefined ? consumptionType : item.consumptionType;
+        const itemNotes =
+          notes !== undefined ? (notes || '').trim() : item.customization?.itemNotes || '';
+        const pkg =
+          packaging !== undefined ? packaging : item.customization?.packaging || null;
+
+        return {
+          ...item,
+          name: cleanName,
+          basePrice: unitPrice,
+          unitPrice,
+          isManualPrice: true,
+          quantity: qty,
+          requiresKitchen: reqKitchen,
+          consumptionType: cType,
+          customization: {
+            ...item.customization,
+            consumptionType: cType,
+            itemNotes,
+            packaging: pkg,
+            manualPrice: unitPrice,
+            isManualPrice: true,
+          },
+          subtotal: Math.round(unitPrice * qty * 100) / 100,
+        };
+      })
+    );
+  };
+
   const removeItem = (itemId) => {
     setItems((prev) => prev.filter((item) => item.itemId !== itemId));
   };
@@ -702,6 +819,8 @@ export function CartProvider({ children }) {
     discount,
     setDiscount,
     addItem,
+    addCustomItem,
+    updateCustomItem,
     updateItemQuantity,
     setItemQuantity,
     updateItemCustomization,

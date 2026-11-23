@@ -534,7 +534,7 @@ export default function OrdersView({
           amount: manualTotalCalculated,
           paidAt: orderDate,
         },
-        generalNotes: manualNotes.trim() || 'Pedido histórico registrado manualmente por administrador',
+        generalNotes: manualNotes.trim() || 'Registro manual',
         createdAt: orderDate,
         updatedAt: orderDate,
         isManualPastOrder: true,
@@ -1002,8 +1002,12 @@ export default function OrdersView({
                       {formatElapsedTime(order.createdAt)}
                     </span>
                     {order.generalNotes && (
-                      <span className="truncate italic text-amber-300 max-w-[200px] sm:max-w-xs">
-                        &ldquo;{order.generalNotes}&rdquo;
+                      <span className="truncate italic text-amber-300 max-w-[200px] sm:max-w-xs" title={order.generalNotes}>
+                        &ldquo;
+                        {order.generalNotes.includes('histórico') || order.generalNotes.includes('administrador')
+                          ? 'Registro manual'
+                          : order.generalNotes}
+                        &rdquo;
                       </span>
                     )}
                   </div>
@@ -1517,7 +1521,7 @@ export default function OrdersView({
                         </button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-1 scrollbar-none">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1 scrollbar-none">
                         {filteredCatalogProducts.map((p) => {
                           const isSelected = selectedProductId === p.id;
                           return (
@@ -1533,7 +1537,7 @@ export default function OrdersView({
                                 }
                               }}
                               className={`
-                                p-2 rounded-xl border flex items-center justify-between gap-2 cursor-pointer transition-all active:scale-[0.98] select-none text-left
+                                p-2 sm:p-2.5 rounded-xl border flex items-center justify-between gap-2.5 cursor-pointer transition-all active:scale-[0.98] select-none text-left
                                 ${
                                   isSelected
                                     ? 'bg-orange-950/30 border-[var(--color-porkos-orange)] ring-1 ring-[var(--color-porkos-orange)]/60 shadow-sm'
@@ -1541,21 +1545,21 @@ export default function OrdersView({
                                 }
                               `}
                             >
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                 <ProductThumbnail
                                   src={p.image}
                                   thumbnailUrl={p.thumbnailUrl || p.image}
                                   name={p.name}
                                   isBeverage={isProductBeverage(p)}
                                   isDessert={isProductDessert(p)}
-                                  className="w-10 h-10 rounded-lg object-cover shrink-0 border border-zinc-800/80"
+                                  className="w-11 h-11 rounded-lg object-cover shrink-0 border border-zinc-800/80"
                                   iconSize="w-4 h-4"
                                 />
                                 <div className="min-w-0 flex-1">
-                                  <div className="font-bold text-white text-xs truncate" title={p.name}>
+                                  <div className="font-bold text-white text-xs sm:text-[13px] leading-tight line-clamp-2 break-words" title={p.name}>
                                     {p.name}
                                   </div>
-                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                  <div className="flex items-center gap-1.5 mt-1">
                                     <span className="font-black text-[var(--color-porkos-orange)] text-xs">
                                       {formatCurrency(p.price || 0)}
                                     </span>
@@ -1631,7 +1635,7 @@ export default function OrdersView({
                           <span className="text-[10px] text-zinc-400 uppercase font-black tracking-wider block">
                             Seleccionado para añadir:
                           </span>
-                          <span className="font-extrabold text-white text-xs truncate block">
+                          <span className="font-extrabold text-white text-xs sm:text-[13px] leading-snug line-clamp-2 break-words block">
                             {selectedProductObj ? selectedProductObj.name : (customItemName || 'Producto personalizado')}
                           </span>
                         </div>
@@ -1817,7 +1821,7 @@ export default function OrdersView({
                               iconSize="w-4 h-4"
                             />
                             <div className="min-w-0 flex-1">
-                              <div className="font-bold text-white truncate text-xs sm:text-sm">{item.name}</div>
+                              <div className="font-bold text-white text-xs sm:text-sm leading-snug line-clamp-2 break-words">{item.name}</div>
 
                               {/* Badges: Táper / Empaque */}
                               {item.packaging && item.packagingPrice > 0 && (
