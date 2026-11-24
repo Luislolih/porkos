@@ -3,63 +3,85 @@ import { parseToDate } from './formatters';
 export const SHIFT_START_HOUR = 4; // 4:00 AM
 
 /**
- * Obtiene la fecha operativa / de turno para un timestamp o Date dado.
- * Si la hora es antes de las 4:00 AM, pertenece al turno del día anterior.
- * @param {Date|string|number} dateInput
- * @returns {Date} Date con la fecha del turno a las 00:00:00 local
+ * Retorna la fecha del turno operativo en formato 'YYYY-MM-DD' (hora de Perú).
+ * Para cualquier timestamp entre 00:00:00 y 03:59:59, pertenece al turno del día anterior.
+ * Es estrictamente idempotente: si recibe una cadena 'YYYY-MM-DD', la retorna tal cual.
+ * @param {Date|string|number} [dateInput=new Date()]
+ * @returns {string} Fecha del turno en 'YYYY-MM-DD'
  */
-export function getShiftDate(dateInput = new Date()) {
+export function getShiftDateString(dateInput = new Date()) {
+  if (!dateInput) dateInput = new Date();
+
+  // Si ya es una cadena 'YYYY-MM-DD', es la fecha del turno operativo directamente
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.trim())) {
+    return dateInput.trim();
+  }
+
   const d = parseToDate(dateInput) || (dateInput instanceof Date ? dateInput : new Date(dateInput));
-  if (!d || isNaN(d.getTime())) return new Date();
+  if (!d || isNaN(d.getTime())) {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
+  }
+
+  // Si el objeto Date fue creado como fecha de calendario pura (00:00:00.000 local),
+  // no se debe restar 4h porque no es un timestamp de evento en vivo, sino una fecha ya asignada.
+  if (d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 && d.getMilliseconds() === 0) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  // Timestamp real: restar 4 horas para alinear con la jornada operativa
   const shifted = new Date(d.getTime() - SHIFT_START_HOUR * 60 * 60 * 1000);
-  return new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 0, 0, 0, 0);
+  return shifted.toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
 }
 
 /**
- * Retorna la fecha del turno en formato 'YYYY-MM-DD'.
- * Ejemplo: A la 1:30 AM del 25/11, retorna '2026-11-24'.
+ * Obtiene un objeto Date seguro (a las 12:00:00 local para evitar desbordes UTC/medianoche)
+ * que representa la fecha operativa del turno para un timestamp o fecha dada.
+ * @param {Date|string|number} [dateInput=new Date()]
+ * @returns {Date} Date del turno a las 12:00:00 local
  */
-export function getShiftDateString(dateInput = new Date()) {
-  const shiftDate = getShiftDate(dateInput);
-  const y = shiftDate.getFullYear();
-  const m = String(shiftDate.getMonth() + 1).padStart(2, '0');
-  const d = String(shiftDate.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+export function getShiftDate(dateInput = new Date()) {
+  const shiftStr = getShiftDateString(dateInput);
+  const [year, month, day] = shiftStr.split('-').map(Number);
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+/**
+ * Retorna la fecha del turno operativo anterior en formato 'YYYY-MM-DD'.
+ * @param {Date|string|number} [shiftDateInput=new Date()]
+ * @returns {string} Fecha del turno anterior en 'YYYY-MM-DD'
+ */
+export function getPreviousShiftDateString(shiftDateInput = new Date()) {
+  const currentShiftStr = getShiftDateString(shiftDateInput);
+  const [year, month, day] = currentShiftStr.split('-').map(Number);
+  const prevDate = new Date(year, month - 1, day - 1, 12, 0, 0, 0);
+  return getShiftDateString(prevDate);
 }
 
 /**
  * Retorna los límites de tiempo de un turno operativo para una fecha 'YYYY-MM-DD' o Date.
- * Inicio: fecha dada a las 04:00:00.000
- * Fin: fecha del día siguiente a las 03:59:59.999
+ * Inicio: fecha dada a las 04:00:00.000 local
+ * Fin: fecha del día siguiente a las 03:59:59.999 local
+ * @param {Date|string|number} [dateStrOrDate=new Date()]
+ * @returns {{ start: Date, end: Date, shiftDateStr: string }}
  */
-export function getShiftBoundsForDate(dateStrOrDate) {
-  let year;
-  let month;
-  let day;
+export function getShiftBoundsForDate(dateStrOrDate = new Date()) {
+  const shiftDateStr = getShiftDateString(dateStrOrDate);
+  const [year, month, day] = shiftDateStr.split('-').map(Number);
 
-  if (typeof dateStrOrDate === 'string' && dateStrOrDate.includes('-')) {
-    const parts = dateStrOrDate.split('-');
-    year = parseInt(parts[0], 10);
-    month = parseInt(parts[1], 10) - 1;
-    day = parseInt(parts[2], 10);
-  } else {
-    const d = getShiftDate(dateStrOrDate);
-    year = d.getFullYear();
-    month = d.getMonth();
-    day = d.getDate();
-  }
-
-  const start = new Date(year, month, day, SHIFT_START_HOUR, 0, 0, 0);
-  const nextDay = new Date(year, month, day + 1, SHIFT_START_HOUR, 0, 0, 0);
+  const start = new Date(year, month - 1, day, SHIFT_START_HOUR, 0, 0, 0);
+  const nextDay = new Date(year, month - 1, day + 1, SHIFT_START_HOUR, 0, 0, 0);
   const end = new Date(nextDay.getTime() - 1);
 
-  return { start, end };
+  return { start, end, shiftDateStr };
 }
 
 /**
  * Retorna los límites de tiempo para un rango de fechas de turno (startDateStr a endDateStr).
- * Inicio: startDate a las 04:00:00.000
- * Fin: día siguiente a endDate a las 03:59:59.999
+ * Inicio: startDate a las 04:00:00.000 local
+ * Fin: día siguiente a endDate a las 03:59:59.999 local
  */
 export function getShiftBoundsForRange(startDateStr, endDateStr) {
   const { start } = getShiftBoundsForDate(startDateStr);
@@ -81,15 +103,11 @@ export function isTimestampInShiftRange(timestamp, start, end) {
 
 /**
  * Formatea una fecha o cadena 'YYYY-MM-DD' en formato legible 'DD/MM/YYYY'.
+ * Idempotente y seguro con la zona horaria.
  */
-export function formatShiftDisplayDate(dateInput) {
-  if (!dateInput) return '';
-  if (typeof dateInput === 'string' && dateInput.includes('-')) {
-    const parts = dateInput.split('-');
-    if (parts.length === 3) {
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-  }
-  const d = getShiftDate(dateInput);
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+export function formatShiftDisplayDate(dateInput = new Date()) {
+  const dateStr = getShiftDateString(dateInput);
+  if (!dateStr || !dateStr.includes('-')) return '';
+  const [y, m, d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
 }

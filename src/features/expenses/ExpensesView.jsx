@@ -68,7 +68,7 @@ export default function ExpensesView() {
   const [selectedYear, setSelectedYear] = useState(() => getShiftDate().getFullYear());
   const [customStartDate, setCustomStartDate] = useState(() => {
     const shift = getShiftDate();
-    const d = new Date(shift.getFullYear(), shift.getMonth(), shift.getDate() - 30);
+    const d = new Date(shift.getFullYear(), shift.getMonth(), shift.getDate() - 30, 12, 0, 0);
     return getShiftDateString(d);
   });
   const [customEndDate, setCustomEndDate] = useState(() => getShiftDateString());
@@ -128,7 +128,7 @@ export default function ExpensesView() {
 
     // 1. Filtro por fecha operativo (turno 4:00 AM a 3:59 AM)
     if (dateFilterMode === 'TODAY') {
-      const { start, end } = getShiftBoundsForDate(getShiftDate());
+      const { start, end } = getShiftBoundsForDate();
       result = result.filter((e) => isTimestampInShiftRange(e.date, start, end));
     } else if (dateFilterMode === 'THIS_MONTH') {
       const now = getShiftDate();

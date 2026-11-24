@@ -22,7 +22,12 @@ export const parseToDate = (dateInput) => {
     return isNaN(d.getTime()) ? null : d;
   }
   if (typeof dateInput === 'string') {
-    const d = new Date(dateInput);
+    const trimmed = dateInput.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const [y, m, d] = trimmed.split('-').map(Number);
+      return new Date(y, m - 1, d, 12, 0, 0, 0);
+    }
+    const d = new Date(trimmed);
     return isNaN(d.getTime()) ? null : d;
   }
   return null;

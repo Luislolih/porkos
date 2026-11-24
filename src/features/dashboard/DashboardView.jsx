@@ -25,6 +25,7 @@ import { formatCurrency, parseToDate } from '../../utils/formatters';
 import {
   getShiftDate,
   getShiftDateString,
+  getPreviousShiftDateString,
   getShiftBoundsForDate,
   getShiftBoundsForRange,
   isTimestampInShiftRange,
@@ -63,7 +64,7 @@ export default function DashboardView({ orders = [] }) {
   // Fechas personalizadas (basadas en la fecha operativa del turno actual)
   const [customStart, setCustomStart] = useState(() => {
     const shift = getShiftDate();
-    const d = new Date(shift.getFullYear(), shift.getMonth(), shift.getDate() - 7);
+    const d = new Date(shift.getFullYear(), shift.getMonth(), shift.getDate() - 7, 12, 0, 0);
     return getShiftDateString(d);
   });
   const [customEnd, setCustomEnd] = useState(() => {
@@ -85,8 +86,8 @@ export default function DashboardView({ orders = [] }) {
 
   // Helper de rangos de fechas por turno (de 4:00 AM a 3:59:59 AM del día siguiente)
   const dateBounds = useMemo(() => {
-    const now = new Date();
-    const currentShift = getShiftDate(now);
+    const currentShiftStr = getShiftDateString();
+    const currentShift = getShiftDate(currentShiftStr);
     let start = null;
     let end = null;
     let prevStart = null;
@@ -94,28 +95,28 @@ export default function DashboardView({ orders = [] }) {
 
     if (dateRange === DATE_RANGES.TODAY) {
       // Turno de HOY: 4:00 AM del turno actual hasta las 3:59:59.999 AM del día siguiente
-      const bounds = getShiftBoundsForDate(currentShift);
+      const bounds = getShiftBoundsForDate(currentShiftStr);
       start = bounds.start;
       end = bounds.end;
       // Periodo anterior: Turno de Ayer
-      const prevShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), currentShift.getDate() - 1);
-      const prevBounds = getShiftBoundsForDate(prevShift);
+      const prevShiftStr = getPreviousShiftDateString(currentShiftStr);
+      const prevBounds = getShiftBoundsForDate(prevShiftStr);
       prevStart = prevBounds.start;
       prevEnd = prevBounds.end;
     } else if (dateRange === DATE_RANGES.YESTERDAY) {
       // Turno de AYER: 4:00 AM del turno de ayer a 3:59:59.999 AM del inicio del turno de hoy
-      const targetShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), currentShift.getDate() - 1);
-      const bounds = getShiftBoundsForDate(targetShift);
+      const targetShiftStr = getPreviousShiftDateString(currentShiftStr);
+      const bounds = getShiftBoundsForDate(targetShiftStr);
       start = bounds.start;
       end = bounds.end;
       // Periodo anterior: Anteayer
-      const prevShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), currentShift.getDate() - 2);
-      const prevBounds = getShiftBoundsForDate(prevShift);
+      const prevShiftStr = getPreviousShiftDateString(targetShiftStr);
+      const prevBounds = getShiftBoundsForDate(prevShiftStr);
       prevStart = prevBounds.start;
       prevEnd = prevBounds.end;
     } else if (dateRange === DATE_RANGES.THIS_WEEK) {
       const day = currentShift.getDay() || 7; // 1 = Lunes, 7 = Domingo
-      const mondayShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), currentShift.getDate() - day + 1);
+      const mondayShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), currentShift.getDate() - day + 1, 12, 0, 0);
       const startBounds = getShiftBoundsForDate(mondayShift);
       const endBounds = getShiftBoundsForDate(currentShift);
       start = startBounds.start;
@@ -124,13 +125,13 @@ export default function DashboardView({ orders = [] }) {
       prevEnd = new Date(start.getTime() - 1);
       prevStart = new Date(prevEnd.getTime() - duration);
     } else if (dateRange === DATE_RANGES.THIS_MONTH) {
-      const firstDayShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), 1);
+      const firstDayShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), 1, 12, 0, 0);
       const startBounds = getShiftBoundsForDate(firstDayShift);
       const endBounds = getShiftBoundsForDate(currentShift);
       start = startBounds.start;
       end = endBounds.end;
-      const prevMonthFirst = new Date(currentShift.getFullYear(), currentShift.getMonth() - 1, 1);
-      const prevMonthLast = new Date(currentShift.getFullYear(), currentShift.getMonth(), 0);
+      const prevMonthFirst = new Date(currentShift.getFullYear(), currentShift.getMonth() - 1, 1, 12, 0, 0);
+      const prevMonthLast = new Date(currentShift.getFullYear(), currentShift.getMonth(), 0, 12, 0, 0);
       const prevStartBounds = getShiftBoundsForDate(prevMonthFirst);
       const prevEndBounds = getShiftBoundsForDate(prevMonthLast);
       prevStart = prevStartBounds.start;
@@ -722,9 +723,9 @@ export default function DashboardView({ orders = [] }) {
             <div className="text-zinc-400 text-xs">
               <span className="font-semibold text-zinc-300">
                 {dateRange === DATE_RANGES.TODAY
-                  ? `Turno de hoy (${formatShiftDisplayDate(getShiftDate())} • 4:00 am a 3:59 am)`
+                  ? `Turno de hoy (${formatShiftDisplayDate(getShiftDateString())} • 4:00 am a 3:59 am)`
                   : dateRange === DATE_RANGES.YESTERDAY
-                  ? 'Turno de ayer (4:00 am a 3:59 am)'
+                  ? `Turno de ayer (${formatShiftDisplayDate(getPreviousShiftDateString())} • 4:00 am a 3:59 am)`
                   : dateRange === DATE_RANGES.THIS_WEEK
                   ? 'Semana en curso (turnos 4:00 am a 3:59 am)'
                   : dateRange === DATE_RANGES.THIS_MONTH

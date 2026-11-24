@@ -26,8 +26,8 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatTime, formatElapsedTime, generateOrderNumber } from '../../utils/formatters';
 import {
-  getShiftDate,
   getShiftDateString,
+  getPreviousShiftDateString,
   getShiftBoundsForDate,
   isTimestampInShiftRange,
   formatShiftDisplayDate,
@@ -632,20 +632,20 @@ export default function OrdersView({
   // Helper de límites del turno operativo seleccionado (de 4:00 AM a 3:59:59 AM del día siguiente)
   const shiftBounds = useMemo(() => {
     if (filterShift === 'ALL') return null;
-    const currentShift = getShiftDate();
+    const currentShiftStr = getShiftDateString();
     if (filterShift === 'CURRENT') {
       return {
-        bounds: getShiftBoundsForDate(currentShift),
-        label: `Turno Hoy (${formatShiftDisplayDate(currentShift)})`,
-        dateStr: getShiftDateString(currentShift),
+        bounds: getShiftBoundsForDate(currentShiftStr),
+        label: `Turno Hoy (${formatShiftDisplayDate(currentShiftStr)})`,
+        dateStr: currentShiftStr,
       };
     }
     if (filterShift === 'PREVIOUS') {
-      const prevShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), currentShift.getDate() - 1);
+      const prevShiftStr = getPreviousShiftDateString(currentShiftStr);
       return {
-        bounds: getShiftBoundsForDate(prevShift),
-        label: `Turno Ayer (${formatShiftDisplayDate(prevShift)})`,
-        dateStr: getShiftDateString(prevShift),
+        bounds: getShiftBoundsForDate(prevShiftStr),
+        label: `Turno Ayer (${formatShiftDisplayDate(prevShiftStr)})`,
+        dateStr: prevShiftStr,
       };
     }
     if (filterShift === 'CUSTOM') {
