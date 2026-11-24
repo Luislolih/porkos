@@ -22,6 +22,14 @@ import {
   Clock,
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
+import {
+  getShiftDate,
+  getShiftDateString,
+  getShiftBoundsForDate,
+  getShiftBoundsForRange,
+  isTimestampInShiftRange,
+  formatShiftDisplayDate,
+} from '../../utils/shiftDateUtils';
 import { useCatalog } from '../../context/useCatalog';
 import { subscribeToExpenses } from '../../services/firestoreService';
 
@@ -52,14 +60,14 @@ export default function DashboardView({ orders = [] }) {
   const [enableComparison, setEnableComparison] = useState(true);
   const [insightsFilter, setInsightsFilter] = useState('ALL');
 
-  // Fechas personalizadas
+  // Fechas personalizadas (basadas en la fecha operativa del turno actual)
   const [customStart, setCustomStart] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().split('T')[0];
+    const shift = getShiftDate();
+    const d = new Date(shift.getFullYear(), shift.getMonth(), shift.getDate() - 7);
+    return getShiftDateString(d);
   });
   const [customEnd, setCustomEnd] = useState(() => {
-    return new Date().toISOString().split('T')[0];
+    return getShiftDateString();
   });
 
   // 1. Sincronización en tiempo real con la colección de gastos
@@ -75,42 +83,63 @@ export default function DashboardView({ orders = [] }) {
     return () => unsub();
   }, []);
 
-  // Helper de rangos de fechas (Periodo actual y Periodo anterior de igual duración)
+  // Helper de rangos de fechas por turno (de 4:00 AM a 3:59:59 AM del día siguiente)
   const dateBounds = useMemo(() => {
     const now = new Date();
+    const currentShift = getShiftDate(now);
     let start = null;
-    let end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    let end = null;
     let prevStart = null;
     let prevEnd = null;
 
     if (dateRange === DATE_RANGES.TODAY) {
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      prevStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
-      prevEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+      // Turno de HOY: 4:00 AM del turno actual hasta las 3:59:59.999 AM del día siguiente
+      const bounds = getShiftBoundsForDate(currentShift);
+      start = bounds.start;
+      end = bounds.end;
+      // Periodo anterior: Turno de Ayer
+      const prevShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), currentShift.getDate() - 1);
+      const prevBounds = getShiftBoundsForDate(prevShift);
+      prevStart = prevBounds.start;
+      prevEnd = prevBounds.end;
     } else if (dateRange === DATE_RANGES.YESTERDAY) {
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
-      prevStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2, 0, 0, 0, 0);
-      prevEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2, 23, 59, 59, 999);
+      // Turno de AYER: 4:00 AM del turno de ayer a 3:59:59.999 AM del inicio del turno de hoy
+      const targetShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), currentShift.getDate() - 1);
+      const bounds = getShiftBoundsForDate(targetShift);
+      start = bounds.start;
+      end = bounds.end;
+      // Periodo anterior: Anteayer
+      const prevShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), currentShift.getDate() - 2);
+      const prevBounds = getShiftBoundsForDate(prevShift);
+      prevStart = prevBounds.start;
+      prevEnd = prevBounds.end;
     } else if (dateRange === DATE_RANGES.THIS_WEEK) {
-      const day = now.getDay() || 7;
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1, 0, 0, 0, 0);
-      prevStart = new Date(start.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const day = currentShift.getDay() || 7; // 1 = Lunes, 7 = Domingo
+      const mondayShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), currentShift.getDate() - day + 1);
+      const startBounds = getShiftBoundsForDate(mondayShift);
+      const endBounds = getShiftBoundsForDate(currentShift);
+      start = startBounds.start;
+      end = endBounds.end;
+      const duration = end.getTime() - start.getTime();
       prevEnd = new Date(start.getTime() - 1);
+      prevStart = new Date(prevEnd.getTime() - duration);
     } else if (dateRange === DATE_RANGES.THIS_MONTH) {
-      start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-      prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-      prevEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      const firstDayShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), 1);
+      const startBounds = getShiftBoundsForDate(firstDayShift);
+      const endBounds = getShiftBoundsForDate(currentShift);
+      start = startBounds.start;
+      end = endBounds.end;
+      const prevMonthFirst = new Date(currentShift.getFullYear(), currentShift.getMonth() - 1, 1);
+      const prevMonthLast = new Date(currentShift.getFullYear(), currentShift.getMonth(), 0);
+      const prevStartBounds = getShiftBoundsForDate(prevMonthFirst);
+      const prevEndBounds = getShiftBoundsForDate(prevMonthLast);
+      prevStart = prevStartBounds.start;
+      prevEnd = prevEndBounds.end;
     } else if (dateRange === DATE_RANGES.CUSTOM) {
-      if (customStart) {
-        const parts = customStart.split('-');
-        start = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0, 0);
-      }
-      if (customEnd) {
-        const parts = customEnd.split('-');
-        end = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 23, 59, 59, 999);
-      }
-      if (start && end) {
+      if (customStart && customEnd) {
+        const bounds = getShiftBoundsForRange(customStart, customEnd);
+        start = bounds.start;
+        end = bounds.end;
         const duration = end.getTime() - start.getTime();
         prevEnd = new Date(start.getTime() - 1);
         prevStart = new Date(prevEnd.getTime() - duration);
@@ -122,44 +151,24 @@ export default function DashboardView({ orders = [] }) {
 
   // Filtrar pedidos y gastos según el periodo actual y periodo anterior
   const { currentOrders, previousOrders, currentExpenses, previousExpenses } = useMemo(() => {
-    const parseDate = (d) => {
-      if (!d) return null;
-      if (d instanceof Date) return d;
-      if (typeof d.toDate === 'function') return d.toDate();
-      const parsed = new Date(d);
-      return isNaN(parsed.getTime()) ? null : parsed;
-    };
-
-    const inRange = (d, start, end) => {
-      if (!d) return false;
-      const t = d.getTime();
-      if (start && t < start.getTime()) return false;
-      if (end && t > end.getTime()) return false;
-      return true;
-    };
-
     const cOrders = orders.filter((o) => {
       if (dateRange === DATE_RANGES.ALL) return true;
-      const d = parseDate(o.createdAt);
-      return inRange(d, dateBounds.start, dateBounds.end);
+      return isTimestampInShiftRange(o.createdAt, dateBounds.start, dateBounds.end);
     });
 
     const pOrders = orders.filter((o) => {
       if (dateRange === DATE_RANGES.ALL || !dateBounds.prevStart) return false;
-      const d = parseDate(o.createdAt);
-      return inRange(d, dateBounds.prevStart, dateBounds.prevEnd);
+      return isTimestampInShiftRange(o.createdAt, dateBounds.prevStart, dateBounds.prevEnd);
     });
 
     const cExpenses = expenses.filter((e) => {
       if (dateRange === DATE_RANGES.ALL) return true;
-      const d = parseDate(e.date);
-      return inRange(d, dateBounds.start, dateBounds.end);
+      return isTimestampInShiftRange(e.date, dateBounds.start, dateBounds.end);
     });
 
     const pExpenses = expenses.filter((e) => {
       if (dateRange === DATE_RANGES.ALL || !dateBounds.prevStart) return false;
-      const d = parseDate(e.date);
-      return inRange(d, dateBounds.prevStart, dateBounds.prevEnd);
+      return isTimestampInShiftRange(e.date, dateBounds.prevStart, dateBounds.prevEnd);
     });
 
     return {
@@ -635,13 +644,13 @@ export default function DashboardView({ orders = [] }) {
             <div className="text-zinc-400 text-xs">
               <span className="font-semibold text-zinc-300">
                 {dateRange === DATE_RANGES.TODAY
-                  ? 'Ventas y gastos de hoy'
+                  ? `Turno de hoy (${formatShiftDisplayDate(getShiftDate())} • 4:00 am a 3:59 am)`
                   : dateRange === DATE_RANGES.YESTERDAY
-                  ? 'Ventas y gastos de ayer'
+                  ? 'Turno de ayer (4:00 am a 3:59 am)'
                   : dateRange === DATE_RANGES.THIS_WEEK
-                  ? 'Semana actual en curso'
+                  ? 'Semana en curso (turnos 4:00 am a 3:59 am)'
                   : dateRange === DATE_RANGES.THIS_MONTH
-                  ? 'Mes calendario actual'
+                  ? 'Mes en curso (turnos 4:00 am a 3:59 am)'
                   : 'Historial completo acumulado'}
               </span>
             </div>

@@ -11,6 +11,13 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { formatCurrency, formatTime, formatDate, parseToDate } from '../../utils/formatters';
+import {
+  getShiftDate,
+  getShiftDateString,
+  getShiftBoundsForDate,
+  getShiftBoundsForRange,
+  isTimestampInShiftRange,
+} from '../../utils/shiftDateUtils';
 import { sanitizeText } from '../../utils/security';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -57,18 +64,18 @@ export default function ExpensesView() {
 
   // Filtros por fecha
   const [dateFilterMode, setDateFilterMode] = useState('ALL'); // 'ALL' | 'TODAY' | 'THIS_MONTH' | 'BY_MONTH' | 'CUSTOM'
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(() => getShiftDate().getMonth());
+  const [selectedYear, setSelectedYear] = useState(() => getShiftDate().getFullYear());
   const [customStartDate, setCustomStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
+    const shift = getShiftDate();
+    const d = new Date(shift.getFullYear(), shift.getMonth(), shift.getDate() - 30);
+    return getShiftDateString(d);
   });
-  const [customEndDate, setCustomEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [customEndDate, setCustomEndDate] = useState(() => getShiftDateString());
 
   // Modal Nuevo Gasto
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [newDate, setNewDate] = useState(() => getShiftDateString());
   const [newCategory, setNewCategory] = useState(EXPENSE_CATEGORIES[0]);
   const [newDesc, setNewDesc] = useState('');
   const [newAmount, setNewAmount] = useState('');
@@ -119,20 +126,12 @@ export default function ExpensesView() {
   const filteredExpenses = useMemo(() => {
     let result = sortedExpenses;
 
-    // 1. Filtro por fecha
+    // 1. Filtro por fecha operativo (turno 4:00 AM a 3:59 AM)
     if (dateFilterMode === 'TODAY') {
-      const today = new Date();
-      result = result.filter((e) => {
-        const d = parseToDate(e.date);
-        return (
-          d &&
-          d.getDate() === today.getDate() &&
-          d.getMonth() === today.getMonth() &&
-          d.getFullYear() === today.getFullYear()
-        );
-      });
+      const { start, end } = getShiftBoundsForDate(getShiftDate());
+      result = result.filter((e) => isTimestampInShiftRange(e.date, start, end));
     } else if (dateFilterMode === 'THIS_MONTH') {
-      const now = new Date();
+      const now = getShiftDate();
       result = result.filter((e) => {
         const d = parseToDate(e.date);
         return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -143,15 +142,8 @@ export default function ExpensesView() {
         return d && d.getMonth() === Number(selectedMonth) && d.getFullYear() === Number(selectedYear);
       });
     } else if (dateFilterMode === 'CUSTOM') {
-      const start = customStartDate ? new Date(`${customStartDate}T00:00:00`) : null;
-      const end = customEndDate ? new Date(`${customEndDate}T23:59:59`) : null;
-      result = result.filter((e) => {
-        const d = parseToDate(e.date);
-        if (!d) return false;
-        if (start && d < start) return false;
-        if (end && d > end) return false;
-        return true;
-      });
+      const { start, end } = getShiftBoundsForRange(customStartDate, customEndDate);
+      result = result.filter((e) => isTimestampInShiftRange(e.date, start, end));
     }
 
     // 2. Filtro por categoría
@@ -265,7 +257,7 @@ export default function ExpensesView() {
     if (!isAdmin) return;
     setEditingExpense(exp);
     const parsed = parseToDate(exp.date);
-    const formattedDate = parsed ? parsed.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const formattedDate = parsed ? getShiftDateString(parsed) : getShiftDateString();
     setEditDate(formattedDate);
     setEditCategory(exp.category || EXPENSE_CATEGORIES[0]);
     setEditDesc(exp.description || '');

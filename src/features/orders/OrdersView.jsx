@@ -25,6 +25,13 @@ import {
   List,
 } from 'lucide-react';
 import { formatCurrency, formatTime, formatElapsedTime, generateOrderNumber } from '../../utils/formatters';
+import {
+  getShiftDate,
+  getShiftDateString,
+  getShiftBoundsForDate,
+  isTimestampInShiftRange,
+  formatShiftDisplayDate,
+} from '../../utils/shiftDateUtils';
 import { ORDER_STATUS, PAYMENT_STATUS } from '../../types/constants';
 import Modal from '../../components/ui/Modal';
 import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
@@ -63,6 +70,8 @@ export default function OrdersView({
 
   const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'HISTORY'
   const [filterModality, setFilterModality] = useState('ALL');
+  const [filterShift, setFilterShift] = useState('CURRENT'); // 'CURRENT' | 'PREVIOUS' | 'CUSTOM' | 'ALL'
+  const [selectedShiftDate, setSelectedShiftDate] = useState(() => getShiftDateString());
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState(() => {
     try {
@@ -611,6 +620,35 @@ export default function OrdersView({
     return () => clearInterval(timer);
   }, []);
 
+  // Helper de límites del turno operativo seleccionado (de 4:00 AM a 3:59:59 AM del día siguiente)
+  const shiftBounds = useMemo(() => {
+    if (filterShift === 'ALL') return null;
+    const currentShift = getShiftDate();
+    if (filterShift === 'CURRENT') {
+      return {
+        bounds: getShiftBoundsForDate(currentShift),
+        label: `Turno Hoy (${formatShiftDisplayDate(currentShift)})`,
+        dateStr: getShiftDateString(currentShift),
+      };
+    }
+    if (filterShift === 'PREVIOUS') {
+      const prevShift = new Date(currentShift.getFullYear(), currentShift.getMonth(), currentShift.getDate() - 1);
+      return {
+        bounds: getShiftBoundsForDate(prevShift),
+        label: `Turno Ayer (${formatShiftDisplayDate(prevShift)})`,
+        dateStr: getShiftDateString(prevShift),
+      };
+    }
+    if (filterShift === 'CUSTOM') {
+      return {
+        bounds: getShiftBoundsForDate(selectedShiftDate),
+        label: `Turno ${formatShiftDisplayDate(selectedShiftDate)}`,
+        dateStr: selectedShiftDate,
+      };
+    }
+    return null;
+  }, [filterShift, selectedShiftDate]);
+
   const filteredOrders = useMemo(() => {
     const list = orders.filter((o) => {
       if (activeTab === 'ACTIVE') {
@@ -619,6 +657,13 @@ export default function OrdersView({
       } else if (activeTab === 'HISTORY') {
         const isHistory = o.status === 'ENTREGADO' || o.status === 'CANCELADO';
         if (!isHistory) return false;
+      }
+
+      // Filtro de Turno Operativo (4:00 AM a 3:59 AM)
+      // En la pestaña 'ACTIVE' no filtramos por turno para garantizar que ninguna orden en cocina/salón se pierda
+      if (activeTab !== 'ACTIVE' && shiftBounds?.bounds) {
+        const inShift = isTimestampInShiftRange(o.createdAt, shiftBounds.bounds.start, shiftBounds.bounds.end);
+        if (!inShift) return false;
       }
 
       if (filterModality !== 'ALL') {
@@ -648,15 +693,37 @@ export default function OrdersView({
       }
       return (b.orderNumber || '').localeCompare(a.orderNumber || '', undefined, { numeric: true });
     });
-  }, [orders, activeTab, filterModality, searchQuery]);
+  }, [orders, activeTab, shiftBounds, filterModality, searchQuery]);
 
   const activeCount = useMemo(() => {
     return orders.filter((o) => o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO').length;
   }, [orders]);
 
   const historyCount = useMemo(() => {
-    return orders.filter((o) => o.status === 'ENTREGADO' || o.status === 'CANCELADO').length;
-  }, [orders]);
+    return orders.filter((o) => {
+      const isHistory = o.status === 'ENTREGADO' || o.status === 'CANCELADO';
+      if (!isHistory) return false;
+      if (shiftBounds?.bounds) {
+        return isTimestampInShiftRange(o.createdAt, shiftBounds.bounds.start, shiftBounds.bounds.end);
+      }
+      return true;
+    }).length;
+  }, [orders, shiftBounds]);
+
+  const allCount = useMemo(() => {
+    if (!shiftBounds?.bounds) return orders.length;
+    return orders.filter((o) => isTimestampInShiftRange(o.createdAt, shiftBounds.bounds.start, shiftBounds.bounds.end)).length;
+  }, [orders, shiftBounds]);
+
+  const shiftMetrics = useMemo(() => {
+    let totalSales = 0;
+    filteredOrders.forEach((o) => {
+      if (o.status !== 'CANCELADO') {
+        totalSales += Number(o.total) || 0;
+      }
+    });
+    return { totalSales };
+  }, [filteredOrders]);
 
   const getModalityIcon = (mod) => {
     switch (mod) {
@@ -706,7 +773,7 @@ export default function OrdersView({
           {/* Segmented Control / Tabs */}
           <div className="flex bg-[#0C0C0F] p-1 rounded-xl border border-zinc-800 shrink-0">
             {[
-              { id: 'ALL', label: 'Todas', count: orders.length },
+              { id: 'ALL', label: 'Todas', count: allCount },
               { id: 'ACTIVE', label: 'En Curso', count: activeCount },
               { id: 'HISTORY', label: 'Historial', count: historyCount },
             ].map((tab) => {
@@ -824,6 +891,67 @@ export default function OrdersView({
             >
               <List className="w-3.5 h-3.5" />
             </button>
+          </div>
+        </div>
+
+        {/* Selector de Turno Operativo (4:00 AM a 3:59 AM) */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-[var(--color-porkos-border)] text-xs">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
+              <Clock className="w-3 h-3 text-[var(--color-porkos-orange)]" />
+              Turno:
+            </span>
+            {[
+              { id: 'CURRENT', label: 'Turno Hoy' },
+              { id: 'PREVIOUS', label: 'Turno Ayer' },
+              { id: 'CUSTOM', label: 'Por Fecha' },
+              { id: 'ALL', label: 'Todos' },
+            ].map((s) => {
+              const isSelected = filterShift === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setFilterShift(s.id)}
+                  className={`
+                    px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer border active:scale-95 touch-manipulation
+                    ${
+                      isSelected
+                        ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] font-black shadow-xs'
+                        : 'bg-[#141418] text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-white'
+                    }
+                  `}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
+
+            {filterShift === 'CUSTOM' && (
+              <div className="flex items-center gap-1 ml-1">
+                <input
+                  type="date"
+                  value={selectedShiftDate}
+                  onChange={(e) => setSelectedShiftDate(e.target.value)}
+                  onClick={(e) => e.target.showPicker?.()}
+                  style={{ colorScheme: 'dark' }}
+                  className="bg-black/70 border border-zinc-700 rounded-lg px-2 py-0.5 text-white text-xs font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Resumen del Turno */}
+          <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400 ml-auto bg-[#0C0C0F] px-2.5 py-1 rounded-lg border border-zinc-800/80">
+            <span className="text-zinc-300 font-bold">
+              {shiftBounds?.label || 'Historial Completo'}
+            </span>
+            <span className="text-zinc-600">•</span>
+            <span>{filteredOrders.length} comandas</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-emerald-400 font-black">
+              {formatCurrency(shiftMetrics.totalSales)}
+            </span>
           </div>
         </div>
       </div>

@@ -1,23 +1,17 @@
+import { getShiftBoundsForDate, isTimestampInShiftRange } from './shiftDateUtils';
+
 /**
  * Genera números de comanda y venta estrictamente correlativos y limpios (P-001, P-002, M-001...)
- * basados en el historial diario, eliminando códigos aleatorios o saltos inesperados.
+ * basados en el historial del turno actual (de 4:00 AM a 3:59 AM del día siguiente),
+ * eliminando códigos aleatorios o saltos inesperados.
  */
 export function getNextOrderNumber(orders = [], prefix = 'P') {
-  const now = new Date();
-  // Obtener fecha actual en zona horaria America/Lima (Perú, UTC-5)
-  const peruDateStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Lima' }); // Formato ISO local: YYYY-MM-DD
-  const [pYear, pMonth, pDay] = peruDateStr.split('-').map(Number);
-  const startOfDay = new Date(pYear, pMonth - 1, pDay, 0, 0, 0, 0).getTime();
+  const shiftBounds = getShiftBoundsForDate(new Date());
 
-  // Filtrar órdenes que correspondan a la jornada de hoy
+  // Filtrar órdenes que correspondan a la jornada del turno actual (4:00 AM a 3:59 AM)
   const todayOrders = (orders || []).filter((o) => {
     if (!o.createdAt) return false;
-    const time = o.createdAt?.toDate
-      ? o.createdAt.toDate().getTime()
-      : o.createdAt?.getTime
-      ? o.createdAt.getTime()
-      : new Date(o.createdAt).getTime();
-    return !isNaN(time) && time >= startOfDay;
+    return isTimestampInShiftRange(o.createdAt, shiftBounds.start, shiftBounds.end);
   });
 
   let maxSeq = 0;

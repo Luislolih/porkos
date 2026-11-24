@@ -17,6 +17,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { getShiftDateString, getShiftBoundsForRange } from '../utils/shiftDateUtils';
 
 // Helper para convertir Timestamps de Firestore a Date nativo
 export function formatFirestoreDate(val) {
@@ -107,7 +108,7 @@ async function getOrderDocRef(identifier) {
 export async function getNextAtomicOrderNumber(prefix = 'P') {
   const counterRef = doc(db, 'app_config', 'order_counter');
   const now = new Date();
-  const peruDateStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Lima' }); // YYYY-MM-DD
+  const peruDateStr = getShiftDateString(now); // YYYY-MM-DD del turno operativo (4:00 AM a 3:59 AM)
 
   try {
     const nextSeq = await runTransaction(db, async (transaction) => {
@@ -241,8 +242,9 @@ export function subscribeToOrders(onUpdate, onError) {
  */
 export async function fetchOrdersByDateRange(startDate, endDate) {
   try {
-    const startTs = Timestamp.fromDate(startDate instanceof Date ? startDate : new Date(startDate));
-    const endTs = Timestamp.fromDate(endDate instanceof Date ? endDate : new Date(endDate));
+    const { start, end } = getShiftBoundsForRange(startDate, endDate);
+    const startTs = Timestamp.fromDate(start);
+    const endTs = Timestamp.fromDate(end);
     const q = query(
       collection(db, 'orders'),
       where('createdAt', '>=', startTs),
@@ -296,6 +298,7 @@ export async function saveOrderToFirestore(orderData, isNewOrder = false) {
       ...sanitized,
       id: orderDocId,
       orderNumber: orderNumber || orderDocId,
+      shiftDate: getShiftDateString(validCreatedAt),
       createdAt: Timestamp.fromDate(validCreatedAt),
       updatedAt: serverTimestamp(),
     };
