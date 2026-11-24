@@ -21,7 +21,7 @@ import {
   Target,
   Clock,
 } from 'lucide-react';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, parseToDate } from '../../utils/formatters';
 import {
   getShiftDate,
   getShiftDateString,
@@ -183,8 +183,9 @@ export default function DashboardView({ orders = [] }) {
   const productCostMap = useMemo(() => {
     const map = {};
     products.forEach((p) => {
-      map[p.id] = p.cost || 0;
-      map[p.name.trim().toLowerCase()] = p.cost || 0;
+      const cost = Number(p.cost) || 0;
+      if (p.id) map[p.id] = cost;
+      if (p.name) map[p.name.trim().toLowerCase()] = cost;
     });
     return map;
   }, [products]);
@@ -194,38 +195,62 @@ export default function DashboardView({ orders = [] }) {
     const calcOrderMetrics = (ordersList) => {
       let sales = 0;
       let paid = 0;
+      let pending = 0;
       let cogs = 0;
       let itemCount = 0;
+      let validOrdersCount = 0;
+      let cancelledCount = 0;
+      let cancelledTotal = 0;
 
       ordersList.forEach((o) => {
-        const orderTotal = o.total || 0;
-        sales += orderTotal;
+        const orderTotal = Math.round((Number(o.total) || 0) * 100) / 100;
+
+        // Las órdenes canceladas no forman parte de las ventas ni del costo del menú
+        if (o.status === 'CANCELADO') {
+          cancelledCount++;
+          cancelledTotal = Math.round((cancelledTotal + orderTotal) * 100) / 100;
+          return;
+        }
+
+        sales = Math.round((sales + orderTotal) * 100) / 100;
+        validOrdersCount++;
+
         if (o.paymentStatus === 'PAID') {
-          paid += orderTotal;
+          paid = Math.round((paid + orderTotal) * 100) / 100;
+        } else {
+          pending = Math.round((pending + orderTotal) * 100) / 100;
         }
 
         (o.items || []).forEach((item) => {
-          const qty = item.quantity || 1;
+          const qty = Math.max(1, parseInt(item.quantity, 10) || 1);
           itemCount += qty;
-          const unitCost =
+
+          const pId = item.productId || item.id;
+          const unitCost = Number(
             item.cost ??
-            productCostMap[item.id] ??
+            (pId ? productCostMap[pId] : null) ??
             productCostMap[(item.name || '').trim().toLowerCase()] ??
-            0;
-          cogs += unitCost * qty;
+            0
+          ) || 0;
+
+          cogs = Math.round((cogs + (unitCost * qty)) * 100) / 100;
         });
       });
 
-      const count = ordersList.length;
-      const avgTicket = count > 0 ? sales / count : 0;
-      const grossProfit = sales - cogs;
-      const grossMargin = sales > 0 ? (grossProfit / sales) * 100 : 0;
+      const count = validOrdersCount;
+      const avgTicket = count > 0 ? Math.round((sales / count) * 100) / 100 : 0;
+      const grossProfit = Math.round((sales - cogs) * 100) / 100;
+      const grossMargin = sales > 0 ? Math.round(((grossProfit / sales) * 100) * 10) / 10 : 0;
 
       return {
         sales,
         paid,
-        pending: sales - paid,
+        pending,
         count,
+        validOrdersCount,
+        cancelledCount,
+        cancelledTotal,
+        totalOrdersCount: ordersList.length,
         itemCount,
         avgTicket,
         cogs,
@@ -237,41 +262,70 @@ export default function DashboardView({ orders = [] }) {
     const currentOrderM = calcOrderMetrics(currentOrders);
     const prevOrderM = calcOrderMetrics(previousOrders);
 
-    const totalExp = currentExpenses.reduce((s, e) => s + (e.amount || 0), 0);
-    const prevExp = previousExpenses.reduce((s, e) => s + (e.amount || 0), 0);
+    const totalExp = Math.round(
+      currentExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0) * 100
+    ) / 100;
+    const prevExp = Math.round(
+      previousExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0) * 100
+    ) / 100;
 
-    const netProfit = currentOrderM.grossProfit - totalExp;
-    const netMargin = currentOrderM.sales > 0 ? (netProfit / currentOrderM.sales) * 100 : 0;
+    const netProfit = Math.round((currentOrderM.grossProfit - totalExp) * 100) / 100;
+    const netMargin = currentOrderM.sales > 0
+      ? Math.round(((netProfit / currentOrderM.sales) * 100) * 10) / 10
+      : 0;
 
-    const prevNetProfit = prevOrderM.grossProfit - prevExp;
+    const prevNetProfit = Math.round((prevOrderM.grossProfit - prevExp) * 100) / 100;
 
-    // Conteo por modalidades
+    // Conteo por modalidades (excluyendo cancelados)
+    const validOrders = currentOrders.filter((o) => o.status !== 'CANCELADO');
     const modalities = {
-      MESA: currentOrders.filter((o) => o.modality === 'MESA').length,
-      DELIVERY: currentOrders.filter((o) => o.modality === 'DELIVERY').length,
-      PARA_LLEVAR: currentOrders.filter((o) => o.modality === 'PARA_LLEVAR' || o.modality === 'LLEVAR').length,
-      CONSUMO_EXTERNO: currentOrders.filter((o) => o.modality === 'CONSUMO_EXTERNO').length,
-      MARKET: currentOrders.filter((o) => o.modality === 'MARKET').length,
+      MESA: validOrders.filter((o) => o.modality === 'MESA').length,
+      DELIVERY: validOrders.filter((o) => o.modality === 'DELIVERY').length,
+      PARA_LLEVAR: validOrders.filter((o) => o.modality === 'PARA_LLEVAR' || o.modality === 'LLEVAR').length,
+      CONSUMO_EXTERNO: validOrders.filter((o) => o.modality === 'CONSUMO_EXTERNO').length,
+      MARKET: validOrders.filter((o) => o.modality === 'MARKET').length,
     };
 
-    // Conteo por medios de pago
+    // Conteo por medios de pago (excluyendo cancelados y normalizando formatos)
     const paymentMethods = {
       EFECTIVO: 0,
       YAPE: 0,
       PLIN: 0,
       TARJETA: 0,
     };
-    currentOrders.forEach((o) => {
-      (o.payments || []).forEach((p) => {
-        const m = (p.method || '').toUpperCase();
-        if (m.includes('EFECTIVO')) paymentMethods.EFECTIVO += p.amount || 0;
-        else if (m.includes('YAPE')) paymentMethods.YAPE += p.amount || 0;
-        else if (m.includes('PLIN')) paymentMethods.PLIN += p.amount || 0;
-        else if (m.includes('TARJETA') || m.includes('POS')) paymentMethods.TARJETA += p.amount || 0;
-        else paymentMethods.EFECTIVO += p.amount || 0;
-      });
-      if (!o.payments?.length && o.paymentStatus === 'PAID') {
-        paymentMethods.EFECTIVO += o.total || 0;
+
+    const addPaymentToMethod = (rawMethod, amount) => {
+      const num = Math.round((Number(amount) || 0) * 100) / 100;
+      if (num <= 0) return;
+      const m = String(rawMethod || '').trim().toUpperCase();
+      if (m.includes('YAPE')) {
+        paymentMethods.YAPE = Math.round((paymentMethods.YAPE + num) * 100) / 100;
+      } else if (m.includes('PLIN')) {
+        paymentMethods.PLIN = Math.round((paymentMethods.PLIN + num) * 100) / 100;
+      } else if (m.includes('TARJETA') || m.includes('POS') || m.includes('CARD') || m.includes('TRANSF')) {
+        paymentMethods.TARJETA = Math.round((paymentMethods.TARJETA + num) * 100) / 100;
+      } else {
+        paymentMethods.EFECTIVO = Math.round((paymentMethods.EFECTIVO + num) * 100) / 100;
+      }
+    };
+
+    validOrders.forEach((o) => {
+      if (o.paymentStatus !== 'PAID' && (!o.payments || o.payments.length === 0) && !o.payment) {
+        return; // No sumar comandas por cobrar no liquidadas
+      }
+
+      if (Array.isArray(o.payments) && o.payments.length > 0) {
+        o.payments.forEach((p) => {
+          addPaymentToMethod(p.method, p.amount);
+        });
+      } else if (o.payment && typeof o.payment === 'object') {
+        addPaymentToMethod(o.payment.method, o.payment.amount ?? o.total);
+      } else if (o.paymentMethod) {
+        if (o.paymentStatus === 'PAID') {
+          addPaymentToMethod(o.paymentMethod, o.total);
+        }
+      } else if (o.paymentStatus === 'PAID') {
+        addPaymentToMethod('EFECTIVO', o.total);
       }
     });
 
@@ -292,41 +346,55 @@ export default function DashboardView({ orders = [] }) {
     };
   }, [currentOrders, previousOrders, currentExpenses, previousExpenses, productCostMap]);
 
-  // Ranking de Productos Más Vendidos
+  // Ranking de Productos Más Vendidos (excluyendo cancelados y con costes exactos)
   const topProducts = useMemo(() => {
     const productAgg = {};
 
     currentOrders.forEach((o) => {
+      if (o.status === 'CANCELADO') return;
+
       (o.items || []).forEach((item) => {
-        const key = item.id || item.name;
+        const pId = item.productId || item.id;
+        const normalizedName = (item.name || '').trim();
+        if (!normalizedName) return;
+
+        const key = pId || normalizedName.toLowerCase();
         if (!productAgg[key]) {
           productAgg[key] = {
-            id: item.id,
-            name: item.name,
+            id: pId || key,
+            name: normalizedName,
             quantity: 0,
             revenue: 0,
             estimatedCost: 0,
           };
         }
-        const qty = item.quantity || 1;
-        const subtotal = item.subtotal || (item.unitPrice || 0) * qty;
-        const unitCost =
+
+        const qty = Math.max(1, parseInt(item.quantity, 10) || 1);
+        const unitPrice = Number(item.unitPrice ?? item.price ?? item.basePrice) || 0;
+        const subtotal = Math.round((Number(item.subtotal) || (unitPrice * qty)) * 100) / 100;
+
+        const unitCost = Number(
           item.cost ??
-          productCostMap[item.id] ??
-          productCostMap[(item.name || '').trim().toLowerCase()] ??
-          0;
+          (pId ? productCostMap[pId] : null) ??
+          productCostMap[normalizedName.toLowerCase()] ??
+          0
+        ) || 0;
 
         productAgg[key].quantity += qty;
-        productAgg[key].revenue += subtotal;
-        productAgg[key].estimatedCost += unitCost * qty;
+        productAgg[key].revenue = Math.round((productAgg[key].revenue + subtotal) * 100) / 100;
+        productAgg[key].estimatedCost = Math.round((productAgg[key].estimatedCost + (unitCost * qty)) * 100) / 100;
       });
     });
 
-    const list = Object.values(productAgg).map((p) => ({
-      ...p,
-      profit: p.revenue - p.estimatedCost,
-      margin: p.revenue > 0 ? ((p.revenue - p.estimatedCost) / p.revenue) * 100 : 0,
-    }));
+    const list = Object.values(productAgg).map((p) => {
+      const profit = Math.round((p.revenue - p.estimatedCost) * 100) / 100;
+      const margin = p.revenue > 0 ? Math.round(((profit / p.revenue) * 100) * 10) / 10 : 0;
+      return {
+        ...p,
+        profit,
+        margin,
+      };
+    });
 
     return {
       byQuantity: [...list].sort((a, b) => b.quantity - a.quantity).slice(0, 7),
@@ -339,6 +407,7 @@ export default function DashboardView({ orders = [] }) {
     const pairCount = {};
 
     currentOrders.forEach((o) => {
+      if (o.status === 'CANCELADO') return;
       const items = (o.items || []).filter((i) => i.name);
       if (items.length < 2) return;
 
@@ -361,7 +430,7 @@ export default function DashboardView({ orders = [] }) {
             };
           }
           pairCount[pairKey].count += 1;
-          pairCount[pairKey].totalRevenue += o.total || 0;
+          pairCount[pairKey].totalRevenue = Math.round((pairCount[pairKey].totalRevenue + (Number(o.total) || 0)) * 100) / 100;
         }
       }
     });
@@ -369,7 +438,7 @@ export default function DashboardView({ orders = [] }) {
     return Object.values(pairCount)
       .map((p) => ({
         ...p,
-        avgOrderTotal: p.count > 0 ? p.totalRevenue / p.count : 0,
+        avgOrderTotal: p.count > 0 ? Math.round((p.totalRevenue / p.count) * 100) / 100 : 0,
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 6);
@@ -384,20 +453,27 @@ export default function DashboardView({ orders = [] }) {
     if (products.length > 0 && currentOrders.length > 0) {
       const productSalesMap = {};
       currentOrders.forEach((o) => {
+        if (o.status === 'CANCELADO') return;
         o.items?.forEach((i) => {
-          const pId = i.id || i.name;
+          const pId = i.productId || i.id || i.name;
+          const normalizedName = (i.name || '').trim();
           if (!productSalesMap[pId]) {
+            const catalogProd = products.find((cp) => cp.id === pId || (cp.name && cp.name.trim().toLowerCase() === normalizedName.toLowerCase()));
+            const cost = Number(catalogProd?.cost ?? i.cost ?? 0) || 0;
+            const price = Number(catalogProd?.price ?? i.unitPrice ?? i.price ?? (i.subtotal ? i.subtotal / (i.quantity || 1) : 0)) || 0;
             productSalesMap[pId] = {
               id: pId,
-              name: i.name,
+              name: normalizedName || 'Producto',
               qty: 0,
               revenue: 0,
-              cost: i.cost || 0,
-              price: i.price || (i.subtotal ? i.subtotal / (i.quantity || 1) : 0),
+              cost,
+              price,
             };
           }
-          productSalesMap[pId].qty += i.quantity || 1;
-          productSalesMap[pId].revenue += i.subtotal || ((i.price || 0) * (i.quantity || 1));
+          const qty = Math.max(1, parseInt(i.quantity, 10) || 1);
+          const subtotal = Math.round((Number(i.subtotal) || (productSalesMap[pId].price * qty)) * 100) / 100;
+          productSalesMap[pId].qty += qty;
+          productSalesMap[pId].revenue = Math.round((productSalesMap[pId].revenue + subtotal) * 100) / 100;
         });
       });
 
@@ -409,8 +485,8 @@ export default function DashboardView({ orders = [] }) {
         // Buscar producto "Vaca Lechera" (Alta venta pero margen bajo o costo alto)
         const lowMarginHighVol = soldProducts.find((p) => {
           const catalogProd = products.find((cp) => cp.id === p.id || cp.name === p.name);
-          const cost = catalogProd?.cost || p.cost || 0;
-          const price = catalogProd?.price || p.price || 1;
+          const cost = catalogProd?.cost ?? p.cost ?? 0;
+          const price = catalogProd?.price ?? p.price ?? 1;
           const marginPct = price > 0 ? ((price - cost) / price) * 100 : 0;
           return p.qty >= avgQty && marginPct < 55 && marginPct > 0;
         });
@@ -434,8 +510,8 @@ export default function DashboardView({ orders = [] }) {
         // Buscar producto "Oportunidad de Oro" (Alto margen >65% pero venta debajo del promedio)
         const highMarginLowVol = soldProducts.find((p) => {
           const catalogProd = products.find((cp) => cp.id === p.id || cp.name === p.name);
-          const cost = catalogProd?.cost || p.cost || 0;
-          const price = catalogProd?.price || p.price || 1;
+          const cost = catalogProd?.cost ?? p.cost ?? 0;
+          const price = catalogProd?.price ?? p.price ?? 1;
           const marginPct = price > 0 ? ((price - cost) / price) * 100 : 0;
           return p.qty < avgQty && marginPct >= 65;
         });
@@ -459,6 +535,7 @@ export default function DashboardView({ orders = [] }) {
 
     // 2. IA de Ventas Cruzadas y Creación Automática de Combos (Algoritmo de Afinidad)
     const foodOrdersWithoutBeverage = currentOrders.filter((o) => {
+      if (o.status === 'CANCELADO') return false;
       const hasFood = o.items?.some((i) => !i.name?.toLowerCase().includes('gaseosa') && !i.name?.toLowerCase().includes('jugo') && !i.name?.toLowerCase().includes('chicha') && !i.name?.toLowerCase().includes('agua'));
       const hasDrink = o.items?.some((i) => i.name?.toLowerCase().includes('gaseosa') || i.name?.toLowerCase().includes('jugo') || i.name?.toLowerCase().includes('chicha') || i.name?.toLowerCase().includes('agua'));
       return hasFood && !hasDrink;
@@ -482,11 +559,12 @@ export default function DashboardView({ orders = [] }) {
     }
 
     // 3. IA de Detección de Horas Punta Operativas y Programación de Turnos
-    if (currentOrders.length >= 2) {
+    const validOrdersForPeak = currentOrders.filter((o) => o.status !== 'CANCELADO');
+    if (validOrdersForPeak.length >= 2) {
       const hourCounts = {};
-      currentOrders.forEach((o) => {
-        const d = o.createdAt instanceof Date ? o.createdAt : new Date(o.createdAt || 0);
-        if (!isNaN(d.getTime())) {
+      validOrdersForPeak.forEach((o) => {
+        const d = o.createdAt instanceof Date ? o.createdAt : parseToDate(o.createdAt);
+        if (d && !isNaN(d.getTime())) {
           const hour = d.getHours();
           hourCounts[hour] = (hourCounts[hour] || 0) + 1;
         }
@@ -496,7 +574,7 @@ export default function DashboardView({ orders = [] }) {
       if (hoursSorted.length > 0) {
         const peakHour = parseInt(hoursSorted[0][0], 10);
         const peakCount = hoursSorted[0][1];
-        const peakPct = Math.round((peakCount / currentOrders.length) * 100);
+        const peakPct = Math.round((peakCount / validOrdersForPeak.length) * 100);
 
         insights.push({
           id: 'ai_peak_velocity',

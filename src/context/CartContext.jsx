@@ -373,9 +373,11 @@ export function CartProvider({ children }) {
 
     const newItem = {
       itemId,
+      id: product.id,
       productId: product.id,
       name: product.name,
       basePrice: product.price,
+      cost: Number(product.cost) || 0,
       availablePackagingIds: product.availablePackagingIds || [],
       consumptionType: custom.consumptionType || defaultConsumption,
       unitPrice,
@@ -662,11 +664,14 @@ export function CartProvider({ children }) {
     const qty = Math.max(1, parseInt(quantity, 10) || 1);
     const itemId = `custom_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
+    const customProdId = `custom_${Date.now()}`;
     const newItem = {
       itemId,
-      productId: `custom_${Date.now()}`,
+      id: customProdId,
+      productId: customProdId,
       name: cleanName,
       basePrice: unitPrice,
+      cost: 0,
       unitPrice,
       isManualPrice: true,
       quantity: qty,

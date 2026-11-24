@@ -492,7 +492,9 @@ export default function OrdersView({
 
         return {
           itemId: `item_manual_${Date.now()}_${index}_${Math.random().toString(36).substring(2, 6)}`,
+          id: item.productId || null,
           productId: item.productId || null,
+          cost: Number(matchingProd?.cost) || 0,
           name: item.name.trim(),
           quantity: qty,
           unitPrice,
@@ -551,10 +553,17 @@ export default function OrdersView({
         packagingsTotal: manualPackagingsTotal,
         deliveryFee: parsedDeliveryFee,
         discount: 0,
-        subtotal: Math.round(manualItemsSubtotal * 100) / 100,
+        subtotal: Math.round(Math.max(0, manualItemsSubtotal - manualPackagingsTotal) * 100) / 100,
         total: manualTotalCalculated,
         status: 'ENTREGADO',
         paymentStatus: 'PAID',
+        payments: [
+          {
+            method: manualPaymentMethod,
+            amount: manualTotalCalculated,
+            paidAt: orderDate,
+          },
+        ],
         payment: {
           method: manualPaymentMethod,
           amount: manualTotalCalculated,
@@ -660,10 +669,15 @@ export default function OrdersView({
       }
 
       // Filtro de Turno Operativo (4:00 AM a 3:59 AM)
-      // En la pestaña 'ACTIVE' no filtramos por turno para garantizar que ninguna orden en cocina/salón se pierda
-      if (activeTab !== 'ACTIVE' && shiftBounds?.bounds) {
-        const inShift = isTimestampInShiftRange(o.createdAt, shiftBounds.bounds.start, shiftBounds.bounds.end);
-        if (!inShift) return false;
+      // En la pestaña 'ACTIVE' o en 'ALL' con orden en curso, no descartar para garantizar que ninguna orden activa se pierda
+      if (shiftBounds?.bounds) {
+        const isActive = o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO';
+        if ((activeTab === 'ACTIVE' || activeTab === 'ALL') && isActive) {
+          // Mantener visible en activa o todas
+        } else {
+          const inShift = isTimestampInShiftRange(o.createdAt, shiftBounds.bounds.start, shiftBounds.bounds.end);
+          if (!inShift) return false;
+        }
       }
 
       if (filterModality !== 'ALL') {
@@ -711,19 +725,48 @@ export default function OrdersView({
   }, [orders, shiftBounds]);
 
   const allCount = useMemo(() => {
-    if (!shiftBounds?.bounds) return orders.length;
-    return orders.filter((o) => isTimestampInShiftRange(o.createdAt, shiftBounds.bounds.start, shiftBounds.bounds.end)).length;
+    return orders.filter((o) => {
+      const isActive = o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO';
+      if (isActive) return true;
+      if (!shiftBounds?.bounds) return true;
+      return isTimestampInShiftRange(o.createdAt, shiftBounds.bounds.start, shiftBounds.bounds.end);
+    }).length;
   }, [orders, shiftBounds]);
 
-  const shiftMetrics = useMemo(() => {
-    let totalSales = 0;
-    filteredOrders.forEach((o) => {
-      if (o.status !== 'CANCELADO') {
-        totalSales += Number(o.total) || 0;
+  // Totales acumulados exactos para el turno seleccionado
+  const shiftTotals = useMemo(() => {
+    const shiftOrders = orders.filter((o) => {
+      if (filterModality !== 'ALL') {
+        if (filterModality === 'MESA' && o.modality !== 'MESA') return false;
+        if (filterModality === 'DELIVERY' && o.modality !== 'DELIVERY') return false;
+        if (filterModality === 'PARA_LLEVAR' && o.modality !== 'PARA_LLEVAR' && o.modality !== 'CONSUMO_EXTERNO') return false;
+        if (filterModality === 'MARKET' && o.modality !== 'MARKET') return false;
+      }
+      if (!shiftBounds?.bounds) return true;
+      return isTimestampInShiftRange(o.createdAt, shiftBounds.bounds.start, shiftBounds.bounds.end);
+    });
+
+    let sales = 0;
+    let validCount = 0;
+    let cancelledCount = 0;
+
+    shiftOrders.forEach((o) => {
+      const totalNum = Math.round((Number(o.total) || 0) * 100) / 100;
+      if (o.status === 'CANCELADO') {
+        cancelledCount++;
+      } else {
+        validCount++;
+        sales = Math.round((sales + totalNum) * 100) / 100;
       }
     });
-    return { totalSales };
-  }, [filteredOrders]);
+
+    return {
+      sales,
+      validCount,
+      cancelledCount,
+      totalOrders: shiftOrders.length,
+    };
+  }, [orders, shiftBounds, filterModality]);
 
   const getModalityIcon = (mod) => {
     switch (mod) {
@@ -947,10 +990,17 @@ export default function OrdersView({
               {shiftBounds?.label || 'Historial Completo'}
             </span>
             <span className="text-zinc-600">•</span>
-            <span>{filteredOrders.length} comandas</span>
+            <span>
+              {shiftTotals.validCount} {shiftTotals.validCount === 1 ? 'comanda' : 'comandas'}
+              {shiftTotals.cancelledCount > 0 && (
+                <span className="text-rose-400 text-[11px] ml-1">
+                  ({shiftTotals.cancelledCount} canc.)
+                </span>
+              )}
+            </span>
             <span className="text-zinc-600">•</span>
             <span className="text-emerald-400 font-black">
-              {formatCurrency(shiftMetrics.totalSales)}
+              {formatCurrency(shiftTotals.sales)}
             </span>
           </div>
         </div>
@@ -1536,6 +1586,12 @@ export default function OrdersView({
                 <div className="flex justify-between text-zinc-400">
                   <span>Costo Delivery:</span>
                   <span>{formatCurrency(selectedOrder.deliveryFee)}</span>
+                </div>
+              )}
+              {selectedOrder.discount > 0 && (
+                <div className="flex justify-between text-emerald-400">
+                  <span>Descuento aplicado:</span>
+                  <span>-{formatCurrency(selectedOrder.discount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-white font-black text-base pt-1.5 border-t border-zinc-800">

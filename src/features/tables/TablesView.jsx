@@ -138,7 +138,7 @@ export default function TablesView({
             });
 
             const isOccupied = table.status === 'OCCUPIED' || tableOrders.length > 0;
-            const tableTotal = tableOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+            const tableTotal = Math.round(tableOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0) * 100) / 100;
             const customerName = tableOrders.find((o) => o.customerName)?.customerName;
             const earliestTime = tableOrders.length > 0
               ? Math.min(...tableOrders.map((o) => new Date(o.createdAt || Date.now()).getTime()))

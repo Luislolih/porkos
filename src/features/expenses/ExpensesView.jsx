@@ -190,7 +190,7 @@ export default function ExpensesView() {
 
       const grp = map.get(key);
       grp.expenses.push(exp);
-      grp.total += (exp.amount || 0);
+      grp.total = Math.round((grp.total + (Number(exp.amount) || 0)) * 100) / 100;
     });
 
     return groups;
@@ -198,24 +198,27 @@ export default function ExpensesView() {
 
   // Cálculos para KPIs
   const totalFilteredExpenses = useMemo(() => {
-    return filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const sum = filteredExpenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+    return Math.round(sum * 100) / 100;
   }, [filteredExpenses]);
 
   const thisMonthExpenses = useMemo(() => {
     const now = new Date();
-    return expenses
+    const sum = expenses
       .filter((e) => {
         const d = parseToDate(e.date);
         return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       })
-      .reduce((sum, e) => sum + (e.amount || 0), 0);
+      .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+    return Math.round(sum * 100) / 100;
   }, [expenses]);
 
   const topCategory = useMemo(() => {
     if (filteredExpenses.length === 0) return null;
     const catTotals = {};
     filteredExpenses.forEach((e) => {
-      catTotals[e.category] = (catTotals[e.category] || 0) + (e.amount || 0);
+      const amt = Number(e.amount) || 0;
+      catTotals[e.category] = Math.round(((catTotals[e.category] || 0) + amt) * 100) / 100;
     });
     const sorted = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
     return sorted[0] ? { name: sorted[0][0], total: sorted[0][1] } : null;

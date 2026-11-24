@@ -674,11 +674,13 @@ export function CatalogProvider({ children }) {
   const recordProductSales = (soldItems = []) => {
     setProducts((prev) => {
       const updated = prev.map((p) => {
-        const matchingItem = soldItems.find((item) => item.productId === p.id);
-        if (matchingItem) {
+        const productTotalSold = (soldItems || [])
+          .filter((item) => (item.productId === p.id || item.id === p.id))
+          .reduce((sum, item) => sum + (item.quantity || 1), 0);
+        if (productTotalSold > 0) {
           return {
             ...p,
-            salesCount: (p.salesCount || 0) + (matchingItem.quantity || 1),
+            salesCount: (p.salesCount || 0) + productTotalSold,
           };
         }
         return p;

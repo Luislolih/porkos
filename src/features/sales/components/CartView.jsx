@@ -67,6 +67,7 @@ export default function CartView({
     itemsSubtotal,
     packagingsTotal,
     deliveryFee,
+    discount = 0,
     total,
     itemCount,
     modality,
@@ -825,6 +826,12 @@ export default function CartView({
             <div className="flex justify-between text-zinc-400">
               <span>Costo Delivery:</span>
               <span className="font-semibold">{formatCurrency(deliveryFee)}</span>
+            </div>
+          )}
+          {discount > 0 && (
+            <div className="flex justify-between text-emerald-400">
+              <span>Descuento aplicado:</span>
+              <span className="font-semibold">-{formatCurrency(discount)}</span>
             </div>
           )}
           <div className="flex justify-between text-white font-black text-base sm:text-lg pt-1.5 border-t border-zinc-800">
