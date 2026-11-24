@@ -34,7 +34,7 @@ import Button from '../../components/ui/Button';
 import Toast from '../../components/ui/Toast';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import { handleInputFocusScroll } from '../../utils/scrollIntoViewHelper';
-import { isProductBeverage, isProductDessert } from '../../utils/productCategories';
+import { isProductBeverage, isProductDessert, doesProductSupportCreams } from '../../utils/productCategories';
 import { useAuth } from '../../context/useAuth';
 import { useCatalog } from '../../context/useCatalog';
 
@@ -1330,11 +1330,20 @@ export default function OrdersView({
                         </p>
                       ))}
 
-                      {item.customization?.creamsSummary && item.customization.creamsSummary.trim() !== '' && (
-                        <p className="text-[11px] text-[var(--color-porkos-orange)] font-bold">
-                          Cremas: {item.customization.creamsSummary}
-                        </p>
-                      )}
+                      {(() => {
+                        const catalogProd = products.find((p) => p.id === (item.productId || item.id)) || item;
+                        const supportsCreams = doesProductSupportCreams(catalogProd, categories);
+                        if (!supportsCreams) return null;
+
+                        const creamsText = item.customization?.creamsSummary?.trim();
+                        if (!creamsText) return null;
+
+                        return (
+                          <p className="text-[11px] text-[var(--color-porkos-orange)] font-bold">
+                            Cremas: {creamsText}
+                          </p>
+                        );
+                      })()}
 
                       {item.customization?.selectedExtras?.map((e, eIdx) => {
                         const clean = (e?.name || e?.label || (typeof e === 'string' ? e : '') || 'Extra').replace(/^Extra\s+/i, '');

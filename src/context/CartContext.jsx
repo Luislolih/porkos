@@ -10,6 +10,7 @@ import {
   isProductMarket,
   isProductBeverage,
   isProductDessert,
+  doesProductSupportCreams,
 } from '../utils/productCategories';
 
 const CART_DRAFT_KEY = 'porkos_cart_draft';
@@ -28,7 +29,7 @@ const loadSavedCartDraft = () => {
 };
 
 export function CartProvider({ children }) {
-  const { products = [], packagings: catalogPackagings = [] } = useCatalog();
+  const { products = [], packagings: catalogPackagings = [], categories = [] } = useCatalog();
 
   // Carga inicial del borrador persistido en LocalStorage (recuperación ante cierre accidental)
   const initialDraft = useMemo(() => loadSavedCartDraft(), []);
@@ -333,6 +334,15 @@ export function CartProvider({ children }) {
       custom.packaging = defaultPackaging;
     }
 
+    // Si el producto no cuenta con cremas seleccionadas en su configuración, asegurar que no lleve cremasSummary
+    const supportsCreams = doesProductSupportCreams(product, categories);
+    if (!supportsCreams) {
+      custom.creamsSummary = '';
+      if (custom.creamsDetail) {
+        custom.creamsDetail = { selected: [], mode: 'NONE' };
+      }
+    }
+
     const extrasTotal =
       custom?.selectedExtras?.reduce(
         (sum, ext) => sum + ext.unitPrice * (ext.quantity || 1),
@@ -377,6 +387,9 @@ export function CartProvider({ children }) {
       thumbnailUrl: product.thumbnailUrl || product.image,
       customization: custom,
       subtotal: unitPrice,
+      creamsConfig: product.creamsConfig || null,
+      categoryId: product.categoryId || null,
+      line: product.line || null,
     };
 
     // Cada toque en el catálogo añade un ítem individual con cantidad 1 para permitir
@@ -523,22 +536,32 @@ export function CartProvider({ children }) {
     setItems((prev) =>
       prev.map((item) => {
         if (item.itemId === itemId) {
-          const extrasTotal = newCustomization?.selectedExtras?.reduce(
+          const prod = products.find((p) => p.id === item.productId) || item;
+          const supportsCreams = doesProductSupportCreams(prod, categories);
+          const cleanCustomization = { ...newCustomization };
+          if (!supportsCreams) {
+            cleanCustomization.creamsSummary = '';
+            if (cleanCustomization.creamsDetail) {
+              cleanCustomization.creamsDetail = { selected: [], mode: 'NONE' };
+            }
+          }
+
+          const extrasTotal = cleanCustomization?.selectedExtras?.reduce(
             (sum, ext) => sum + (ext.unitPrice * (ext.quantity || 1)),
             0
           ) || 0;
-          const packagingPrice = newCustomization?.packaging?.price || 0;
+          const packagingPrice = cleanCustomization?.packaging?.price || 0;
           let newUnitPrice = item.basePrice + extrasTotal + packagingPrice;
           let isManual = false;
 
           if (
-            newCustomization?.manualPrice !== undefined &&
-            newCustomization?.manualPrice !== null &&
-            !isNaN(parseFloat(newCustomization?.manualPrice))
+            cleanCustomization?.manualPrice !== undefined &&
+            cleanCustomization?.manualPrice !== null &&
+            !isNaN(parseFloat(cleanCustomization?.manualPrice))
           ) {
-            newUnitPrice = parseFloat(newCustomization.manualPrice);
+            newUnitPrice = parseFloat(cleanCustomization.manualPrice);
             isManual = true;
-          } else if (item.isManualPrice && (newCustomization?.manualPrice === undefined || newCustomization?.manualPrice === null)) {
+          } else if (item.isManualPrice && (cleanCustomization?.manualPrice === undefined || cleanCustomization?.manualPrice === null)) {
             newUnitPrice = item.unitPrice;
             isManual = true;
           }
@@ -548,7 +571,7 @@ export function CartProvider({ children }) {
             ...item,
             unitPrice: roundedUnitPrice,
             isManualPrice: isManual,
-            customization: newCustomization,
+            customization: cleanCustomization,
             subtotal: Math.round(roundedUnitPrice * item.quantity * 100) / 100,
           };
         }

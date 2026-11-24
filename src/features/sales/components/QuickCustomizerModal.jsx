@@ -3,7 +3,7 @@ import { Utensils, Package, ShoppingBag, Plus, Minus } from 'lucide-react';
 import Modal from '../../../components/ui/Modal';
 import { formatCurrency } from '../../../utils/formatters';
 import { useCatalog } from '../../../context/useCatalog';
-import { isProductBeverage, isProductMarket } from '../../../utils/productCategories';
+import { isProductBeverage, isProductMarket, doesProductSupportCreams } from '../../../utils/productCategories';
 import { handleInputFocusScroll } from '../../../utils/scrollIntoViewHelper';
 
 function CustomizerForm({
@@ -17,6 +17,7 @@ function CustomizerForm({
     creams: catalogCreams,
     packagings: catalogPackagings,
     extras: catalogExtras,
+    categories = [],
   } = useCatalog();
 
   // Clasificación precisa de tipo de producto
@@ -96,21 +97,27 @@ function CustomizerForm({
     return initialMods;
   });
 
-  // 3. Cremas: lista dinámica de cremas activas (NUNCA para bebidas ni market)
-  const availableCreams = (isMarketProduct || isBeverage)
+  const productSupportsCreams = doesProductSupportCreams(product, categories);
+
+  // 3. Cremas: lista dinámica de cremas activas (solo si el plato admite y tiene cremas configuradas)
+  const availableCreams = !productSupportsCreams
     ? []
     : (catalogCreams || []).filter(
         (c) =>
           c.active &&
-          (product.creamsConfig?.availableCreamIds?.length
+          (Array.isArray(product.creamsConfig?.availableCreamIds) && product.creamsConfig.availableCreamIds.length > 0
             ? product.creamsConfig.availableCreamIds.includes(c.id)
+            : Array.isArray(product.availableCreamIds) && product.availableCreamIds.length > 0
+            ? product.availableCreamIds.includes(c.id)
             : true)
       );
 
   const [selectedCreams, setSelectedCreams] = useState(() => {
-    if (isMarketProduct || isBeverage) return [];
+    if (!productSupportsCreams || availableCreams.length === 0) return [];
     if (initialCustomization?.creamsDetail?.selected) {
-      return initialCustomization.creamsDetail.selected;
+      return initialCustomization.creamsDetail.selected.filter((id) =>
+        availableCreams.some((c) => c.id === id)
+      );
     }
     return [];
   });
@@ -257,7 +264,7 @@ function CustomizerForm({
   // Confirmar
   const handleConfirm = () => {
     let summary = '';
-    if (!isMarketProduct) {
+    if (productSupportsCreams && availableCreams.length > 0) {
       if (selectedCreams.length > 0) {
         const creamDiminutives = selectedCreams
           .map((id) => {
@@ -321,11 +328,11 @@ function CustomizerForm({
       consumptionType,
       temperature: hasTemperature ? temperature : null,
       creamsSummary: summary,
-      creamsDetail: isMarketProduct
+      creamsDetail: (!productSupportsCreams || availableCreams.length === 0)
         ? { selected: [], mode: 'NONE' }
         : {
             selected: selectedCreams,
-            mode: 'CUSTOM',
+            mode: selectedCreams.length > 0 ? 'CUSTOM' : 'NONE',
           },
       saladSummary: hasSalad ? (saladMode === 'SIN_ENSALADA' ? 'SIN ENSALADA' : 'CON ENSALADA') : '',
       saladDetail: {

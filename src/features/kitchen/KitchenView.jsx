@@ -201,7 +201,7 @@ export default function KitchenView({ orders = [], onUpdateOrderStatus }) {
         {/* Lista de Platos Preparados */}
         <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[380px] pr-0.5 scrollbar-none">
           {kitchenItems.map((item, idx) => {
-            const ticketLines = getItemTicketDetails(item.customization);
+            const ticketLines = getItemTicketDetails(item.customization, item);
 
             return (
               <div

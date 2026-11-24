@@ -240,3 +240,35 @@ export function isProductSnackOrDessert(prod) {
   if (isProductBeverage(prod)) return false;
   return isProductDessert(prod) || isProductSnack(prod);
 }
+
+/**
+ * Determina si un producto admite cremas según su categoría y configuración de carta.
+ * Retorna FALSE si:
+ * - Es bebida, postre o producto de market
+ * - creamsConfig está deshabilitado (enabled: false)
+ * - creamsConfig.availableCreamIds está vacío (0 cremas seleccionadas en configuración del producto)
+ */
+export function doesProductSupportCreams(prod, allCategories = []) {
+  if (!prod) return false;
+  if (isProductBeverage(prod)) return false;
+  if (isProductDessert(prod, allCategories)) return false;
+  if (isProductMarket(prod, allCategories)) return false;
+
+  // Si tiene creamsConfig explícito (creado o editado en configuración del producto)
+  if (prod.creamsConfig && typeof prod.creamsConfig === 'object') {
+    if (prod.creamsConfig.enabled === false) return false;
+    if (Array.isArray(prod.creamsConfig.availableCreamIds)) {
+      return prod.creamsConfig.availableCreamIds.length > 0;
+    }
+    return Boolean(prod.creamsConfig.enabled);
+  }
+
+  // Si tiene availableCreamIds heredado
+  if (Array.isArray(prod.availableCreamIds)) {
+    return prod.availableCreamIds.length > 0;
+  }
+
+  // Si es un producto de restaurante (comida) sin configuración específica de cremas
+  return Boolean(isProductFood(prod, allCategories));
+}
+

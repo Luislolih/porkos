@@ -1,4 +1,6 @@
-export function getItemTicketDetails(customization) {
+import { doesProductSupportCreams } from './productCategories';
+
+export function getItemTicketDetails(customization, item = null, allCategories = []) {
   if (!customization) return [];
 
   const lines = [];
@@ -63,10 +65,13 @@ export function getItemTicketDetails(customization) {
 
   // 3. CREMAS: MAYO, KETCHUP
   if (customization.creamsSummary) {
-    const cleanCreams = customization.creamsSummary
-      .replace(/\s*\+\s*/g, ', ')
-      .replace('NORMAL (CASA)', 'CASA');
-    lines.push({ label: 'CREMAS', value: cleanCreams, type: 'creams' });
+    const supportsCreams = item ? doesProductSupportCreams(item, allCategories) : true;
+    if (supportsCreams) {
+      const cleanCreams = customization.creamsSummary
+        .replace(/\s*\+\s*/g, ', ')
+        .replace('NORMAL (CASA)', 'CASA');
+      lines.push({ label: 'CREMAS', value: cleanCreams, type: 'creams' });
+    }
   }
 
   // 4. EXTRAS: Cada extra en su propia línea para distinguirse con precisión

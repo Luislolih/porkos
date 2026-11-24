@@ -21,7 +21,7 @@ import {
 import { useCart } from '../../../context/useCart';
 import { useCatalog } from '../../../context/useCatalog';
 import { formatCurrency } from '../../../utils/formatters';
-import { isProductMarket } from '../../../utils/productCategories';
+import { isProductMarket, doesProductSupportCreams } from '../../../utils/productCategories';
 import { resolveItemConsumptionType } from '../../../types/constants';
 import Button from '../../../components/ui/Button';
 import ProductThumbnail from '../../../components/ui/ProductThumbnail';
@@ -84,7 +84,7 @@ export default function CartView({
     editingOrder,
     cancelEditingOrder,
   } = useCart();
-  const { products = [] } = useCatalog();
+  const { products = [], categories = [] } = useCatalog();
   const [isTablePickerOpen, setIsTablePickerOpen] = useState(false);
   const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
 
@@ -413,7 +413,9 @@ export default function CartView({
           items.map((item) => {
             const isCustomizable = Boolean(onEditItem);
             const isMarketItem = isMarketMode || !item.requiresKitchen;
-            const showCreams = !isMarketItem && item.customization?.creamsSummary && item.customization.creamsSummary !== 'SIN CREMAS';
+            const itemProd = products.find((p) => p.id === (item.productId || item.id)) || item;
+            const supportsCreams = doesProductSupportCreams(itemProd, categories);
+            const showCreams = supportsCreams && !isMarketItem && item.customization?.creamsSummary && item.customization.creamsSummary !== 'SIN CREMAS';
             const itemConsumption = resolveItemConsumptionType(item, modality);
 
             const hasDetails = Boolean(

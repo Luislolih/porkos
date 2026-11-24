@@ -391,7 +391,15 @@ export default function CatalogView() {
     );
     setProdHasSalad(Boolean(prod.saladConfig?.enabled === true || prod.hasSalad === true));
     setProdHasTemperature(Boolean(isBeverage || subtype === 'BEBIDA' || subtype === 'JUGO'));
-    setProdSelectedCreams(prod.creamsConfig?.availableCreamIds || creams.map((c) => c.id));
+    setProdSelectedCreams(
+      prod.creamsConfig?.enabled === false
+        ? []
+        : Array.isArray(prod.creamsConfig?.availableCreamIds)
+        ? prod.creamsConfig.availableCreamIds
+        : Array.isArray(prod.availableCreamIds)
+        ? prod.availableCreamIds
+        : creams.map((c) => c.id)
+    );
     setProdAvailablePackagingIds(prod.availablePackagingIds || []);
     setImageUploadError(null);
     setIsProductModalOpen(true);
