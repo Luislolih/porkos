@@ -1131,9 +1131,9 @@ export default function SalesView({
             onClick={() => setIsMobileCartOpen(true)}
             className={`w-full ${
               editingOrder
-                ? 'bg-amber-500 text-black'
-                : 'bg-[var(--color-porkos-orange)] text-black'
-            } px-4 py-3 rounded-t-2xl flex items-center justify-between font-black active:opacity-90 transition-opacity cursor-pointer`}
+                ? 'bg-amber-500 active:bg-amber-600 text-black'
+                : 'bg-[var(--color-porkos-orange)] active:bg-[var(--color-porkos-orange-hover)] text-black'
+            } px-4 py-3.5 rounded-t-2xl flex items-center justify-between font-black transition-colors cursor-pointer`}
           >
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-black text-white text-xs flex items-center justify-center font-extrabold">
