@@ -51,12 +51,12 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
   return (
     <>
       {/* Top Bar for Desktop & Mobile */}
-      <header className="sticky top-0 z-40 bg-[#09090B]/95 backdrop-blur-md border-b border-[var(--color-porkos-border)] px-2 sm:px-4 xl:px-6 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 w-full">
+      <header className="sticky top-0 z-40 bg-[#09090B] border-b border-[var(--color-porkos-border)] px-2 sm:px-4 xl:px-6 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 w-full">
         <div className="max-w-[1720px] mx-auto flex items-center justify-between gap-2 xl:gap-3 w-full">
           {/* Logo & Brand */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 whitespace-nowrap select-none">
             <img
-              src="/favicon.png"
+              src="/logo.png"
               alt="Porkos Isotipo"
               className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-contain shadow-sm shrink-0"
             />
@@ -173,7 +173,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
               <div className="flex items-center justify-between pb-3 border-b border-[var(--color-porkos-border)]">
                 <div className="flex items-center gap-2.5">
                   <img
-                    src="/favicon.png"
+                    src="/logo.png"
                     alt="Porkos Isotipo"
                     className="w-8 h-8 rounded-xl object-contain shadow-xs"
                   />

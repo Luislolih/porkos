@@ -6,6 +6,7 @@ const CACHE_NAME = `porkoapp-cache-${BUILD_ID}`;
 // para garantizar que los celulares carguen inmediatamente los scripts de la nueva versión
 const STATIC_ASSETS = [
   '/manifest.json',
+  '/logo.png',
   '/favicon.png',
   '/favicon.png?v=2',
   '/apple-touch-icon.png',
