@@ -313,7 +313,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
       )}
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#09090B]/95 backdrop-blur-md border-t border-[var(--color-porkos-border)] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex items-center justify-around shadow-2xl">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#09090B] border-t border-[var(--color-porkos-border)] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex items-center justify-around shadow-2xl">
         {mobileQuickItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentModule === item.id;

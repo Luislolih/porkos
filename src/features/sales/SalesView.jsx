@@ -886,7 +886,7 @@ export default function SalesView({
   };
 
   return (
-    <div className="relative pb-24 lg:pb-8">
+    <div className={`relative lg:pb-8 ${items.length > 0 ? 'pb-[calc(9.5rem+env(safe-area-inset-bottom))]' : 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]'}`}>
       {/* Toast Notification: Sutil, superior y ágil */}
       {successToast && (
         <Toast
@@ -1125,7 +1125,7 @@ export default function SalesView({
 
       {/* Mobile Floating Cart Summary Button */}
       {items.length > 0 && (
-        <div className="lg:hidden fixed bottom-16 left-3 right-3 z-30 animate-in slide-in-from-bottom-4">
+        <div className="lg:hidden fixed bottom-[calc(4.35rem+env(safe-area-inset-bottom))] left-3 right-3 z-30 animate-in slide-in-from-bottom-4">
           <button
             type="button"
             onClick={() => setIsMobileCartOpen(true)}
@@ -1212,8 +1212,8 @@ export default function SalesView({
       <ScrollToTopButton
         className={
           items.length > 0
-            ? "bottom-36 right-4 sm:bottom-36 sm:right-6 lg:bottom-6 lg:right-[43%] xl:right-[35%]"
-            : "bottom-20 right-4 sm:bottom-20 sm:right-6 lg:bottom-6 lg:right-[43%] xl:right-[35%]"
+            ? "bottom-[calc(8.75rem+env(safe-area-inset-bottom))] right-4 sm:right-6 lg:bottom-6 lg:right-[43%] xl:right-[35%]"
+            : "bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 sm:right-6 lg:bottom-6 lg:right-[43%] xl:right-[35%]"
         }
       />
 
