@@ -13,7 +13,6 @@ import {
   X,
   ChevronRight,
   ChevronDown,
-  MoreHorizontal,
 } from 'lucide-react';
 import { MODULES } from '../../types/constants';
 import { useAuth } from '../../context/useAuth';
@@ -46,6 +45,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
     { id: MODULES.KITCHEN, label: 'Cocina', icon: Flame, badge: activeOrdersCount },
     { id: MODULES.TABLES, label: 'Mesas', icon: Grid2X2 },
     { id: MODULES.ORDERS, label: 'Historial', icon: ClipboardList },
+    { id: MODULES.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
   ].filter((item) => canAccessModule(item.id));
 
   return (
@@ -313,42 +313,34 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
       )}
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#09090B] border-t border-[var(--color-porkos-border)] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex items-center justify-around shadow-2xl">
-        {mobileQuickItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentModule === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onSelectModule(item.id)}
-              className={`
-                flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all relative cursor-pointer active:scale-95 touch-manipulation
-                ${isActive ? 'text-[var(--color-porkos-orange)] font-black' : 'text-zinc-400 hover:text-zinc-200'}
-              `}
-            >
-              <div className="relative">
-                <Icon className={`w-5 h-5 ${isActive ? 'scale-110 stroke-[2.5]' : ''}`} />
-                {item.badge > 0 && (
-                  <span className="absolute -top-1 -right-2 bg-[var(--color-porkos-orange)] text-zinc-950 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
-                    {item.badge}
-                  </span>
-                )}
-              </div>
-              <span className="text-[10px] mt-0.5 tracking-tight font-bold">{item.label}</span>
-            </button>
-          );
-        })}
-
-        {/* Botón "Más" para abrir drawer móvil */}
-        <button
-          type="button"
-          onClick={() => setIsMobileMenuOpen(true)}
-          className="flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-zinc-400 hover:text-zinc-200 cursor-pointer active:scale-95 touch-manipulation"
-        >
-          <MoreHorizontal className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5 tracking-tight font-bold">Más</span>
-        </button>
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#09090B] border-t border-[var(--color-porkos-border)] pb-[env(safe-area-inset-bottom)]">
+        <div className="h-14 px-1 flex items-center justify-around">
+          {mobileQuickItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentModule === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onSelectModule(item.id)}
+                className={`
+                  flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all relative cursor-pointer active:scale-95 touch-manipulation min-w-0
+                  ${isActive ? 'text-[var(--color-porkos-orange)] font-black' : 'text-zinc-400 hover:text-zinc-200'}
+                `}
+              >
+                <div className="relative">
+                  <Icon className={`w-5 h-5 ${isActive ? 'scale-110 stroke-[2.5]' : ''}`} />
+                  {item.badge > 0 && (
+                    <span className="absolute -top-1 -right-2 bg-[var(--color-porkos-orange)] text-zinc-950 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] mt-0.5 tracking-tight font-bold truncate max-w-full">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </nav>
 
       {/* Dialog de confirmación de cierre de sesión */}

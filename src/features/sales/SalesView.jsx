@@ -1123,17 +1123,17 @@ export default function SalesView({
         </div>
       </div>
 
-      {/* Mobile Floating Cart Summary Button */}
+      {/* Mobile Floating Cart Summary Button - pegado al menú inferior y sin sombras de luz */}
       {items.length > 0 && (
-        <div className="lg:hidden fixed bottom-[calc(4.35rem+env(safe-area-inset-bottom))] left-3 right-3 z-30 animate-in slide-in-from-bottom-4">
+        <div className="lg:hidden fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] left-0 right-0 z-30">
           <button
             type="button"
             onClick={() => setIsMobileCartOpen(true)}
             className={`w-full ${
               editingOrder
-                ? 'bg-amber-500 text-black shadow-amber-500/30'
-                : 'bg-[var(--color-porkos-orange)] text-black shadow-orange-500/30'
-            } p-3.5 rounded-2xl flex items-center justify-between font-black shadow-xl active:scale-[0.98] transition-all cursor-pointer`}
+                ? 'bg-amber-500 text-black'
+                : 'bg-[var(--color-porkos-orange)] text-black'
+            } px-4 py-3 rounded-t-2xl flex items-center justify-between font-black active:opacity-90 transition-opacity cursor-pointer`}
           >
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-black text-white text-xs flex items-center justify-center font-extrabold">
@@ -1212,8 +1212,8 @@ export default function SalesView({
       <ScrollToTopButton
         className={
           items.length > 0
-            ? "bottom-[calc(8.75rem+env(safe-area-inset-bottom))] right-4 sm:right-6 lg:bottom-6 lg:right-[43%] xl:right-[35%]"
-            : "bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 sm:right-6 lg:bottom-6 lg:right-[43%] xl:right-[35%]"
+            ? "bottom-[calc(7.75rem+env(safe-area-inset-bottom))] right-4 sm:right-6 lg:bottom-6 lg:right-[43%] xl:right-[35%]"
+            : "bottom-[calc(4.25rem+env(safe-area-inset-bottom))] right-4 sm:right-6 lg:bottom-6 lg:right-[43%] xl:right-[35%]"
         }
       />
 
