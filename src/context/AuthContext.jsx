@@ -9,6 +9,8 @@ import { auth } from '../lib/firebase';
 import { AuthContext } from './auth-context';
 import {
   subscribeToUsers,
+  getUserFromFirestore,
+  createUserIfNotExistsInFirestore,
   saveUserToFirestore,
   deleteUserFromFirestore,
   subscribeToRolePermissions,
@@ -39,8 +41,25 @@ export function AuthProvider({ children }) {
     }
   });
 
-  // 1. Suscripción a usuarios y permisos desde Firestore
+  const upsertLocalAuthorizedUser = useCallback((userDoc) => {
+    if (!userDoc?.email) return;
+    const email = userDoc.email.toLowerCase().trim();
+    setAuthorizedUsers((prev) => {
+      const next = [...prev.filter((u) => u.email?.toLowerCase() !== email), { ...userDoc, email }];
+      try {
+        localStorage.setItem('porkos_authorized_users', JSON.stringify(next));
+      } catch (e) {
+        console.warn(e);
+      }
+      return next;
+    });
+  }, []);
+
+  // 1. Suscripción a usuarios y permisos desde Firestore SOLO cuando hay sesión autenticada
+  // (evita que onSnapshot muera por permission-denied antes de hacer login)
   useEffect(() => {
+    if (!firebaseUser?.uid) return undefined;
+
     const unsubUsers = subscribeToUsers((remoteUsers) => {
       if (Array.isArray(remoteUsers)) {
         setAuthorizedUsers(remoteUsers);
@@ -67,10 +86,11 @@ export function AuthProvider({ children }) {
       unsubUsers();
       unsubPerms();
     };
-  }, []);
+  }, [firebaseUser?.uid]);
 
-  // 2. Escuchar el estado de autenticación en Firebase
+  // 2. Escuchar el estado de autenticación en Firebase y cargar rol real antes de liberar loading
   useEffect(() => {
+    let isMounted = true;
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         const email = currentUser.email?.toLowerCase();
@@ -81,15 +101,30 @@ export function AuthProvider({ children }) {
           photoURL: currentUser.photoURL,
           emailVerified: currentUser.emailVerified,
         };
-        setFirebaseUser(profile);
-      } else {
+
+        // Consultar rol actualizado en Firestore antes de mostrar la UI para evitar degradar a GUEST
+        if (email) {
+          const remoteUser = await getUserFromFirestore(email);
+          if (remoteUser && isMounted) {
+            upsertLocalAuthorizedUser(remoteUser);
+          }
+        }
+
+        if (isMounted) {
+          setFirebaseUser(profile);
+          setLoading(false);
+        }
+      } else if (isMounted) {
         setFirebaseUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
-  }, []);
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [upsertLocalAuthorizedUser]);
 
   // 3. Resolver usuario con su rol blindado y permisos
   const user = useMemo(() => {
@@ -154,23 +189,29 @@ export function AuthProvider({ children }) {
         displayName,
         email,
         photoURL: result.user.photoURL,
+        emailVerified: result.user.emailVerified,
       };
-      setFirebaseUser(loggedUser);
 
-      // Auto-registrar usuario en Firestore si aún no existe en authorizedUsers
+      // Verificar rol existente en Firestore primero (nunca sobrescribir un OWNER/ADMIN existente)
       if (email) {
-        const matching = authorizedUsers.find((u) => u.email?.toLowerCase() === email);
-        if (!matching) {
+        const existingRemote = await getUserFromFirestore(email);
+        if (existingRemote) {
+          upsertLocalAuthorizedUser(existingRemote);
+        } else {
           const autoRole = (email === 'admin@porkos.pe' || (email.endsWith('@porkos.pe') && result.user.emailVerified)) ? 'ADMIN' : 'GUEST';
-          await saveUserToFirestore({
+          const res = await createUserIfNotExistsInFirestore({
             email,
             displayName,
             role: autoRole,
             photoURL: loggedUser.photoURL || null,
           });
+          if (res?.data) {
+            upsertLocalAuthorizedUser(res.data);
+          }
         }
       }
 
+      setFirebaseUser(loggedUser);
       setLoading(false);
       return loggedUser;
     } catch (err) {

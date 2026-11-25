@@ -72,7 +72,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background-color: var(--color-porkos-bg);
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* Animaciones fluidas para modales y transiciones */

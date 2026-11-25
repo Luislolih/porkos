@@ -51,7 +51,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
   return (
     <>
       {/* Top Bar for Desktop & Mobile */}
-      <header className="sticky top-0 z-30 bg-[#09090B]/95 backdrop-blur-md border-b border-[var(--color-porkos-border)] px-2 sm:px-4 xl:px-6 py-2 w-full">
+      <header className="sticky top-0 z-40 bg-[#09090B]/95 backdrop-blur-md border-b border-[var(--color-porkos-border)] px-2 sm:px-4 xl:px-6 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 w-full">
         <div className="max-w-[1720px] mx-auto flex items-center justify-between gap-2 xl:gap-3 w-full">
           {/* Logo & Brand */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 whitespace-nowrap select-none">
@@ -313,7 +313,7 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
       )}
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#09090B]/95 backdrop-blur-md border-t border-[var(--color-porkos-border)] px-2 py-1.5 flex items-center justify-around shadow-2xl">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#09090B]/95 backdrop-blur-md border-t border-[var(--color-porkos-border)] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex items-center justify-around shadow-2xl">
         {mobileQuickItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentModule === item.id;

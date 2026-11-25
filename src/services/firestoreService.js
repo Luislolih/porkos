@@ -840,6 +840,54 @@ export function subscribeToUsers(onUpdate, onError) {
   }
 }
 
+export async function getUserFromFirestore(userEmail) {
+  try {
+    const email = userEmail?.toLowerCase().trim();
+    if (!email) return null;
+    const docSnap = await getDoc(doc(db, 'users', email));
+    if (docSnap.exists()) {
+      return {
+        ...docSnap.data(),
+        id: docSnap.id,
+        email: docSnap.data().email || docSnap.id,
+      };
+    }
+    return null;
+  } catch (err) {
+    console.warn('No se pudo leer usuario en Firestore:', err?.message);
+    return null;
+  }
+}
+
+export async function createUserIfNotExistsInFirestore(userData) {
+  try {
+    const userEmail = userData.email?.toLowerCase().trim();
+    if (!userEmail) return { success: false, error: 'Email requerido' };
+    const docRef = doc(db, 'users', userEmail);
+    const existing = await getDoc(docRef);
+    if (existing.exists()) {
+      return {
+        success: true,
+        existed: true,
+        data: { ...existing.data(), id: existing.id, email: existing.data().email || existing.id },
+      };
+    }
+    await setDoc(
+      docRef,
+      sanitizePayload({
+        ...userData,
+        email: userEmail,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+    return { success: true, existed: false };
+  } catch (err) {
+    console.warn('Auto-registro de usuario omitido:', err?.message);
+    return { success: false, error: err };
+  }
+}
+
 export async function saveUserToFirestore(userData) {
   try {
     const userEmail = userData.email?.toLowerCase().trim();
