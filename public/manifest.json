@@ -1,29 +1,19 @@
 {
-  "name": "PORKOAPP - Sistema Gastronómico & POS",
+  "id": "/",
+  "name": "PORKOAPP",
   "short_name": "PORKOAPP",
-  "description": "Sistema Operativo Gastronómico, POS y Control de Cocina en Tiempo Real",
+  "description": "PORKOAPP - Gestión de Restaurante, Cocina y Finanzas en Tiempo Real",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#09090B",
-  "theme_color": "#F97316",
+  "theme_color": "#09090B",
   "icons": [
     {
       "src": "/favicon.png",
-      "sizes": "192x192",
+      "sizes": "1000x1000",
       "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/favicon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
       "purpose": "any"
     }
   ]

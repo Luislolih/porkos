@@ -34,7 +34,6 @@ import {
 import { parseToDate } from './utils/formatters';
 import { playOrderChime } from './utils/audioChime';
 import { sendOrderNotification } from './utils/notifications';
-import { Flame } from 'lucide-react';
 
 function saveOrdersLocal(ordersList) {
   try {
@@ -609,9 +608,11 @@ function AppContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#080808] flex flex-col items-center justify-center p-4">
-        <div className="w-16 h-16 rounded-2xl bg-[var(--color-porkos-orange)] text-black flex items-center justify-center shadow-2xl shadow-orange-500/20 animate-bounce">
-          <Flame className="w-10 h-10 fill-current" />
-        </div>
+        <img
+          src="/favicon.png"
+          alt="PORKOAPP"
+          className="w-24 h-24 object-contain animate-pulse"
+        />
         <p className="mt-4 text-xs font-black uppercase tracking-widest text-zinc-400">
           Cargando PORKOAPP...
         </p>

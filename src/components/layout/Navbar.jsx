@@ -61,12 +61,9 @@ export default function Navbar({ currentModule, onSelectModule, activeOrdersCoun
               className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-contain shadow-sm shrink-0"
             />
             <div className="shrink-0">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center">
                 <span className="font-black text-base sm:text-lg text-white tracking-wider">
                   PORKO<span className="text-[var(--color-porkos-orange)]">APP</span>
-                </span>
-                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 uppercase">
-                  POS
                 </span>
               </div>
             </div>

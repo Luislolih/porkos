@@ -7,7 +7,7 @@ const CACHE_NAME = `porkoapp-cache-${BUILD_ID}`;
 const STATIC_ASSETS = [
   '/manifest.json',
   '/favicon.png',
-  '/favicon.svg',
+  '/favicon.png?v=2',
 ];
 
 // Permitir forzar activación inmediata mediante mensajes
@@ -28,7 +28,7 @@ self.addEventListener('install', (event) => {
 
 // 2. Activación: limpiar de inmediato caches antiguas de la aplicación
 // NOTA UX: Conservar IMAGE_CACHE_NAME para que las imágenes de productos carguen al instante (0ms)
-const IMAGE_CACHE_NAME = 'porkoapp-images-v1';
+const IMAGE_CACHE_NAME = 'porkoapp-images-v2';
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(

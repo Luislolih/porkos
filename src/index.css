@@ -163,6 +163,22 @@ body {
   scrollbar-width: none;
 }
 
+/* Scrollbar delgado y estilizado para listas internas */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.45);
+  border-radius: 9999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--color-porkos-orange);
+}
+
 /* Prevenir auto-zoom molesto en inputs en móviles */
 @media screen and (max-width: 768px) {
   input,
