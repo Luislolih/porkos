@@ -8,6 +8,10 @@ const STATIC_ASSETS = [
   '/manifest.json',
   '/favicon.png',
   '/favicon.png?v=2',
+  '/apple-touch-icon.png',
+  '/pwa-icon-192.png',
+  '/pwa-icon-512.png',
+  '/pwa-icon-maskable.png',
 ];
 
 // Permitir forzar activación inmediata mediante mensajes
