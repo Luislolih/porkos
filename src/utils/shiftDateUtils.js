@@ -19,7 +19,8 @@ export function getShiftDateString(dateInput = new Date()) {
 
   const d = parseToDate(dateInput) || (dateInput instanceof Date ? dateInput : new Date(dateInput));
   if (!d || isNaN(d.getTime())) {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
+    const fallbackShifted = new Date(Date.now() - SHIFT_START_HOUR * 60 * 60 * 1000);
+    return fallbackShifted.toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
   }
 
   // Si el objeto Date fue creado como fecha de calendario pura (00:00:00.000 local),
@@ -69,11 +70,9 @@ export function getPreviousShiftDateString(shiftDateInput = new Date()) {
  */
 export function getShiftBoundsForDate(dateStrOrDate = new Date()) {
   const shiftDateStr = getShiftDateString(dateStrOrDate);
-  const [year, month, day] = shiftDateStr.split('-').map(Number);
-
-  const start = new Date(year, month - 1, day, SHIFT_START_HOUR, 0, 0, 0);
-  const nextDay = new Date(year, month - 1, day + 1, SHIFT_START_HOUR, 0, 0, 0);
-  const end = new Date(nextDay.getTime() - 1);
+  const startHour = String(SHIFT_START_HOUR).padStart(2, '0');
+  const start = new Date(`${shiftDateStr}T${startHour}:00:00.000-05:00`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
 
   return { start, end, shiftDateStr };
 }
@@ -110,4 +109,49 @@ export function formatShiftDisplayDate(dateInput = new Date()) {
   if (!dateStr || !dateStr.includes('-')) return '';
   const [y, m, d] = dateStr.split('-');
   return `${d}/${m}/${y}`;
+}
+
+/**
+ * Obtiene la hora actual (0..23) en zona horaria de Perú (America/Lima).
+ * @param {Date|string|number} [dateInput=new Date()]
+ * @returns {number}
+ */
+export function getPeruHour(dateInput = new Date()) {
+  const d = parseToDate(dateInput) || new Date();
+  const hourStr = new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    hour12: false,
+    timeZone: 'America/Lima',
+  }).format(d);
+  const hour = Number(hourStr);
+  return hour === 24 ? 0 : hour;
+}
+
+/**
+ * Resuelve el timestamp real (Date) para un gasto asignado a un turno operativo 'YYYY-MM-DD'.
+ * - Si se edita sin cambiar de turno operativo, conserva el timestamp original exacto.
+ * - Si el turno seleccionado coincide con el turno operativo actual, usa la fecha y hora actual (now).
+ * - Si corresponde a otro turno operativo (histórico o futuro), usa las 12:00:00 (-05:00).
+ *
+ * @param {string} targetShiftStr
+ * @param {{ now?: Date, originalDate?: Date|string|number|null }} [options]
+ * @returns {Date}
+ */
+export function resolveExpenseDateForShift(targetShiftStr, { now = new Date(), originalDate = null } = {}) {
+  const cleanTarget = typeof targetShiftStr === 'string' ? targetShiftStr.trim() : '';
+  const parsedOriginal = originalDate ? parseToDate(originalDate) : null;
+
+  if (!cleanTarget) {
+    return parsedOriginal || now;
+  }
+
+  if (parsedOriginal && getShiftDateString(parsedOriginal) === cleanTarget) {
+    return parsedOriginal;
+  }
+
+  if (cleanTarget === getShiftDateString(now)) {
+    return now;
+  }
+
+  return new Date(`${cleanTarget}T12:00:00-05:00`);
 }

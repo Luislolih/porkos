@@ -40,7 +40,11 @@ export function formatFirestoreDate(val) {
   }
   if (typeof val === 'number') return new Date(val);
   if (typeof val === 'string') {
-    const d = new Date(val);
+    const trimmed = val.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return new Date(`${trimmed}T12:00:00-05:00`);
+    }
+    const d = new Date(trimmed);
     if (!isNaN(d.getTime())) return d;
   }
   return new Date();
@@ -431,6 +435,12 @@ export function subscribeToProducts(onUpdate, onError) {
   }
 }
 
+function sanitizeExternalImageUrl(val) {
+  if (typeof val !== 'string') return '';
+  const trimmed = val.trim();
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : '';
+}
+
 export async function saveProductToFirestore(product) {
   try {
     const docRef = doc(db, 'products', product.id);
@@ -438,16 +448,8 @@ export async function saveProductToFirestore(product) {
 
     // REGLA ESTRICTA: Solo URLs web externas válidas (http/https).
     // NUNCA guardar Base64 ni blob en documentos de Firestore.
-    let img = sanitizedProduct.image;
-    if (typeof img === 'string') {
-      img = img.trim();
-      if (!img.startsWith('http://') && !img.startsWith('https://')) {
-        img = '';
-      }
-    } else {
-      img = '';
-    }
-    sanitizedProduct.image = img;
+    sanitizedProduct.image = sanitizeExternalImageUrl(sanitizedProduct.image);
+    sanitizedProduct.thumbnailUrl = sanitizeExternalImageUrl(sanitizedProduct.thumbnailUrl) || sanitizedProduct.image;
 
     const cleanData = sanitizePayload(sanitizedProduct);
     await setDoc(docRef, cleanData, { merge: true });
@@ -654,6 +656,7 @@ export async function saveExpenseToFirestore(expense) {
 
     const cleanData = {
       ...sanitized,
+      shiftDate: getShiftDateString(validDate),
       date: Timestamp.fromDate(validDate),
       createdAt: serverTimestamp(),
     };
@@ -678,6 +681,7 @@ export async function updateExpenseInFirestore(expenseId, expenseData) {
         ? expenseData.date
         : formatFirestoreDate(expenseData.date);
       cleanData.date = Timestamp.fromDate(validDate);
+      cleanData.shiftDate = getShiftDateString(validDate);
     }
     await setDoc(docRef, cleanData, { merge: true });
     return true;

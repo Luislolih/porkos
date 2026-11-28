@@ -499,6 +499,10 @@ export function CatalogProvider({ children }) {
     if (!cleanImage.startsWith('http://') && !cleanImage.startsWith('https://') && !cleanImage.startsWith('data:image/')) {
       cleanImage = '';
     }
+    let cleanThumb = typeof newProduct.thumbnailUrl === 'string' ? newProduct.thumbnailUrl.trim() : '';
+    if (!cleanThumb.startsWith('http://') && !cleanThumb.startsWith('https://') && !cleanThumb.startsWith('data:image/')) {
+      cleanThumb = '';
+    }
 
     const line = newProduct.line || (isProductMarket(newProduct) ? 'MARKET' : isProductBeverage(newProduct) ? 'BEBIDAS' : isProductDessert(newProduct) ? 'POSTRES' : 'COMIDA');
     const categoryId = newProduct.categoryId || (line === 'MARKET' ? 'cat_market' : line === 'BEBIDAS' ? 'cat_bebidas' : line === 'POSTRES' ? 'cat_postres' : 'cat_comida');
@@ -515,6 +519,8 @@ export function CatalogProvider({ children }) {
       price: parseFloat(newProduct.price) || 0,
       cost: parseFloat(newProduct.cost) || 0,
       image: cleanImage,
+      thumbnailUrl: cleanThumb || cleanImage,
+      imageMetadata: newProduct.imageMetadata && typeof newProduct.imageMetadata === 'object' ? newProduct.imageMetadata : null,
       requiresKitchen: line === 'MARKET' ? false : (newProduct.requiresKitchen ?? true),
       active: true,
       defaultPackagingId: newProduct.defaultPackagingId || (packagings[0]?.id || ''),
@@ -576,6 +582,9 @@ export function CatalogProvider({ children }) {
     const cleanFields = { ...updatedFields };
     if (typeof cleanFields.image === 'string' && cleanFields.image.trim().startsWith('blob:')) {
       cleanFields.image = '';
+    }
+    if (typeof cleanFields.thumbnailUrl === 'string' && cleanFields.thumbnailUrl.trim().startsWith('blob:')) {
+      cleanFields.thumbnailUrl = '';
     }
 
     setProducts((prev) => {

@@ -32,8 +32,51 @@ export const IMAGE_PROFILES = {
   },
 };
 
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-const MAX_ORIGINAL_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB para evitar saturar memoria en móviles
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/x-png',
+  'image/webp',
+  'image/gif',
+  'image/bmp',
+  'image/avif',
+  'image/heic',
+  'image/heif',
+  'image/tiff',
+];
+const ALLOWED_EXTENSIONS_RE = /\.(jpe?g|png|webp|gif|bmp|avif|heic|heif|tiff?)$/i;
+const MAX_ORIGINAL_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB (se redimensiona localmente antes de subir)
+const STORAGE_SAFE_MAX_BYTES = 260 * 1024; // Margen seguro bajo el límite de 300 KB en storage.rules
+
+let cachedWebpSupport = null;
+
+function supportsWebpEncoding() {
+  if (cachedWebpSupport !== null) return cachedWebpSupport;
+  try {
+    const testCanvas = document.createElement('canvas');
+    testCanvas.width = 1;
+    testCanvas.height = 1;
+    const dataUrl = testCanvas.toDataURL('image/webp');
+    cachedWebpSupport = typeof dataUrl === 'string' && dataUrl.startsWith('data:image/webp');
+  } catch {
+    cachedWebpSupport = false;
+  }
+  return cachedWebpSupport;
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    if (!blob) {
+      resolve('');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(new Error('No se pudo generar la vista previa local de la imagen.'));
+    reader.readAsDataURL(blob);
+  });
+}
 
 /**
  * Valida tipo y tamaño original del archivo
@@ -42,16 +85,24 @@ export function validateImageFile(file) {
   if (!file) {
     return { valid: false, error: 'No se seleccionó ningún archivo.' };
   }
-  if (!ALLOWED_MIME_TYPES.includes(file.type.toLowerCase())) {
+  if (file.size === 0) {
+    return { valid: false, error: 'El archivo seleccionado está vacío.' };
+  }
+  const mime = (file.type || '').toLowerCase().trim();
+  const hasImageMime = mime.startsWith('image/') && mime !== 'image/svg+xml';
+  const hasAllowedMime = ALLOWED_MIME_TYPES.includes(mime);
+  const hasAllowedExt = typeof file.name === 'string' && ALLOWED_EXTENSIONS_RE.test(file.name);
+
+  if (!hasImageMime && !hasAllowedMime && !(mime === '' && hasAllowedExt)) {
     return {
       valid: false,
-      error: 'Formato no compatible. Sube una fotografía en formato JPG, PNG o WebP.',
+      error: 'Formato no compatible. Sube una fotografía JPG, PNG, WebP, AVIF o HEIC.',
     };
   }
   if (file.size > MAX_ORIGINAL_SIZE_BYTES) {
     return {
       valid: false,
-      error: `La fotografía supera los 15 MB permitidos (${(file.size / (1024 * 1024)).toFixed(1)} MB).`,
+      error: `La fotografía supera los 25 MB permitidos (${(file.size / (1024 * 1024)).toFixed(1)} MB).`,
     };
   }
   return { valid: true, error: null };
@@ -96,12 +147,24 @@ function loadImageElement(file) {
 
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
+      if ((img.naturalWidth || img.width) <= 0 || (img.naturalHeight || img.height) <= 0) {
+        reject(new Error('El archivo no contiene una imagen válida.'));
+        return;
+      }
       resolve(img);
     };
 
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error('No se pudo decodificar el archivo de imagen.'));
+      const mime = (file.type || '').toLowerCase();
+      const isHeic = mime.includes('heic') || mime.includes('heif') || /\.(heic|heif)$/i.test(file.name || '');
+      reject(
+        new Error(
+          isHeic
+            ? 'Este navegador no puede abrir fotos HEIC directamente. Conviértela a PNG/JPG o súbela desde Safari.'
+            : 'No se pudo leer el archivo de imagen. Prueba exportándolo como PNG o JPG.'
+        )
+      );
     };
 
     img.src = objectUrl;
@@ -109,25 +172,25 @@ function loadImageElement(file) {
 }
 
 /**
- * Convierte un canvas a Blob con fallback si WebP no es soportado
+ * Convierte un canvas a Blob con verificación real del MIME resultante (evita fallback silencioso a PNG en Safari)
  */
 function canvasToBlob(canvas, mimeType, quality) {
   return new Promise((resolve) => {
     canvas.toBlob(
       (blob) => {
-        if (blob) {
+        if (blob && (!blob.type || blob.type === mimeType)) {
           resolve({ blob, mimeType });
         } else if (mimeType === 'image/webp') {
-          // Fallback a JPEG si WebP falla en el navegador
+          // Fallback real a JPEG si el navegador no codifica WebP (p. ej. Safari devuelve image/png)
           canvas.toBlob(
             (fallbackBlob) => {
-              resolve({ blob: fallbackBlob, mimeType: 'image/jpeg' });
+              resolve({ blob: fallbackBlob, mimeType: fallbackBlob?.type || 'image/jpeg' });
             },
             'image/jpeg',
             quality
           );
         } else {
-          resolve({ blob: null, mimeType });
+          resolve({ blob: blob || null, mimeType: blob?.type || mimeType });
         }
       },
       mimeType,
@@ -141,6 +204,7 @@ function canvasToBlob(canvas, mimeType, quality) {
  */
 async function compressToProfile(img, profile) {
   const { maxDimension, absoluteMaxBytes, initialQuality } = profile;
+  const maxAllowedBytes = Math.min(absoluteMaxBytes, STORAGE_SAFE_MAX_BYTES);
   let { width, height } = calculateFitDimensions(img.naturalWidth || img.width, img.naturalHeight || img.height, maxDimension);
 
   const canvas = document.createElement('canvas');
@@ -153,11 +217,12 @@ async function compressToProfile(img, profile) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
+  const targetMimeType = supportsWebpEncoding() ? 'image/webp' : 'image/jpeg';
   let currentQuality = initialQuality;
   let bestBlob = null;
-  let bestMimeType = 'image/webp';
+  let bestMimeType = targetMimeType;
   let attempts = 0;
-  const MAX_ATTEMPTS = 5;
+  const MAX_ATTEMPTS = 8;
 
   // Ciclo adaptativo: si supera el peso máximo, reduce calidad y luego dimensiones proporcionalmente
   while (attempts < MAX_ATTEMPTS) {
@@ -167,32 +232,42 @@ async function compressToProfile(img, profile) {
 
     // Limpiar canvas y dibujar imagen (al redibujar en canvas se despojan los metadatos EXIF)
     ctx.clearRect(0, 0, width, height);
+    if (targetMimeType === 'image/jpeg') {
+      // Para JPEG (sin transparencia), rellenar con fondo oscuro de las tarjetas antes de dibujar
+      ctx.fillStyle = '#09090b';
+      ctx.fillRect(0, 0, width, height);
+    }
     ctx.drawImage(img, 0, 0, width, height);
 
-    const result = await canvasToBlob(canvas, 'image/webp', currentQuality);
+    const result = await canvasToBlob(canvas, targetMimeType, currentQuality);
     if (!result.blob) break;
 
     bestBlob = result.blob;
     bestMimeType = result.mimeType;
 
     // Si ya cumple el peso objetivo, terminar
-    if (bestBlob.size <= absoluteMaxBytes) {
+    if (bestBlob.size <= maxAllowedBytes) {
       break;
     }
 
     // Reducción progresiva adaptativa
-    if (currentQuality > 0.65) {
-      currentQuality -= 0.08;
-    } else if (width > 320 && height > 320) {
-      // Reducir dimensiones 10% adicional manteniendo relación de aspecto
-      width = Math.round(width * 0.9);
-      height = Math.round(height * 0.9);
+    if (currentQuality > 0.62) {
+      currentQuality = Math.max(0.58, currentQuality - 0.08);
+    } else if (width > 280 || height > 280) {
+      // Reducir dimensiones proporcionalmente manteniendo relación de aspecto
+      width = Math.max(1, Math.round(width * 0.85));
+      height = Math.max(1, Math.round(height * 0.85));
     } else {
-      currentQuality = Math.max(0.55, currentQuality - 0.05);
+      currentQuality = Math.max(0.48, currentQuality - 0.06);
     }
   }
 
-  const dataUrl = canvas.toDataURL(bestMimeType, currentQuality);
+  if (!bestBlob || bestBlob.size === 0) {
+    throw new Error('No se pudo generar la versión optimizada de la fotografía.');
+  }
+
+  const dataUrl = await blobToDataUrl(bestBlob);
+  const finalMimeType = bestBlob.type || bestMimeType;
 
   return {
     blob: bestBlob,
@@ -200,7 +275,8 @@ async function compressToProfile(img, profile) {
     width,
     height,
     sizeBytes: bestBlob ? bestBlob.size : 0,
-    format: bestMimeType === 'image/webp' ? 'webp' : 'jpeg',
+    mimeType: finalMimeType,
+    format: finalMimeType === 'image/webp' ? 'webp' : 'jpeg',
   };
 }
 

@@ -157,6 +157,8 @@ export default function CatalogView() {
   // Estados de carga de foto
   const fileInputRef = useRef(null);
   const [imagePreview, setImagePreview] = useState('');
+  const [previewFallbackUrl, setPreviewFallbackUrl] = useState('');
+  const [previewLoadFailed, setPreviewLoadFailed] = useState(false);
   const [prodThumbnailUrl, setProdThumbnailUrl] = useState('');
   const [prodImageMetadata, setProdImageMetadata] = useState(null);
   const [imageStats, setImageStats] = useState(null);
@@ -192,6 +194,8 @@ export default function CatalogView() {
 
     setIsUploadingImage(true);
     setImageUploadError(null);
+    setPreviewLoadFailed(false);
+    setPreviewFallbackUrl('');
 
     const tempBlobUrl = URL.createObjectURL(file);
     setImagePreview(tempBlobUrl);
@@ -207,6 +211,7 @@ export default function CatalogView() {
           optimizedSize: result.optimizedSize,
           reductionPercent: result.reductionPercent,
         });
+        setPreviewFallbackUrl(result.localPreviewUrl || '');
         setImagePreview(result.url);
         setImageStorageSource('firebase');
       } else if (result?.localPreviewUrl) {
@@ -218,28 +223,36 @@ export default function CatalogView() {
           optimizedSize: result.optimizedSize,
           reductionPercent: result.reductionPercent,
         });
+        setPreviewFallbackUrl(result.localPreviewUrl);
         setImagePreview(result.localPreviewUrl);
         setImageStorageSource('local_optimized');
         if (result.errorCode === 'storage/unauthorized') {
-          setImageUploadError('Aviso: Firebase Storage rechazó la subida por reglas de seguridad. Tu foto se comprimió y se guardará para verse en la app.');
+          setImageUploadError('Aviso: Firebase Storage rechazó la subida por reglas de seguridad. Tu foto se comprimió localmente.');
         } else if (result.errorCode === 'storage/bucket-not-found') {
-          setImageUploadError('Aviso: El bucket de Firebase Storage no está activado. Tu foto se comprimió localmente a WebP.');
+          setImageUploadError('Aviso: El bucket de Firebase Storage no está activado. Tu foto se comprimió localmente.');
         } else {
-          setImageUploadError(result.errorMessage || 'Foto optimizada lista para guardar en la app.');
+          setImageUploadError(result.errorMessage || 'Foto optimizada lista en modo local.');
         }
       }
     } catch (err) {
       console.error('Error procesando foto:', err);
       setImageUploadError(err.message || 'Hubo un problema al procesar la foto.');
       setImagePreview(prodImage || '');
+      setPreviewFallbackUrl('');
+      setPreviewLoadFailed(false);
       setImageStorageSource(null);
     } finally {
       setIsUploadingImage(false);
-      try {
-        URL.revokeObjectURL(tempBlobUrl);
-      } catch {
-        // ignore
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
+      setTimeout(() => {
+        try {
+          URL.revokeObjectURL(tempBlobUrl);
+        } catch {
+          // ignore
+        }
+      }, 1000);
     }
   };
 
@@ -249,6 +262,8 @@ export default function CatalogView() {
     setProdImageMetadata(null);
     setImageStats(null);
     setImagePreview('');
+    setPreviewFallbackUrl('');
+    setPreviewLoadFailed(false);
     setImageStorageSource(null);
     setImageUploadError(null);
     if (fileInputRef.current) {
@@ -270,7 +285,12 @@ export default function CatalogView() {
     setProdImageMetadata(null);
     setImageStats(null);
     setImagePreview('');
+    setPreviewFallbackUrl('');
+    setPreviewLoadFailed(false);
     setImageStorageSource(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     setProdDescription('');
     setProdKitchen(true);
     setProdMarketSubtype('SNACK');
@@ -377,7 +397,12 @@ export default function CatalogView() {
     setProdImageMetadata(prod.imageMetadata || null);
     setImageStats(null);
     setImagePreview(existingImg);
+    setPreviewFallbackUrl('');
+    setPreviewLoadFailed(false);
     setImageStorageSource(existingImg.startsWith('http') ? 'web_url' : null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     setProdDescription(prod.description || '');
     setProdKitchen(isMarketProd ? false : (prod.requiresKitchen ?? (cat !== 'cat_postres')));
     setProdHasPapas(
@@ -436,11 +461,14 @@ export default function CatalogView() {
         cleanImage = '';
       }
 
+      const oldStoragePath = editingProduct?.imageMetadata?.storagePath;
+      const newStoragePath = prodImageMetadata?.storagePath;
       if (
         editingProduct &&
         editingProduct.image &&
         editingProduct.image !== cleanImage &&
-        (editingProduct.imageMetadata || editingProduct.image.includes('firebasestorage'))
+        (editingProduct.imageMetadata || editingProduct.image.includes('firebasestorage')) &&
+        (!oldStoragePath || oldStoragePath !== newStoragePath)
       ) {
         deleteProductImageFromStorage(editingProduct.imageMetadata || editingProduct.image).catch(() => {});
       }
@@ -1786,7 +1814,7 @@ export default function CatalogView() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/*,.png,.jpg,.jpeg,.webp,.heic,.heif,.avif"
               onChange={handleFileSelect}
               className="hidden"
             />
@@ -1794,17 +1822,49 @@ export default function CatalogView() {
             {imagePreview ? (
               <div className="space-y-2">
                 <div className="relative rounded-xl overflow-hidden border border-zinc-700 bg-black/60 group">
-                  <img
-                    src={imagePreview}
-                    alt="Vista previa plato"
-                    className="w-full h-40 object-cover"
-                  />
-                  <div className="absolute top-2 right-2">
+                  {previewLoadFailed ? (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingImage}
+                      className="w-full h-40 flex flex-col items-center justify-center gap-1.5 bg-zinc-900/70 hover:bg-zinc-900 text-zinc-300 cursor-pointer p-3 transition-colors"
+                    >
+                      <Camera className="w-6 h-6 text-amber-400" />
+                      <span className="text-xs font-bold text-white">No se pudo mostrar la vista previa</span>
+                      <span className="text-[11px] text-zinc-400">Toca aquí para subir o reemplazar la foto</span>
+                    </button>
+                  ) : (
+                    <img
+                      src={imagePreview}
+                      alt="Vista previa plato"
+                      onError={() => {
+                        if (previewFallbackUrl && imagePreview !== previewFallbackUrl) {
+                          setImagePreview(previewFallbackUrl);
+                          setPreviewFallbackUrl('');
+                        } else {
+                          setPreviewLoadFailed(true);
+                        }
+                      }}
+                      className="w-full h-40 object-cover"
+                    />
+                  )}
+                  <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingImage}
+                      icon={Camera}
+                    >
+                      Cambiar
+                    </Button>
                     <Button
                       type="button"
                       size="sm"
                       variant="danger"
                       onClick={handleRemovePhoto}
+                      disabled={isUploadingImage}
                       icon={Trash2}
                     >
                       Quitar
@@ -1814,7 +1874,7 @@ export default function CatalogView() {
                   {isUploadingImage && (
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-xs flex flex-col items-center justify-center gap-2">
                       <Loader2 className="w-7 h-7 text-[var(--color-porkos-orange)] animate-spin" />
-                      <span className="text-xs font-bold text-white">Optimizando a WebP...</span>
+                      <span className="text-xs font-bold text-white">Optimizando imagen...</span>
                     </div>
                   )}
                 </div>
@@ -1822,7 +1882,7 @@ export default function CatalogView() {
                 {imageStats && (
                   <div className="bg-emerald-950/30 border border-emerald-500/30 p-2.5 rounded-xl text-xs space-y-1">
                     <div className="flex items-center justify-between font-bold">
-                      <span className="text-zinc-300">Compresión WebP:</span>
+                      <span className="text-zinc-300">Compresión optimizada:</span>
                       <span className="text-emerald-400 font-mono font-black text-sm">
                         -{imageStats.reductionPercent}% Reducción
                       </span>
@@ -1840,7 +1900,7 @@ export default function CatalogView() {
                     )}
                     {imageStorageSource === 'local_optimized' && (
                       <p className="text-[10px] text-amber-300 font-bold pt-0.5">
-                        ✓ WebP optimizado (~35 KB) guardado para la app
+                        ✓ Imagen optimizada lista en caché local
                       </p>
                     )}
                   </div>
@@ -1858,7 +1918,7 @@ export default function CatalogView() {
                   Subir fotografía desde tu dispositivo
                 </span>
                 <span className="text-[10px] text-zinc-500 text-center">
-                  Compresión automática a WebP (640px, ~50-80 KB)
+                  Optimización automática (640px, ~50-80 KB)
                 </span>
               </button>
             )}

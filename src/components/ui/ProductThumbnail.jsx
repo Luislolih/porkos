@@ -18,8 +18,13 @@ export default function ProductThumbnail({
   iconSize = 'w-6 h-6',
   priority = false,
 }) {
-  const effectiveSrc = thumbnailUrl || src;
-  const [hasError, setHasError] = useState(false);
+  const [failedUrls, setFailedUrls] = useState({});
+  const effectiveSrc =
+    thumbnailUrl && !failedUrls[thumbnailUrl]
+      ? thumbnailUrl
+      : src && !failedUrls[src]
+      ? src
+      : '';
 
   const isDrink =
     isBeverage !== undefined
@@ -33,8 +38,8 @@ export default function ProductThumbnail({
 
   const roundedClass = className.includes('rounded') ? '' : 'rounded-xl';
 
-  // Si no hay URL o si la carga falló, mostrar el ícono de respaldo temático
-  if (!effectiveSrc || hasError) {
+  // Si no hay URL o si todas las URLs disponibles fallaron, mostrar el ícono de respaldo temático
+  if (!effectiveSrc) {
     return (
       <div
         className={`${className} ${roundedClass} border flex flex-col items-center justify-center shrink-0 shadow-inner transition-colors ${
@@ -61,7 +66,9 @@ export default function ProductThumbnail({
       <img
         src={effectiveSrc}
         alt={alt || name}
-        onError={() => setHasError(true)}
+        onError={() => {
+          setFailedUrls((prev) => (prev[effectiveSrc] ? prev : { ...prev, [effectiveSrc]: true }));
+        }}
         className="w-full h-full object-cover block"
         loading={priority ? 'eager' : 'lazy'}
         fetchPriority={priority ? 'high' : 'auto'}

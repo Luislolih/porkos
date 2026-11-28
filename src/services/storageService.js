@@ -105,6 +105,9 @@ export async function testStorageConnection() {
     } catch (err) {
       lastError = err;
       attempts.push({ bucket: candidate.name, code: err.code || 'TIMEOUT', message: err.message });
+      if (err?.code === 'storage/unauthorized') {
+        break;
+      }
       continue;
     }
   }
@@ -138,15 +141,23 @@ export async function uploadProductImage(file, productId = null) {
     throw new Error(validation.error);
   }
 
-  // 1. Optimizar en el navegador (WebP + Reducción de dimensiones + EXIF limpio)
+  // 1. Optimizar en el navegador (WebP o JPEG fallback + Reducción de dimensiones + EXIF limpio)
   const optimized = await optimizeProductImage(file);
-  const safeId = (productId || 'prod_' + Math.random().toString(36).substring(2, 9)).replace(/[^a-zA-Z0-9_-]/g, '_');
+  if (!optimized?.main?.blob) {
+    throw new Error('No se pudo procesar la fotografía seleccionada.');
+  }
 
-  // Guardar únicamente una sola fotografía persistente por producto
-  const mainPath = `products/${safeId}.webp`;
+  const safeId = (productId || 'prod_' + Math.random().toString(36).substring(2, 9)).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const fileFormat = optimized.main.format === 'jpeg' ? 'jpeg' : 'webp';
+  const ext = fileFormat === 'jpeg' ? 'jpg' : 'webp';
+  const contentType = optimized.main.mimeType || (fileFormat === 'jpeg' ? 'image/jpeg' : 'image/webp');
+  const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+  // Ruta única por subida para evitar colisión de caché y borrado accidental al editar producto existente
+  const mainPath = `products/${safeId}_${uniqueSuffix}.${ext}`;
 
   const metadata = {
-    contentType: 'image/webp',
+    contentType,
     cacheControl: 'public,max-age=31536000,immutable', // 1 año de caché
   };
 
@@ -182,7 +193,8 @@ export async function uploadProductImage(file, productId = null) {
           sizeBytes: optimized.main.sizeBytes,
           width: optimized.main.width,
           height: optimized.main.height,
-          format: 'webp',
+          format: fileFormat,
+          mimeType: contentType,
           storagePath: mainPath,
           uploadedAt: new Date().toISOString(),
         },
@@ -194,6 +206,9 @@ export async function uploadProductImage(file, productId = null) {
       };
     } catch (err) {
       lastError = err;
+      if (err?.code === 'storage/unauthorized') {
+        break;
+      }
       continue;
     }
   }

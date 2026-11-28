@@ -12,11 +12,15 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatTime, formatDate, parseToDate } from '../../utils/formatters';
 import {
+  SHIFT_START_HOUR,
   getShiftDate,
   getShiftDateString,
   getShiftBoundsForDate,
   getShiftBoundsForRange,
   isTimestampInShiftRange,
+  formatShiftDisplayDate,
+  getPeruHour,
+  resolveExpenseDateForShift,
 } from '../../utils/shiftDateUtils';
 import { sanitizeText } from '../../utils/security';
 import Button from '../../components/ui/Button';
@@ -103,12 +107,13 @@ export default function ExpensesView() {
     return () => unsubscribe();
   }, []);
 
-  // Años disponibles según registros
+  // Años disponibles según registros (respetando turno operativo de 4:00 AM a 3:59 AM)
   const availableYears = useMemo(() => {
-    const yearsSet = new Set([new Date().getFullYear()]);
+    const yearsSet = new Set([getShiftDate().getFullYear()]);
     expenses.forEach((e) => {
-      const d = parseToDate(e.date);
-      if (d) yearsSet.add(d.getFullYear());
+      if (parseToDate(e.date)) {
+        yearsSet.add(getShiftDate(e.date).getFullYear());
+      }
     });
     return Array.from(yearsSet).sort((a, b) => b - a);
   }, [expenses]);
@@ -118,7 +123,10 @@ export default function ExpensesView() {
     return [...expenses].sort((a, b) => {
       const timeA = parseToDate(a.date)?.getTime() || 0;
       const timeB = parseToDate(b.date)?.getTime() || 0;
-      return timeB - timeA;
+      if (timeB !== timeA) return timeB - timeA;
+      const createdA = parseToDate(a.createdAt)?.getTime() || 0;
+      const createdB = parseToDate(b.createdAt)?.getTime() || 0;
+      return createdB - createdA;
     });
   }, [expenses]);
 
@@ -131,15 +139,17 @@ export default function ExpensesView() {
       const { start, end } = getShiftBoundsForDate();
       result = result.filter((e) => isTimestampInShiftRange(e.date, start, end));
     } else if (dateFilterMode === 'THIS_MONTH') {
-      const now = getShiftDate();
+      const currentShift = getShiftDate();
       result = result.filter((e) => {
-        const d = parseToDate(e.date);
-        return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        if (!parseToDate(e.date)) return false;
+        const d = getShiftDate(e.date);
+        return d.getMonth() === currentShift.getMonth() && d.getFullYear() === currentShift.getFullYear();
       });
     } else if (dateFilterMode === 'BY_MONTH') {
       result = result.filter((e) => {
-        const d = parseToDate(e.date);
-        return d && d.getMonth() === Number(selectedMonth) && d.getFullYear() === Number(selectedYear);
+        if (!parseToDate(e.date)) return false;
+        const d = getShiftDate(e.date);
+        return d.getMonth() === Number(selectedMonth) && d.getFullYear() === Number(selectedYear);
       });
     } else if (dateFilterMode === 'CUSTOM') {
       const { start, end } = getShiftBoundsForRange(customStartDate, customEndDate);
@@ -165,13 +175,13 @@ export default function ExpensesView() {
     return result;
   }, [sortedExpenses, dateFilterMode, selectedMonth, selectedYear, customStartDate, customEndDate, selectedCategory, searchQuery]);
 
-  // Agrupar gastos filtrados por Mes y Año
+  // Agrupar gastos filtrados por Mes y Año del turno operativo
   const groupedExpenses = useMemo(() => {
     const groups = [];
     const map = new Map();
 
     filteredExpenses.forEach((exp) => {
-      const d = parseToDate(exp.date) || new Date();
+      const d = parseToDate(exp.date) ? getShiftDate(exp.date) : getShiftDate();
       const monthIdx = d.getMonth();
       const year = d.getFullYear();
       const key = `${year}-${String(monthIdx).padStart(2, '0')}`;
@@ -202,12 +212,15 @@ export default function ExpensesView() {
     return Math.round(sum * 100) / 100;
   }, [filteredExpenses]);
 
+  const currentShiftDate = getShiftDate();
+
   const thisMonthExpenses = useMemo(() => {
-    const now = new Date();
+    const currentShift = getShiftDate();
     const sum = expenses
       .filter((e) => {
-        const d = parseToDate(e.date);
-        return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        if (!parseToDate(e.date)) return false;
+        const d = getShiftDate(e.date);
+        return d.getMonth() === currentShift.getMonth() && d.getFullYear() === currentShift.getFullYear();
       })
       .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
     return Math.round(sum * 100) / 100;
@@ -224,7 +237,13 @@ export default function ExpensesView() {
     return sorted[0] ? { name: sorted[0][0], total: sorted[0][1] } : null;
   }, [filteredExpenses]);
 
-  // Registrar nuevo gasto con fecha personalizada
+  // Abrir modal de nuevo gasto inicializado en el turno operativo actual
+  const handleOpenAdd = () => {
+    setNewDate(getShiftDateString());
+    setIsAddOpen(true);
+  };
+
+  // Registrar nuevo gasto con fecha y hora real respetando el turno operativo
   const handleAddExpense = async (e) => {
     e.preventDefault();
     const cleanAmount = Math.round(Math.max(0.1, parseFloat(newAmount) || 0) * 100) / 100;
@@ -232,17 +251,19 @@ export default function ExpensesView() {
     if (!cleanAmount || !cleanDescription) return;
 
     setIsSubmitting(true);
-    const customDate = newDate ? new Date(`${newDate}T12:00:00`) : new Date();
+    const now = new Date();
+    const expenseDate = resolveExpenseDateForShift(newDate, { now });
 
     const newExp = {
       id: `exp_${Date.now()}`,
-      date: customDate,
+      date: expenseDate,
+      shiftDate: getShiftDateString(expenseDate),
       category: newCategory,
       description: cleanDescription,
       amount: cleanAmount,
       paymentMethod: newMethod,
       registeredBy: user?.displayName || user?.email?.split('@')[0] || 'Cajero',
-      createdAt: new Date(),
+      createdAt: now,
     };
 
     setExpenses((prev) => [newExp, ...prev]);
@@ -269,7 +290,7 @@ export default function ExpensesView() {
     setIsEditOpen(true);
   };
 
-  // Guardar edición de gasto con fecha actualizada (Solo Admin)
+  // Guardar edición de gasto preservando hora original o actualizando según turno (Solo Admin)
   const handleSaveEditExpense = async (e) => {
     e.preventDefault();
     if (!isAdmin || !editingExpense) return;
@@ -278,16 +299,21 @@ export default function ExpensesView() {
     const cleanDescription = sanitizeText(editDesc, 200);
     if (!cleanAmount || !cleanDescription) return;
 
-    const updatedDate = editDate ? new Date(`${editDate}T12:00:00`) : (parseToDate(editingExpense.date) || new Date());
+    const now = new Date();
+    const updatedDate = resolveExpenseDateForShift(editDate, {
+      now,
+      originalDate: editingExpense.date,
+    });
 
     const updatedData = {
       date: updatedDate,
+      shiftDate: getShiftDateString(updatedDate),
       category: editCategory,
       description: cleanDescription,
       amount: cleanAmount,
       paymentMethod: editMethod,
       editedBy: user?.displayName || user?.email?.split('@')[0] || 'Admin',
-      updatedAt: new Date(),
+      updatedAt: now,
     };
 
     setExpenses((prev) =>
@@ -340,10 +366,7 @@ export default function ExpensesView() {
         </div>
 
         <Button
-          onClick={() => {
-            setNewDate(new Date().toISOString().split('T')[0]);
-            setIsAddOpen(true);
-          }}
+          onClick={handleOpenAdd}
           icon={Plus}
           size="sm"
           className="text-xs font-black shadow-md shadow-orange-500/20 ml-auto"
@@ -382,7 +405,7 @@ export default function ExpensesView() {
               {formatCurrency(thisMonthExpenses)}
             </span>
             <span className="text-[10px] text-zinc-500 mt-0.5 block">
-              {MONTH_NAMES[new Date().getMonth()]} {new Date().getFullYear()}
+              {MONTH_NAMES[currentShiftDate.getMonth()]} {currentShiftDate.getFullYear()}
             </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
@@ -545,7 +568,7 @@ export default function ExpensesView() {
               actionLabel={expenses.length === 0 ? 'Registrar Primer Gasto' : 'Restablecer Filtros'}
               onAction={() => {
                 if (expenses.length === 0) {
-                  setIsAddOpen(true);
+                  handleOpenAdd();
                 } else {
                   setSearchQuery('');
                   setSelectedCategory('TODAS');
@@ -595,6 +618,14 @@ export default function ExpensesView() {
                             <span className="text-zinc-500 font-normal">•</span>
                             <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
                             <span className="text-zinc-300 font-semibold">{formatTime(exp.date)}</span>
+                            {parseToDate(exp.date) && formatDate(exp.date) !== formatShiftDisplayDate(exp.date) && (
+                              <span
+                                className="ml-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-bold"
+                                title={`Pertenece al turno operativo del ${formatShiftDisplayDate(exp.date)} (4:00 am a 3:59 am)`}
+                              >
+                                Turno {formatShiftDisplayDate(exp.date).slice(0, 5)}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="py-3 px-4">
@@ -657,7 +688,7 @@ export default function ExpensesView() {
       >
         <form onSubmit={handleAddExpense} className="space-y-4 text-xs sm:text-sm">
           <div>
-            <label className="block text-zinc-300 font-bold mb-1">Fecha del Gasto / Compra *</label>
+            <label className="block text-zinc-300 font-bold mb-1">Fecha del Turno / Compra *</label>
             <input
               type="date"
               required
@@ -667,6 +698,15 @@ export default function ExpensesView() {
               style={{ colorScheme: 'dark' }}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
             />
+            <p className="text-[11px] text-zinc-400 mt-1.5">
+              {newDate === getShiftDateString()
+                ? getPeruHour() < SHIFT_START_HOUR
+                  ? `Turno operativo actual (${formatShiftDisplayDate(newDate)}, antes de las 4:00 am): se registrará con la fecha y hora actual.`
+                  : `Turno operativo actual (${formatShiftDisplayDate(newDate)}): se registrará con la hora actual.`
+                : newDate
+                  ? `Fecha manual: se registrará dentro del turno operativo del ${formatShiftDisplayDate(newDate)}.`
+                  : 'Se registrará con la fecha y hora actual.'}
+            </p>
           </div>
 
           <div>
@@ -763,7 +803,7 @@ export default function ExpensesView() {
         >
           <form onSubmit={handleSaveEditExpense} className="space-y-4 text-xs sm:text-sm">
             <div>
-              <label className="block text-zinc-300 font-bold mb-1">Fecha del Gasto *</label>
+              <label className="block text-zinc-300 font-bold mb-1">Fecha del Turno *</label>
               <input
                 type="date"
                 required
@@ -773,6 +813,15 @@ export default function ExpensesView() {
                 style={{ colorScheme: 'dark' }}
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               />
+              {editingExpense && editDate && (
+                <p className="text-[11px] text-zinc-400 mt-1.5">
+                  {parseToDate(editingExpense.date) && editDate === getShiftDateString(editingExpense.date)
+                    ? `Turno del ${formatShiftDisplayDate(editDate)} • Se conservará su hora original (${formatTime(editingExpense.date)}).`
+                    : editDate === getShiftDateString()
+                      ? `Se reasignará al turno operativo actual (${formatShiftDisplayDate(editDate)}) con la hora actual.`
+                      : `Se reasignará al turno operativo del ${formatShiftDisplayDate(editDate)}.`}
+                </p>
+              )}
             </div>
 
             <div>
