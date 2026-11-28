@@ -382,7 +382,7 @@ export default function CartView({
       )}
 
       {/* Items list */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-3.5 space-y-2.5 overscroll-contain">
+      <div className="flex-1 overflow-y-auto p-2.5 sm:p-3 space-y-2 overscroll-contain">
         {onOpenCustomMenu && (
           <button
             type="button"
@@ -429,21 +429,31 @@ export default function CartView({
               item.customization?.itemNotes
             );
 
+            const extraChips = item.customization?.selectedExtras || [];
+            const papasText = getPapasText(item.customization);
+            const hasSpecBadges = Boolean(
+              item.customization?.saladSummary ||
+              papasText ||
+              showCreams ||
+              (item.customization?.packaging && item.customization.packaging.price > 0) ||
+              item.customization?.temperature
+            );
+
             return (
               <div
                 key={item.itemId}
-                className="bg-[#0E0E12] border border-[var(--color-porkos-border)] hover:border-zinc-700/80 rounded-2xl p-2.5 sm:p-3 space-y-2 transition-colors"
+                className="bg-[#0E0E12] border border-[var(--color-porkos-border)] hover:border-zinc-700/80 rounded-xl p-2 sm:p-2.5 space-y-1.5 transition-colors"
               >
                 {/* Main row: Thumbnail, Title, Unit price, Total */}
                 <div
                   onClick={() => isCustomizable && onEditItem && onEditItem(item)}
-                  className={`flex items-start justify-between gap-2.5 ${
+                  className={`flex items-start justify-between gap-2 ${
                     isCustomizable ? 'cursor-pointer group' : ''
                   }`}
                 >
                   <div className="shrink-0 transition-transform group-hover:scale-105 active:scale-95">
                     {item.isCustomMenuItem || (!item.image && !getItemThumbnail(item)) ? (
-                      <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-black text-xs">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-black text-xs">
                         ★
                       </div>
                     ) : (
@@ -452,28 +462,28 @@ export default function CartView({
                         thumbnailUrl={getItemThumbnail(item)}
                         name={item.name}
                         priority={true}
-                        className="w-10 h-10 rounded-xl"
-                        iconSize="w-4 h-4"
+                        className="w-8 h-8 rounded-lg"
+                        iconSize="w-3.5 h-3.5"
                       />
                     )}
                   </div>
 
-                  <div className="flex-1 min-w-0 pt-0.5">
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1 flex-wrap">
                       {item.requiresKitchen && (
-                        <Flame className="w-3.5 h-3.5 text-[var(--color-porkos-orange)] shrink-0" />
+                        <Flame className="w-3 h-3 text-[var(--color-porkos-orange)] shrink-0" />
                       )}
-                      <h5 className={`font-bold text-xs sm:text-sm text-zinc-100 leading-snug line-clamp-2 ${isCustomizable ? 'group-hover:text-[var(--color-porkos-orange)]' : ''}`}>
+                      <h5 className={`font-bold text-xs sm:text-[13px] text-zinc-100 leading-tight line-clamp-2 ${isCustomizable ? 'group-hover:text-[var(--color-porkos-orange)]' : ''}`}>
                         {item.name}
                       </h5>
                       {item.isCustomMenuItem && (
-                        <span className="text-[9px] bg-zinc-800 text-zinc-300 border border-zinc-700/80 px-1.5 py-0.2 rounded font-medium shrink-0">
+                        <span className="text-[9px] bg-zinc-800 text-zinc-300 border border-zinc-700/80 px-1 py-0.2 rounded font-medium shrink-0">
                           Personalizado
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      <span className={`text-[11px] font-semibold ${item.isManualPrice ? 'text-amber-300 font-bold' : 'text-zinc-400'}`}>
+                      <span className={`text-[10px] font-semibold tabular-nums ${item.isManualPrice ? 'text-amber-300 font-bold' : 'text-zinc-400'}`}>
                         {formatCurrency(item.unitPrice)} c/u
                       </span>
 
@@ -498,221 +508,187 @@ export default function CartView({
                     </div>
                   </div>
 
-                  <span className="font-black text-sm text-white shrink-0 pt-0.5">
+                  <span className="font-black text-xs sm:text-sm text-white tabular-nums shrink-0 pt-0.5">
                     {formatCurrency(item.subtotal)}
                   </span>
                 </div>
 
-                {/* Destino del ítem (Mesa / Ir comiendo / Llevar) */}
-                {!isMarketMode && modality !== 'DELIVERY' && (
-                  <div
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1 bg-[#141418] p-0.5 rounded-lg border border-zinc-800/80 w-fit touch-manipulation"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => updateItemConsumptionType(item.itemId, 'MESA')}
-                      className={`px-2 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95 touch-manipulation ${
-                        itemConsumption === 'MESA'
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
-                      }`}
-                      title="Para comer en mesa / salón"
-                    >
-                      <Utensils className="w-2.5 h-2.5 text-blue-300 shrink-0" />
-                      <span>Mesa</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => updateItemConsumptionType(item.itemId, 'CONSUMO_EXTERNO')}
-                      className={`px-2 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95 touch-manipulation ${
-                        itemConsumption === 'CONSUMO_EXTERNO'
-                          ? 'bg-purple-600 text-white shadow-xs'
-                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
-                      }`}
-                      title="Para ir comiendo al paso"
-                    >
-                      <Package className="w-2.5 h-2.5 text-purple-300 shrink-0" />
-                      <span>Ir comiendo</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => updateItemConsumptionType(item.itemId, 'PARA_LLEVAR')}
-                      className={`px-2 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95 touch-manipulation ${
-                        itemConsumption === 'PARA_LLEVAR'
-                          ? 'bg-amber-500 text-zinc-950 shadow-xs'
-                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
-                      }`}
-                      title="Para llevar"
-                    >
-                      <ShoppingBag className="w-2.5 h-2.5 text-amber-950 shrink-0" />
-                      <span>Llevar</span>
-                    </button>
-
-                    {item.quantity > 1 && (
-                      <span className="text-[9px] text-zinc-500 pl-1 select-none">
-                        (x{item.quantity})
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Detalles de Personalización */}
+                {/* Detalles de Personalización compactos en chips */}
                 {hasDetails && (
                   <div
                     onClick={() => isCustomizable && onEditItem && onEditItem(item)}
-                    className="text-xs space-y-1 bg-[#141418] p-2 sm:p-2.5 rounded-xl border border-zinc-800/70 hover:border-zinc-700 transition-colors cursor-pointer group"
+                    className="bg-[#141418] px-2 py-1.5 rounded-lg border border-zinc-800/70 hover:border-zinc-700 transition-colors cursor-pointer space-y-1"
                   >
-                    {/* 1. Ensalada */}
-                    {item.customization?.saladSummary && (
-                      <div className="flex items-baseline gap-1.5 leading-tight">
-                        <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
-                          Ensalada:
-                        </span>
-                        <span className="font-bold text-zinc-200">
-                          {item.customization.saladSummary}
-                        </span>
+                    {hasSpecBadges && (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {item.customization?.saladSummary && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-1.5 py-0.5 rounded leading-none">
+                            <span className="opacity-70 uppercase text-[9px]">Ens:</span>
+                            {item.customization.saladSummary}
+                          </span>
+                        )}
+                        {papasText && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-zinc-800 text-zinc-200 border border-zinc-700/80 px-1.5 py-0.5 rounded leading-none">
+                            <span className="text-zinc-400 uppercase text-[9px]">Papas:</span>
+                            {papasText}
+                          </span>
+                        )}
+                        {showCreams && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/20 px-1.5 py-0.5 rounded leading-none">
+                            <span className="opacity-70 uppercase text-[9px]">Cremas:</span>
+                            {item.customization.creamsSummary}
+                          </span>
+                        )}
+                        {item.customization?.packaging && item.customization.packaging.price > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20 px-1.5 py-0.5 rounded leading-none">
+                            {item.customization.packaging.name || 'Empaque'} (+{formatCurrency(item.customization.packaging.price || 0)})
+                          </span>
+                        )}
+                        {item.customization?.temperature && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 px-1.5 py-0.5 rounded leading-none">
+                            {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
+                          </span>
+                        )}
                       </div>
                     )}
 
-                    {/* 2. Papas */}
-                    {getPapasText(item.customization) && (
-                      <div className="flex items-baseline gap-1.5 leading-tight">
-                        <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
-                          Papas:
-                        </span>
-                        <span className="font-bold text-zinc-200">
-                          {getPapasText(item.customization)}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* 3. Cremas */}
-                    {showCreams && (
-                      <div className="flex items-baseline gap-1.5 leading-tight">
-                        <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
-                          Cremas:
-                        </span>
-                        <span className="font-bold text-zinc-200">
-                          {item.customization.creamsSummary}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* 4. Extras */}
-                    {item.customization?.selectedExtras?.length > 0 && (
-                      <div className="space-y-1 pt-0.5">
-                        {item.customization.selectedExtras.map((e, eIdx) => {
+                    {extraChips.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {extraChips.map((e, eIdx) => {
                           const clean = (e?.name || e?.label || (typeof e === 'string' ? e : '') || 'Extra').replace(/^Extra\s+/i, '');
                           const qty = e?.quantity || 1;
                           const totalPrice = (e?.unitPrice || e?.price || 0) * qty;
                           return (
-                            <div
+                            <span
                               key={e?.id || `cart_extra_${eIdx}`}
-                              className="flex items-center justify-between text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20"
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/25 leading-none"
                             >
-                              <span className="flex items-center gap-1.5 min-w-0 truncate">
-                                <span className="bg-amber-400 text-zinc-950 px-1.5 py-0.2 rounded text-[10px] font-black shrink-0">
-                                  {qty}x
-                                </span>
-                                <span className="truncate">{clean}</span>
+                              <span className="bg-amber-400 text-zinc-950 px-1 py-0.2 rounded text-[9px] font-black">
+                                {qty}×
                               </span>
-                              <span className="text-[10px] text-amber-200/90 font-black shrink-0 ml-2">
+                              <span>{clean}</span>
+                              <span className="text-[9px] text-amber-200/90 tabular-nums">
                                 +{formatCurrency(totalPrice)}
                               </span>
-                            </div>
+                            </span>
                           );
                         })}
                       </div>
                     )}
 
-                    {/* 5. Empaque */}
-                    {item.customization?.packaging && item.customization.packaging.price > 0 && (
-                      <div className="flex items-baseline gap-1.5 leading-tight">
-                        <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
-                          Empaque:
-                        </span>
-                        <span className="font-bold text-zinc-200">
-                          {item.customization.packaging.name || 'Empaque'} (+{formatCurrency(item.customization.packaging.price || 0)})
-                        </span>
-                      </div>
-                    )}
-
-                    {/* 6. Temperatura */}
-                    {item.customization?.temperature && (
-                      <div className="flex items-baseline gap-1.5 leading-tight">
-                        <span className="font-bold text-zinc-400 text-[10px] uppercase tracking-wider shrink-0">
-                          Temperatura:
-                        </span>
-                        <span className="font-bold text-zinc-200">
-                          {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* 7. Nota Especial */}
                     {item.customization?.itemNotes && (
-                      <div className="pt-1 mt-1 border-t border-zinc-800">
-                        <span className="inline-block bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded-lg text-[11px] font-semibold italic">
-                          &ldquo;{item.customization.itemNotes}&rdquo;
+                      <div className={hasSpecBadges || extraChips.length > 0 ? 'pt-0.5' : ''}>
+                        <span className="inline-block bg-amber-500/10 text-amber-300 border border-amber-500/20 px-1.5 py-0.5 rounded text-[10px] font-semibold italic leading-tight">
+                          📝 &ldquo;{item.customization.itemNotes}&rdquo;
                         </span>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Controles: Eliminar y Selector de Cantidad */}
-                <div className="flex items-center justify-between pt-1">
-                  <button
-                    type="button"
-                    onClick={() => removeItem(item.itemId)}
-                    className="p-2 min-w-[38px] min-h-[38px] text-zinc-400 hover:text-rose-400 hover:bg-rose-500/15 rounded-xl transition-all cursor-pointer active:scale-90 flex items-center justify-center touch-manipulation"
-                    title="Eliminar de la comanda"
-                    aria-label="Eliminar producto"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                {/* Fila unificada: Destino del ítem + Eliminar + Cantidad */}
+                <div className="flex items-center justify-between gap-1.5 flex-wrap pt-0.5">
+                  {!isMarketMode && modality !== 'DELIVERY' ? (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-0.5 bg-[#141418] p-0.5 rounded-lg border border-zinc-800/80 touch-manipulation"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => updateItemConsumptionType(item.itemId, 'MESA')}
+                        className={`px-1.5 py-1 rounded-md text-[9px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95 touch-manipulation ${
+                          itemConsumption === 'MESA'
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                        }`}
+                        title="Para comer en mesa / salón"
+                      >
+                        <Utensils className="w-2.5 h-2.5 text-blue-300 shrink-0" />
+                        <span>Mesa</span>
+                      </button>
 
-                  <div className="flex items-center gap-1.5 bg-[#141418] p-1 rounded-xl border border-zinc-800 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => updateItemConsumptionType(item.itemId, 'CONSUMO_EXTERNO')}
+                        className={`px-1.5 py-1 rounded-md text-[9px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95 touch-manipulation ${
+                          itemConsumption === 'CONSUMO_EXTERNO'
+                            ? 'bg-purple-600 text-white shadow-xs'
+                            : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                        }`}
+                        title="Para ir comiendo al paso"
+                      >
+                        <Package className="w-2.5 h-2.5 text-purple-300 shrink-0" />
+                        <span>Ir comiendo</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => updateItemConsumptionType(item.itemId, 'PARA_LLEVAR')}
+                        className={`px-1.5 py-1 rounded-md text-[9px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95 touch-manipulation ${
+                          itemConsumption === 'PARA_LLEVAR'
+                            ? 'bg-amber-500 text-zinc-950 shadow-xs'
+                            : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                        }`}
+                        title="Para llevar"
+                      >
+                        <ShoppingBag className={`w-2.5 h-2.5 shrink-0 ${itemConsumption === 'PARA_LLEVAR' ? 'text-amber-950' : 'text-amber-400'}`} />
+                        <span>Llevar</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <span />
+                  )}
+
+                  <div className="flex items-center gap-1.5 ml-auto">
                     <button
                       type="button"
-                      onClick={() => updateItemQuantity(item.itemId, -1)}
-                      className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white flex items-center justify-center cursor-pointer font-bold active:scale-90 transition-transform touch-manipulation"
-                      aria-label="Disminuir cantidad"
+                      onClick={() => removeItem(item.itemId)}
+                      className="w-7 h-7 sm:w-8 sm:h-8 text-zinc-400 hover:text-rose-400 hover:bg-rose-500/15 rounded-lg transition-all cursor-pointer active:scale-90 flex items-center justify-center touch-manipulation"
+                      title="Eliminar de la comanda"
+                      aria-label="Eliminar producto"
                     >
-                      <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={item.quantity}
-                      onChange={(e) => {
-                        const raw = e.target.value.replace(/[^0-9]/g, '');
-                        if (raw === '') {
-                          setItemQuantity(item.itemId, 1);
-                        } else {
-                          const val = parseInt(raw, 10);
-                          if (val > 0) {
-                            setItemQuantity(item.itemId, val);
+
+                    <div className="flex items-center gap-1 bg-[#141418] p-0.5 rounded-lg border border-zinc-800 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => updateItemQuantity(item.itemId, -1)}
+                        className="w-7 h-7 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white flex items-center justify-center cursor-pointer font-bold active:scale-90 transition-transform touch-manipulation"
+                        aria-label="Disminuir cantidad"
+                      >
+                        <Minus className="w-3 h-3 stroke-[2.5]" />
+                      </button>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/[^0-9]/g, '');
+                          if (raw === '') {
+                            setItemQuantity(item.itemId, 1);
+                          } else {
+                            const val = parseInt(raw, 10);
+                            if (val > 0) {
+                              setItemQuantity(item.itemId, val);
+                            }
                           }
-                        }
-                      }}
-                      onFocus={(e) => e.target.select()}
-                      className="w-8 sm:w-9 text-center font-black text-sm text-white bg-transparent border-0 focus:outline-none focus:bg-zinc-800 rounded py-0.5 select-all"
-                      aria-label="Cantidad del producto"
-                      title="Toca para cambiar la cantidad manualmente"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => updateItemQuantity(item.itemId, 1)}
-                      className="w-8 h-8 rounded-lg bg-[var(--color-porkos-orange)]/20 hover:bg-[var(--color-porkos-orange)] text-[var(--color-porkos-orange)] hover:text-zinc-950 flex items-center justify-center cursor-pointer font-bold active:scale-90 transition-transform touch-manipulation"
-                      aria-label="Aumentar cantidad"
-                    >
-                      <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                    </button>
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        className="w-7 sm:w-8 text-center font-black text-xs sm:text-sm text-white bg-transparent border-0 focus:outline-none focus:bg-zinc-800 rounded py-0.5 select-all tabular-nums"
+                        aria-label="Cantidad del producto"
+                        title="Toca para cambiar la cantidad manualmente"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => updateItemQuantity(item.itemId, 1)}
+                        className="w-7 h-7 rounded-md bg-[var(--color-porkos-orange)]/20 hover:bg-[var(--color-porkos-orange)] text-[var(--color-porkos-orange)] hover:text-zinc-950 flex items-center justify-center cursor-pointer font-bold active:scale-90 transition-transform touch-manipulation"
+                        aria-label="Aumentar cantidad"
+                      >
+                        <Plus className="w-3 h-3 stroke-[2.5]" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

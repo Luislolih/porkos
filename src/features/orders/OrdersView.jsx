@@ -23,6 +23,9 @@ import {
   ClipboardList,
   LayoutGrid,
   List,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { formatCurrency, formatTime, formatElapsedTime, generateOrderNumber } from '../../utils/formatters';
 import {
@@ -90,6 +93,8 @@ export default function OrdersView({
     }
   };
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [expandedOrderIds, setExpandedOrderIds] = useState({});
   const [editingCustomerNameOrder, setEditingCustomerNameOrder] = useState(null);
   const [tempCustomerName, setTempCustomerName] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
@@ -809,9 +814,9 @@ export default function OrdersView({
         />
       )}
 
-      {/* Barra de Filtros y Búsqueda */}
-      <div className="bg-[#121215] p-3 sm:p-4 rounded-2xl border border-[var(--color-porkos-border)] space-y-3 shadow-sm">
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+      {/* Barra de Filtros y Búsqueda (compacta y colapsable en móvil) */}
+      <div className="bg-[#121215] p-2.5 sm:p-3 rounded-2xl border border-[var(--color-porkos-border)] space-y-2 shadow-sm">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2">
           {/* Segmented Control / Tabs */}
           <div className="flex bg-[#0C0C0F] p-1 rounded-xl border border-zinc-800 shrink-0">
             {[
@@ -826,7 +831,7 @@ export default function OrdersView({
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={`
-                    px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 active:scale-95 touch-manipulation select-none
+                    flex-1 lg:flex-initial justify-center px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 touch-manipulation select-none
                     ${
                       isSelected
                         ? 'bg-[var(--color-porkos-orange)] text-zinc-950 font-black shadow-sm'
@@ -847,8 +852,8 @@ export default function OrdersView({
             })}
           </div>
 
-          {/* Search bar y Botón de Pedido Pasado */}
-          <div className="flex items-center gap-2.5 flex-1 lg:max-w-xl">
+          {/* Search bar, Filtros móvil, Vista y Botón Pedido Pasado */}
+          <div className="flex items-center gap-2 flex-1 lg:max-w-2xl">
             <div className="flex-1 min-w-0">
               <SearchInput
                 value={searchQuery}
@@ -858,6 +863,49 @@ export default function OrdersView({
                 mobilePlaceholder="Buscar"
                 size="sm"
               />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowMobileFilters((v) => !v)}
+              className={`sm:hidden flex items-center gap-1 px-2.5 py-2 rounded-xl border text-xs font-bold shrink-0 cursor-pointer transition-colors ${
+                showMobileFilters || filterModality !== 'ALL' || filterShift !== 'CURRENT'
+                  ? 'bg-zinc-800 text-white border-[var(--color-porkos-orange)]/70'
+                  : 'bg-[#0C0C0F] text-zinc-300 border-zinc-800'
+              }`}
+              title="Mostrar u ocultar filtros de turno y modalidad"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--color-porkos-orange)]" />
+              <span>Filtros</span>
+              {showMobileFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+
+            {/* Toggle de Vista en móvil y desktop */}
+            <div className="flex items-center bg-[#0C0C0F] p-0.5 rounded-lg border border-zinc-800 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleSetViewMode('grid')}
+                className={`p-1.5 rounded-md text-xs transition-all cursor-pointer flex items-center gap-1 ${
+                  viewMode === 'grid'
+                    ? 'bg-zinc-800 text-white font-bold shadow-xs'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+                title="Vista en cuadrícula de tarjetas"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetViewMode('list')}
+                className={`p-1.5 rounded-md text-xs transition-all cursor-pointer flex items-center gap-1 ${
+                  viewMode === 'list'
+                    ? 'bg-zinc-800 text-white font-bold shadow-xs'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+                title="Vista de lista compacta"
+              >
+                <List className="w-3.5 h-3.5" />
+              </button>
             </div>
 
             {isAdmin && onCreateOrder && (
@@ -873,134 +921,122 @@ export default function OrdersView({
           </div>
         </div>
 
-        {/* Filter Pills: Modalidad + Selector de Vista (Tarjetas / Lista) */}
-        <div className="flex items-center justify-between gap-2 overflow-x-auto pb-0.5 scrollbar-none text-xs pt-1 border-t border-[var(--color-porkos-border)]">
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-            <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider shrink-0 mr-1">
-              Modalidad:
-            </span>
-            {[
-              { id: 'ALL', label: 'Todas' },
-              { id: 'MESA', label: 'Mesas' },
-              { id: 'PARA_LLEVAR', label: 'Para Llevar' },
-              { id: 'DELIVERY', label: 'Delivery' },
-              { id: 'MARKET', label: 'Market' },
-            ].map((m) => {
-              const isSelected = filterModality === m.id;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setFilterModality(m.id)}
-                  className={`
-                    px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer border active:scale-95 touch-manipulation
-                    ${
-                      isSelected
-                        ? 'bg-zinc-800 text-white border-zinc-600 font-black shadow-xs'
-                        : 'bg-[#141418] text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-white'
-                    }
-                  `}
-                >
-                  {m.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Toggle de Vista: Tarjetas vs Lista Compacta */}
-          <div className="flex items-center bg-[#0C0C0F] p-0.5 rounded-lg border border-zinc-800 shrink-0 ml-auto">
-            <button
-              type="button"
-              onClick={() => handleSetViewMode('grid')}
-              className={`p-1.5 rounded-md text-xs transition-all cursor-pointer flex items-center gap-1 ${
-                viewMode === 'grid'
-                  ? 'bg-zinc-800 text-white font-bold shadow-xs'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-              title="Vista en cuadrícula de tarjetas"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSetViewMode('list')}
-              className={`p-1.5 rounded-md text-xs transition-all cursor-pointer flex items-center gap-1 ${
-                viewMode === 'list'
-                  ? 'bg-zinc-800 text-white font-bold shadow-xs'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-              title="Vista de lista compacta"
-            >
-              <List className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Selector de Turno Operativo (4:00 AM a 3:59 AM) */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-[var(--color-porkos-border)] text-xs">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
-              <Clock className="w-3 h-3 text-[var(--color-porkos-orange)]" />
-              Turno:
-            </span>
-            {[
-              { id: 'CURRENT', label: 'Turno Hoy' },
-              { id: 'PREVIOUS', label: 'Turno Ayer' },
-              { id: 'CUSTOM', label: 'Por Fecha' },
-              { id: 'ALL', label: 'Todos' },
-            ].map((s) => {
-              const isSelected = filterShift === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setFilterShift(s.id)}
-                  className={`
-                    px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer border active:scale-95 touch-manipulation
-                    ${
-                      isSelected
-                        ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] font-black shadow-xs'
-                        : 'bg-[#141418] text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-white'
-                    }
-                  `}
-                >
-                  {s.label}
-                </button>
-              );
-            })}
-
-            {filterShift === 'CUSTOM' && (
-              <div className="flex items-center gap-1 ml-1">
-                <input
-                  type="date"
-                  value={selectedShiftDate}
-                  onChange={(e) => setSelectedShiftDate(e.target.value)}
-                  onClick={(e) => e.target.showPicker?.()}
-                  style={{ colorScheme: 'dark' }}
-                  className="bg-black/70 border border-zinc-700 rounded-lg px-2 py-0.5 text-white text-xs font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Resumen del Turno */}
-          <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400 ml-auto bg-[#0C0C0F] px-2.5 py-1 rounded-lg border border-zinc-800/80">
-            <span className="text-zinc-300 font-bold">
+        {/* Resumen compacto siempre visible en móvil cuando los filtros avanzados están colapsados */}
+        {!showMobileFilters && (
+          <div className="sm:hidden flex items-center justify-between gap-2 text-[11px] bg-[#0C0C0F] px-2.5 py-1.5 rounded-xl border border-zinc-800/80">
+            <span className="text-zinc-300 font-bold truncate">
               {shiftBounds?.label || 'Historial Completo'}
+              {filterModality !== 'ALL' ? ` • ${filterModality}` : ''}
             </span>
-            <span className="text-zinc-600">•</span>
-            <span>
-              {shiftTotals.validCount} {shiftTotals.validCount === 1 ? 'comanda' : 'comandas'}
-              {shiftTotals.cancelledCount > 0 && (
-                <span className="text-rose-400 text-[11px] ml-1">
-                  ({shiftTotals.cancelledCount} canc.)
-                </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-zinc-400 font-semibold">{shiftTotals.validCount} ped.</span>
+              <span className="text-emerald-400 font-black">{formatCurrency(shiftTotals.sales)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Filter Pills: Modalidad + Turno (siempre visible en sm+, colapsable en móvil) */}
+        <div className={`${showMobileFilters ? 'block' : 'hidden'} sm:block space-y-2`}>
+          <div className="flex items-center justify-between gap-2 overflow-x-auto pb-0.5 scrollbar-none text-xs pt-2 border-t border-[var(--color-porkos-border)]">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+              <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider shrink-0 mr-1">
+                Modalidad:
+              </span>
+              {[
+                { id: 'ALL', label: 'Todas' },
+                { id: 'MESA', label: 'Mesas' },
+                { id: 'PARA_LLEVAR', label: 'Para Llevar' },
+                { id: 'DELIVERY', label: 'Delivery' },
+                { id: 'MARKET', label: 'Market' },
+              ].map((m) => {
+                const isSelected = filterModality === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setFilterModality(m.id)}
+                    className={`
+                      px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer border active:scale-95 touch-manipulation
+                      ${
+                        isSelected
+                          ? 'bg-zinc-800 text-white border-zinc-600 font-black shadow-xs'
+                          : 'bg-[#141418] text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-white'
+                      }
+                    `}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Selector de Turno Operativo (4:00 AM a 3:59 AM) */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--color-porkos-border)] text-xs">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
+                <Clock className="w-3 h-3 text-[var(--color-porkos-orange)]" />
+                Turno:
+              </span>
+              {[
+                { id: 'CURRENT', label: 'Turno Hoy' },
+                { id: 'PREVIOUS', label: 'Turno Ayer' },
+                { id: 'CUSTOM', label: 'Por Fecha' },
+                { id: 'ALL', label: 'Todos' },
+              ].map((s) => {
+                const isSelected = filterShift === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setFilterShift(s.id)}
+                    className={`
+                      px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer border active:scale-95 touch-manipulation
+                      ${
+                        isSelected
+                          ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] font-black shadow-xs'
+                          : 'bg-[#141418] text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-white'
+                      }
+                    `}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+
+              {filterShift === 'CUSTOM' && (
+                <div className="flex items-center gap-1 ml-1">
+                  <input
+                    type="date"
+                    value={selectedShiftDate}
+                    onChange={(e) => setSelectedShiftDate(e.target.value)}
+                    onClick={(e) => e.target.showPicker?.()}
+                    style={{ colorScheme: 'dark' }}
+                    className="bg-black/70 border border-zinc-700 rounded-lg px-2 py-0.5 text-white text-xs font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                  />
+                </div>
               )}
-            </span>
-            <span className="text-zinc-600">•</span>
-            <span className="text-emerald-400 font-black">
-              {formatCurrency(shiftTotals.sales)}
-            </span>
+            </div>
+
+            {/* Resumen del Turno */}
+            <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400 ml-auto bg-[#0C0C0F] px-2.5 py-1 rounded-lg border border-zinc-800/80">
+              <span className="text-zinc-300 font-bold">
+                {shiftBounds?.label || 'Historial Completo'}
+              </span>
+              <span className="text-zinc-600">•</span>
+              <span>
+                {shiftTotals.validCount} {shiftTotals.validCount === 1 ? 'comanda' : 'comandas'}
+                {shiftTotals.cancelledCount > 0 && (
+                  <span className="text-rose-400 text-[11px] ml-1">
+                    ({shiftTotals.cancelledCount} canc.)
+                  </span>
+                )}
+              </span>
+              <span className="text-zinc-600">•</span>
+              <span className="text-emerald-400 font-black">
+                {formatCurrency(shiftTotals.sales)}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -1049,88 +1085,96 @@ export default function OrdersView({
                     setSelectedOrder(order);
                   }
                 }}
-                className="group bg-[#121216] hover:bg-[#16161c] border border-[var(--color-porkos-border)] hover:border-zinc-700 rounded-xl px-3 py-2 transition-all cursor-pointer flex items-center justify-between gap-2.5 active:scale-[0.99] shadow-xs text-xs"
+                className="group bg-[#121216] hover:bg-[#16161c] border border-[var(--color-porkos-border)] hover:border-zinc-700 rounded-xl px-3 py-2 transition-all cursor-pointer active:scale-[0.99] shadow-xs text-xs space-y-1"
                 title="Toca para ver el detalle y seguimiento del pedido"
               >
-                {/* Izquierda: Icono + Número + Mesa + Cliente */}
-                <div className="flex items-center gap-2.5 min-w-0 sm:w-64 shrink-0">
-                  <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
-                      order.status === 'ENTREGADO'
-                        ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
-                        : order.status === 'LISTO'
-                        ? 'bg-amber-950/40 border-amber-500/30 text-amber-400'
-                        : 'bg-orange-950/40 border-orange-500/30 text-[var(--color-porkos-orange)]'
-                    }`}
-                  >
-                    {getModalityIcon(order.modality)}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-black text-white">{order.orderNumber}</span>
-                      <span className="text-[10px] px-1.5 py-0.2 bg-zinc-800 text-zinc-300 rounded font-bold border border-zinc-700/80">
-                        {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Llevar' : order.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : order.modality === 'DELIVERY' ? 'Delivery' : 'Market')}
-                      </span>
+                <div className="flex items-center justify-between gap-2.5">
+                  {/* Izquierda: Icono + Número + Mesa + Cliente */}
+                  <div className="flex items-center gap-2.5 min-w-0 sm:w-64 shrink-0">
+                    <div
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
+                        order.status === 'ENTREGADO'
+                          ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
+                          : order.status === 'LISTO'
+                          ? 'bg-amber-950/40 border-amber-500/30 text-amber-400'
+                          : 'bg-orange-950/40 border-orange-500/30 text-[var(--color-porkos-orange)]'
+                      }`}
+                    >
+                      {getModalityIcon(order.modality)}
                     </div>
-                    <div className="text-[11px] text-amber-300/90 truncate font-semibold">
-                      {order.customerName || order.customer?.name || 'Cliente'}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-black text-white">{order.orderNumber}</span>
+                        <span className="text-[10px] px-1.5 py-0.2 bg-zinc-800 text-zinc-300 rounded font-bold border border-zinc-700/80">
+                          {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Llevar' : order.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : order.modality === 'DELIVERY' ? 'Delivery' : 'Market')}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-amber-300/90 truncate font-semibold">
+                        {order.customerName || order.customer?.name || 'Cliente'}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Centro: Resumen de productos en una sola línea */}
-                <div className="hidden md:flex flex-1 min-w-0 items-center gap-1.5 text-zinc-400 text-xs">
-                  <span className="truncate">
-                    {itemsSummary || 'Sin productos'}
-                  </span>
-                  {order.deliveryFee > 0 && (
-                    <span className="text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-1 rounded font-bold shrink-0">
-                      Delivery
+                  {/* Centro: Resumen de productos en una sola línea (desktop) */}
+                  <div className="hidden md:flex flex-1 min-w-0 items-center gap-1.5 text-zinc-400 text-xs">
+                    <span className="truncate">
+                      {itemsSummary || 'Sin productos'}
                     </span>
-                  )}
+                    {order.deliveryFee > 0 && (
+                      <span className="text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-1 rounded font-bold shrink-0">
+                        Delivery
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Derecha: Estado + Total + Tiempo + Editar */}
+                  <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 ml-auto">
+                    <span
+                      className={`text-[10px] font-black px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                        statusConf.badgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                      }`}
+                    >
+                      {statusConf.label || order.status}
+                    </span>
+
+                    <span
+                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full whitespace-nowrap hidden sm:inline ${
+                        payConf.badgeClass || 'text-zinc-400 bg-zinc-800'
+                      }`}
+                    >
+                      {payConf.label || effectivePaymentStatus}
+                    </span>
+
+                    <span className="font-black text-xs sm:text-sm text-white shrink-0 min-w-[65px] text-right">
+                      {formatCurrency(order.total)}
+                    </span>
+
+                    <span className="text-[10px] text-zinc-500 hidden sm:inline whitespace-nowrap min-w-[70px] text-right">
+                      {formatElapsedTime(order.createdAt)}
+                    </span>
+
+                    {((order.status !== 'ENTREGADO' && order.status !== 'CANCELADO') ||
+                      ((order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID' && order.status !== 'CANCELADO')) &&
+                      onEditOrderInSales && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditOrderInSales(order);
+                          }}
+                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white cursor-pointer active:scale-95 border border-zinc-700"
+                          title="Editar comanda"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                        </button>
+                      )}
+                  </div>
                 </div>
 
-                {/* Derecha: Estado + Total + Tiempo + Editar */}
-                <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 ml-auto">
-                  <span
-                    className={`text-[10px] font-black px-2 py-0.5 rounded-full border whitespace-nowrap ${
-                      statusConf.badgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'
-                    }`}
-                  >
-                    {statusConf.label || order.status}
-                  </span>
-
-                  <span
-                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full whitespace-nowrap hidden sm:inline ${
-                      payConf.badgeClass || 'text-zinc-400 bg-zinc-800'
-                    }`}
-                  >
-                    {payConf.label || effectivePaymentStatus}
-                  </span>
-
-                  <span className="font-black text-xs sm:text-sm text-white shrink-0 min-w-[65px] text-right">
-                    {formatCurrency(order.total)}
-                  </span>
-
-                  <span className="text-[10px] text-zinc-500 hidden sm:inline whitespace-nowrap min-w-[70px] text-right">
-                    {formatElapsedTime(order.createdAt)}
-                  </span>
-
-                  {((order.status !== 'ENTREGADO' && order.status !== 'CANCELADO') ||
-                    ((order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID' && order.status !== 'CANCELADO')) &&
-                    onEditOrderInSales && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEditOrderInSales(order);
-                        }}
-                        className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white cursor-pointer active:scale-95 border border-zinc-700"
-                        title="Editar comanda"
-                      >
-                        <Edit3 className="w-3 h-3" />
-                      </button>
-                    )}
+                {/* Resumen de productos visible también en móvil sin abrir modal */}
+                <div className="md:hidden flex items-center justify-between gap-2 text-[11px] text-zinc-400 pt-1 border-t border-zinc-800/50">
+                  <span className="truncate">{itemsSummary || 'Sin productos'}</span>
+                  <span className="text-[10px] text-zinc-500 shrink-0">{formatElapsedTime(order.createdAt)}</span>
                 </div>
               </div>
             );
@@ -1270,48 +1314,81 @@ export default function OrdersView({
                   </div>
                 </div>
 
-                {/* Chips de Productos (resumen compacto) */}
-                <div className="bg-[#0C0C0F] rounded-xl p-2 border border-zinc-900 flex flex-wrap items-center gap-1">
+                {/* Lista compacta de productos (1 línea c/u, expandible inline sin abrir modal) */}
+                <div className="bg-[#0C0C0F] rounded-xl px-2.5 py-1.5 border border-zinc-900 divide-y divide-zinc-800/50">
                   {order.items && order.items.length > 0 ? (
                     <>
-                      {order.items.slice(0, 3).map((item, idx) => (
-                        <span
+                      {(expandedOrderIds[order.orderNumber] ? order.items : order.items.slice(0, 4)).map((item, idx) => (
+                        <div
                           key={idx}
-                          className="inline-flex items-center gap-1 bg-zinc-900 border border-zinc-800 text-zinc-200 px-1.5 py-0.5 rounded-md text-[11px]"
+                          className="py-1 flex items-center justify-between gap-2 text-[11px]"
                         >
-                          <ProductThumbnail
-                            src={item.image}
-                            thumbnailUrl={getItemThumbnail(item)}
-                            name={item.name}
-                            isBeverage={isProductBeverage(item)}
-                            isDessert={isProductDessert(item)}
-                            className="w-5 h-5 rounded shrink-0"
-                            iconSize="w-3 h-3"
-                          />
-                          <span className="font-black text-[var(--color-porkos-orange)]">
-                            {item.quantity}×
-                          </span>
-                          <span className="font-semibold text-zinc-300 truncate max-w-[100px] sm:max-w-[130px]">
-                            {item.name}
-                          </span>
-                          <ItemConsumptionBadge item={item} orderModality={order.modality} />
-                        </span>
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <ProductThumbnail
+                              src={item.image}
+                              thumbnailUrl={getItemThumbnail(item)}
+                              name={item.name}
+                              isBeverage={isProductBeverage(item)}
+                              isDessert={isProductDessert(item)}
+                              className="w-5 h-5 rounded shrink-0"
+                              iconSize="w-3 h-3"
+                            />
+                            <span className="font-black text-[var(--color-porkos-orange)] shrink-0">
+                              {item.quantity}×
+                            </span>
+                            <span className="font-semibold text-zinc-200 truncate">
+                              {item.name}
+                            </span>
+                            <ItemConsumptionBadge item={item} orderModality={order.modality} />
+                          </div>
+                          {item.subtotal !== undefined && (
+                            <span className="text-[10px] font-bold text-zinc-400 tabular-nums shrink-0">
+                              {formatCurrency(item.subtotal)}
+                            </span>
+                          )}
+                        </div>
                       ))}
-                      {order.items.length > 3 && (
-                        <span className="inline-flex items-center text-[10px] font-bold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded-md border border-zinc-700">
-                          +{order.items.length - 3} más
-                        </span>
+
+                      {order.items.length > 4 && (
+                        <div className="pt-1 pb-0.5 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedOrderIds((prev) => ({
+                                ...prev,
+                                [order.orderNumber]: !prev[order.orderNumber],
+                              }));
+                            }}
+                            className="text-[10px] font-bold text-[var(--color-porkos-orange)] hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                          >
+                            {expandedOrderIds[order.orderNumber] ? (
+                              <>
+                                <ChevronUp className="w-3 h-3" />
+                                <span>Mostrar menos</span>
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="w-3 h-3" />
+                                <span>Ver {order.items.length - 4} productos más ({order.items.length} total)</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       )}
                     </>
                   ) : (
-                    <span className="text-xs text-zinc-500 italic">Sin productos</span>
+                    <span className="text-xs text-zinc-500 italic py-1 block">Sin productos</span>
                   )}
 
                   {order.deliveryFee > 0 && (
-                    <span className="inline-flex items-center gap-1 bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 px-1.5 py-0.5 rounded-md text-[10px] font-bold ml-auto">
-                      <Bike className="w-3 h-3 text-emerald-400" />
-                      +{formatCurrency(order.deliveryFee)}
-                    </span>
+                    <div className="py-1 flex items-center justify-between text-[10px] text-emerald-300 font-bold">
+                      <span className="inline-flex items-center gap-1">
+                        <Bike className="w-3 h-3 text-emerald-400" />
+                        <span>Envío Delivery</span>
+                      </span>
+                      <span>+{formatCurrency(order.deliveryFee)}</span>
+                    </div>
                   )}
                 </div>
 

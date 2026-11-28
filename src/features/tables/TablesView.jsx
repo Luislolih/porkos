@@ -9,6 +9,8 @@ import {
   Package,
   ArrowRightLeft,
   Users,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { formatCurrency, formatElapsedTime } from '../../utils/formatters';
 import { isProductMarket } from '../../utils/productCategories';
@@ -36,6 +38,7 @@ export default function TablesView({
   const [isTransferringTable, setIsTransferringTable] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'OCCUPIED' | 'AVAILABLE'
+  const [expandedTableIds, setExpandedTableIds] = useState({});
   const [, setTick] = useState(0);
 
   // Re-evaluar tiempos transcurridos de mesas cada 15 segundos
@@ -260,7 +263,7 @@ export default function TablesView({
               <div
                 key={table.id}
                 className={`
-                  relative overflow-hidden rounded-2xl sm:rounded-3xl flex flex-col justify-between transition-all duration-200 select-none lg:min-h-[315px]
+                  relative overflow-hidden rounded-2xl sm:rounded-3xl flex flex-col justify-between transition-all duration-200 select-none lg:min-h-[260px]
                   ${
                     isOccupied
                       ? 'bg-gradient-to-b from-[#171516] via-[#131317] to-[#101014] border-2 border-[var(--color-porkos-orange)]/55 shadow-lg shadow-orange-950/20 hover:border-[var(--color-porkos-orange)]/80'
@@ -277,7 +280,7 @@ export default function TablesView({
                   }`}
                 />
 
-                <div className={`flex-1 flex flex-col justify-between ${isOccupied ? 'p-3.5 sm:p-5 gap-3 sm:gap-4' : 'p-3 sm:p-5 gap-2.5 sm:gap-4'}`}>
+                <div className={`flex-1 flex flex-col justify-between ${isOccupied ? 'p-3 sm:p-4 gap-2.5 sm:gap-3' : 'p-3 sm:p-4 gap-2.5 sm:gap-3'}`}>
                   {/* Header de la Mesa: Limpio, sin desbordes ni saltos de línea */}
                   <div className="space-y-2.5">
                     <div className={`flex items-center justify-between gap-2 ${isOccupied ? 'pb-2.5 sm:pb-3 border-b border-zinc-800/80' : 'pb-0 sm:pb-3 sm:border-b sm:border-zinc-800/80'}`}>
@@ -392,32 +395,75 @@ export default function TablesView({
                       </div>
 
                       {/* Lista rápida de productos de la mesa */}
-                      {qualifyingOrders.some((o) => o.items?.length > 0) ? (
-                        <div className="flex-1 max-h-36 overflow-y-auto space-y-1 bg-[#0B0B0E]/80 p-2.5 rounded-2xl border border-zinc-800/80 text-xs scrollbar-thin">
-                          {qualifyingOrders.map((order) =>
-                            order.items?.map((item, idx) => (
-                              <div
-                                key={`${order.orderNumber}-${idx}`}
-                                className="flex justify-between items-center gap-2 py-1 border-b border-zinc-800/50 last:border-b-0 text-zinc-300"
+                      {qualifyingOrders.some((o) => o.items?.length > 0) ? (() => {
+                        const flattenedItems = qualifyingOrders.flatMap((order) =>
+                          (order.items || []).map((item, idx) => ({
+                            key: `${order.orderNumber}-${idx}`,
+                            orderNumber: order.orderNumber,
+                            orderModality: order.modality,
+                            item,
+                          }))
+                        );
+                        const isExpanded = Boolean(expandedTableIds[table.id]);
+                        const COLLAPSE_LIMIT = 4;
+                        const hiddenCount = Math.max(0, flattenedItems.length - COLLAPSE_LIMIT);
+                        const visibleItems = isExpanded
+                          ? flattenedItems
+                          : flattenedItems.slice(0, COLLAPSE_LIMIT);
+
+                        return (
+                          <div className="flex-1 bg-[#0B0B0E]/80 px-2.5 py-2 rounded-2xl border border-zinc-800/80 text-xs flex flex-col justify-between gap-1.5">
+                            <div className="divide-y divide-zinc-800/50">
+                              {visibleItems.map(({ key, orderNumber, orderModality, item }) => (
+                                <div
+                                  key={key}
+                                  className="flex justify-between items-center gap-2 py-1 first:pt-0 last:pb-0 text-zinc-300"
+                                >
+                                  <span className="truncate pr-1 flex items-center gap-1.5 min-w-0">
+                                    {qualifyingOrders.length > 1 && (
+                                      <span className="text-[9px] font-mono px-1 py-0.2 bg-zinc-800 text-[var(--color-porkos-orange)] rounded shrink-0">
+                                        {orderNumber}
+                                      </span>
+                                    )}
+                                    <span className="font-black text-white shrink-0">{item.quantity}×</span>
+                                    <span className="truncate font-medium">{item.name}</span>
+                                    <ItemConsumptionBadge item={item} orderModality={orderModality} />
+                                  </span>
+                                  <span className="font-bold text-zinc-200 tabular-nums shrink-0">
+                                    {formatCurrency(item.subtotal)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {hiddenCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedTableIds((prev) => ({
+                                    ...prev,
+                                    [table.id]: !prev[table.id],
+                                  }));
+                                }}
+                                className="w-full py-1 rounded-lg bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 text-[11px] font-bold text-zinc-300 hover:text-white flex items-center justify-center gap-1 transition-colors cursor-pointer"
                               >
-                                <span className="truncate pr-1 flex items-center gap-1.5 min-w-0">
-                                  {qualifyingOrders.length > 1 && (
-                                    <span className="text-[9px] font-mono px-1 py-0.2 bg-zinc-800 text-[var(--color-porkos-orange)] rounded shrink-0">
-                                      {order.orderNumber}
-                                    </span>
-                                  )}
-                                  <span className="font-black text-white shrink-0">{item.quantity}×</span>
-                                  <span className="truncate font-medium">{item.name}</span>
-                                  <ItemConsumptionBadge item={item} orderModality={order.modality} />
-                                </span>
-                                <span className="font-bold text-zinc-200 tabular-nums shrink-0">
-                                  {formatCurrency(item.subtotal)}
-                                </span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      ) : pendingDeliveryOrders.length > 0 ? (
+                                {isExpanded ? (
+                                  <>
+                                    <ChevronUp className="w-3.5 h-3.5" />
+                                    <span>Mostrar menos</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                    <span>+ Ver {hiddenCount} más</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })() : pendingDeliveryOrders.length > 0 ? (
                         <div className="flex-1 py-3 px-3.5 rounded-2xl bg-blue-950/20 border border-blue-800/30 text-xs text-blue-300 flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Package className="w-4 h-4 text-blue-400 shrink-0" />
