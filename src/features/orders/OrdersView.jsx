@@ -41,7 +41,7 @@ import Button from '../../components/ui/Button';
 import Toast from '../../components/ui/Toast';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import { handleInputFocusScroll } from '../../utils/scrollIntoViewHelper';
-import { isProductBeverage, isProductDessert, doesProductSupportCreams } from '../../utils/productCategories';
+import { isProductBeverage, isProductDessert, doesProductSupportCreams, resolveConfiguredPackaging } from '../../utils/productCategories';
 import { useAuth } from '../../context/useAuth';
 import { useCatalog } from '../../context/useCatalog';
 
@@ -136,17 +136,7 @@ export default function OrdersView({
     ) {
       return null;
     }
-    return (
-      (catalogPackagings || []).find(
-        (pkg) =>
-          pkg.active &&
-          pkg.id !== 'pkg_ninguno' &&
-          (prod?.availablePackagingIds?.includes(pkg.id) ||
-            pkg.applicableProductIds?.includes(prod.id))
-      ) ||
-      (catalogPackagings || []).find((pkg) => pkg.active && pkg.id !== 'pkg_ninguno') ||
-      null
-    );
+    return resolveConfiguredPackaging(prod, catalogPackagings);
   };
 
   const handleOpenManualOrderModal = () => {
@@ -408,8 +398,17 @@ export default function OrdersView({
   };
 
   const handleUpdateManualItemPrice = (id, newPrice) => {
-    const parsed = Math.max(0, parseFloat(newPrice) || 0);
-    const rounded = Math.round(parsed * 100) / 100;
+    const cleaned = String(newPrice ?? '').replace(',', '.').trim();
+    if (cleaned === '') {
+      setEditingItemPriceId(null);
+      return;
+    }
+    const parsedNum = parseFloat(cleaned);
+    if (isNaN(parsedNum) || parsedNum < 0) {
+      setEditingItemPriceId(null);
+      return;
+    }
+    const rounded = Math.round(parsedNum * 100) / 100;
     setManualItems((prev) =>
       prev.map((it) => {
         if (it.id === id) {
@@ -2066,16 +2065,19 @@ export default function OrdersView({
                           <div className="relative flex-1">
                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-bold text-zinc-400 text-xs pointer-events-none">S/</span>
                             <input
-                              type="number"
-                              step="0.50"
-                              min="0"
+                              type="text"
+                              inputMode="decimal"
                               value={itemPrice}
                               onChange={(e) => {
-                                setItemPrice(e.target.value);
-                                setIsPriceCustomized(true);
+                                const raw = e.target.value.replace(',', '.');
+                                if (/^\d*(\.\d{0,2})?$/.test(raw)) {
+                                  setItemPrice(raw);
+                                  setIsPriceCustomized(true);
+                                }
                               }}
                               onFocus={(e) => {
-                                e.target.select();
+                                const target = e.target;
+                                setTimeout(() => target.select(), 0);
                                 handleInputFocusScroll(e);
                               }}
                               placeholder="0.00"
@@ -2160,14 +2162,26 @@ export default function OrdersView({
                                   <div className="flex items-center gap-1 bg-[#18181D] border border-amber-500/80 rounded-lg px-2 py-0.5 shadow-md">
                                     <span className="text-[11px] font-bold text-amber-400">S/</span>
                                     <input
-                                      type="number"
-                                      step="0.10"
-                                      min="0"
+                                      type="text"
+                                      inputMode="decimal"
                                       autoFocus
                                       value={tempItemPrice}
-                                      onChange={(e) => setTempItemPrice(e.target.value)}
+                                      onChange={(e) => {
+                                        const raw = e.target.value.replace(',', '.');
+                                        if (/^\d*(\.\d{0,2})?$/.test(raw)) {
+                                          setTempItemPrice(raw);
+                                        }
+                                      }}
+                                      onFocus={(e) => {
+                                        const target = e.target;
+                                        setTimeout(() => target.select(), 0);
+                                      }}
+                                      onBlur={() => handleUpdateManualItemPrice(item.id, tempItemPrice)}
                                       onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleUpdateManualItemPrice(item.id, tempItemPrice);
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          handleUpdateManualItemPrice(item.id, tempItemPrice);
+                                        }
                                         if (e.key === 'Escape') setEditingItemPriceId(null);
                                       }}
                                       className="w-16 bg-transparent text-white font-black text-xs focus:outline-none"
@@ -2175,6 +2189,7 @@ export default function OrdersView({
                                     />
                                     <button
                                       type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
                                       onClick={() => handleUpdateManualItemPrice(item.id, tempItemPrice)}
                                       className="p-1 bg-amber-500 hover:bg-amber-400 text-zinc-950 rounded text-xs cursor-pointer active:scale-90"
                                       title="Guardar precio"
@@ -2183,6 +2198,7 @@ export default function OrdersView({
                                     </button>
                                     <button
                                       type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
                                       onClick={() => setEditingItemPriceId(null)}
                                       className="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 rounded text-xs cursor-pointer"
                                       title="Cancelar"

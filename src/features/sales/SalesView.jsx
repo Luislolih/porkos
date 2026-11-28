@@ -14,7 +14,7 @@ import QuickPaymentModal from './components/QuickPaymentModal';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
 import { formatCurrency } from '../../utils/formatters';
 import { getNextOrderNumber } from '../../utils/orderNumber';
-import { isProductBeverage, isProductMarket, isProductFood, isProductDessert, isProductSnack } from '../../utils/productCategories';
+import { isProductBeverage, isProductMarket, isProductFood, isProductDessert, isProductSnack, resolveConfiguredPackaging } from '../../utils/productCategories';
 import { sanitizeText, sanitizeNotes } from '../../utils/security';
 import { forceUnlockScroll } from '../../utils/scrollLock';
 import { useAuth } from '../../context/useAuth';
@@ -504,16 +504,7 @@ export default function SalesView({
 
     let defaultPackaging = null;
     if (isTakeoutOrDelivery) {
-      defaultPackaging =
-        (catalogPackagings || []).find(
-          (pkg) =>
-            pkg.active &&
-            pkg.id !== 'pkg_ninguno' &&
-            (product.availablePackagingIds?.includes(pkg.id) ||
-              pkg.applicableProductIds?.includes(product.id))
-        ) ||
-        (catalogPackagings || []).find((pkg) => pkg.active && pkg.id !== 'pkg_ninguno') ||
-        null;
+      defaultPackaging = resolveConfiguredPackaging(product, catalogPackagings);
     }
 
     if (product.type === 'MARKET' || product.line === 'MARKET' || product.type === SALES_MODES.MARKET) {
@@ -1181,7 +1172,16 @@ export default function SalesView({
         }}
         product={customizingProduct}
         cartItemId={editingCartItem?.itemId}
-        initialCustomization={editingCartItem?.customization || null}
+        initialCustomization={
+          editingCartItem
+            ? {
+                ...(editingCartItem.customization || {}),
+                ...(editingCartItem.isManualPrice && editingCartItem.customization?.manualPrice == null
+                  ? { manualPrice: editingCartItem.unitPrice, isManualPrice: true }
+                  : {}),
+              }
+            : null
+        }
         modality={modality}
         onConfirm={handleConfirmCustomization}
       />

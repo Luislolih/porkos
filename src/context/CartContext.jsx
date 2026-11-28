@@ -11,6 +11,7 @@ import {
   isProductBeverage,
   isProductDessert,
   doesProductSupportCreams,
+  resolveConfiguredPackaging,
 } from '../utils/productCategories';
 
 const CART_DRAFT_KEY = 'porkos_cart_draft';
@@ -229,21 +230,38 @@ export function CartProvider({ children }) {
             customization: {
               ...item.customization,
               consumptionType: defaultConsumptionType,
+              packaging: null,
             },
           };
         }
 
+        const configuredPkg = isNowTakeoutOrDelivery
+          ? resolveConfiguredPackaging(
+              prod || { id: item.productId, availablePackagingIds: item.availablePackagingIds },
+              catalogPackagings,
+              item.availablePackagingIds
+            )
+          : null;
+
+        // Si el ítem ya tenía un táper válido configurado manualmente (distinto de "Sin empaque"), respetarlo
+        const existingPkg = item.customization?.packaging;
+        const keepExistingPkg =
+          isNowTakeoutOrDelivery &&
+          existingPkg &&
+          existingPkg.id !== 'pkg_ninguno' &&
+          (catalogPackagings || []).some(
+            (pkg) =>
+              pkg.active &&
+              pkg.id === existingPkg.id &&
+              (prod?.availablePackagingIds?.includes(pkg.id) ||
+                pkg.applicableProductIds?.includes(item.productId) ||
+                item.availablePackagingIds?.includes(pkg.id))
+          );
+
         const updatedPackaging = isNowTakeoutOrDelivery
-          ? (catalogPackagings || []).find(
-              (pkg) =>
-                pkg.active &&
-                pkg.id !== 'pkg_ninguno' &&
-                (prod?.availablePackagingIds?.includes(pkg.id) ||
-                  pkg.applicableProductIds?.includes(item.productId) ||
-                  item.availablePackagingIds?.includes(pkg.id))
-            ) ||
-            (catalogPackagings || []).find((pkg) => pkg.active && pkg.id !== 'pkg_ninguno') ||
-            null
+          ? keepExistingPkg
+            ? existingPkg
+            : configuredPkg
           : null;
 
         // Si el precio fue modificado manualmente, respetamos el precio unitario ingresado por el usuario
@@ -298,21 +316,8 @@ export function CartProvider({ children }) {
         : 'MESA');
 
     let defaultPackaging = null;
-    if (
-      (defaultConsumption === 'PARA_LLEVAR' || defaultConsumption === 'DELIVERY') &&
-      product.type !== 'MARKET' &&
-      product.line !== 'MARKET'
-    ) {
-      defaultPackaging =
-        (catalogPackagings || []).find(
-          (pkg) =>
-            pkg.active &&
-            pkg.id !== 'pkg_ninguno' &&
-            (product.availablePackagingIds?.includes(pkg.id) ||
-              pkg.applicableProductIds?.includes(product.id))
-        ) ||
-        (catalogPackagings || []).find((pkg) => pkg.active && pkg.id !== 'pkg_ninguno') ||
-        null;
+    if (defaultConsumption === 'PARA_LLEVAR' || defaultConsumption === 'DELIVERY') {
+      defaultPackaging = resolveConfiguredPackaging(product, catalogPackagings);
     }
 
     const custom = customization || {
@@ -330,7 +335,11 @@ export function CartProvider({ children }) {
     if (!custom.consumptionType) {
       custom.consumptionType = defaultConsumption;
     }
-    if (custom.consumptionType === 'PARA_LLEVAR' && !custom.packaging && defaultPackaging) {
+    if (
+      (custom.consumptionType === 'PARA_LLEVAR' || custom.consumptionType === 'DELIVERY') &&
+      !custom.packaging &&
+      defaultPackaging
+    ) {
       custom.packaging = defaultPackaging;
     }
 
@@ -422,21 +431,15 @@ export function CartProvider({ children }) {
       const prod = products.find((p) => p.id === item.productId);
       const isMarketOrDirect = prod?.type === 'MARKET' || prod?.line === 'MARKET' || item.productId?.startsWith('mkt_');
 
-      // Buscar táper si pasa a PARA_LLEVAR
-      let targetPackaging = null;
-      if (newConsumptionType === 'PARA_LLEVAR' && !isMarketOrDirect) {
-        targetPackaging =
-          (catalogPackagings || []).find(
-            (pkg) =>
-              pkg.active &&
-              pkg.id !== 'pkg_ninguno' &&
-              (prod?.availablePackagingIds?.includes(pkg.id) ||
-                pkg.applicableProductIds?.includes(item.productId) ||
-                item.availablePackagingIds?.includes(pkg.id))
-          ) ||
-          (catalogPackagings || []).find((pkg) => pkg.active && pkg.id !== 'pkg_ninguno') ||
-          null;
-      }
+      // Buscar táper solo si el producto tiene empaques configurados y pasa a PARA_LLEVAR
+      const targetPackaging =
+        newConsumptionType === 'PARA_LLEVAR' && !isMarketOrDirect
+          ? resolveConfiguredPackaging(
+              prod || { id: item.productId, availablePackagingIds: item.availablePackagingIds },
+              catalogPackagings,
+              item.availablePackagingIds
+            )
+          : null;
 
       const extrasTotal = (item.customization?.selectedExtras || []).reduce(
         (sum, ext) => sum + ext.unitPrice * (ext.quantity || 1),
@@ -557,13 +560,19 @@ export function CartProvider({ children }) {
           let isManual = false;
 
           if (
+            cleanCustomization?.isManualPrice !== false &&
             cleanCustomization?.manualPrice !== undefined &&
             cleanCustomization?.manualPrice !== null &&
             !isNaN(parseFloat(cleanCustomization?.manualPrice))
           ) {
             newUnitPrice = parseFloat(cleanCustomization.manualPrice);
             isManual = true;
-          } else if (item.isManualPrice && (cleanCustomization?.manualPrice === undefined || cleanCustomization?.manualPrice === null)) {
+          } else if (
+            cleanCustomization?.isManualPrice === false ||
+            cleanCustomization?.manualPrice === null
+          ) {
+            isManual = false;
+          } else if (item.isManualPrice) {
             newUnitPrice = item.unitPrice;
             isManual = true;
           }
@@ -571,9 +580,14 @@ export function CartProvider({ children }) {
           const roundedUnitPrice = Math.round(newUnitPrice * 100) / 100;
           return {
             ...item,
+            consumptionType: cleanCustomization.consumptionType || item.consumptionType,
             unitPrice: roundedUnitPrice,
             isManualPrice: isManual,
-            customization: cleanCustomization,
+            customization: {
+              ...cleanCustomization,
+              manualPrice: isManual ? roundedUnitPrice : null,
+              isManualPrice: isManual,
+            },
             subtotal: Math.round(roundedUnitPrice * item.quantity * 100) / 100,
           };
         }
@@ -586,7 +600,7 @@ export function CartProvider({ children }) {
    * Modificar manualmente el precio unitario de un ítem en la comanda
    */
   const updateItemUnitPrice = (itemId, newUnitPrice) => {
-    const parsed = parseFloat(newUnitPrice);
+    const parsed = parseFloat(String(newUnitPrice).replace(',', '.'));
     if (isNaN(parsed) || parsed < 0) return;
     const rounded = Math.round(parsed * 100) / 100;
     setItems((prev) =>
@@ -596,6 +610,11 @@ export function CartProvider({ children }) {
             ...item,
             unitPrice: rounded,
             isManualPrice: true,
+            customization: {
+              ...item.customization,
+              manualPrice: rounded,
+              isManualPrice: true,
+            },
             subtotal: Math.round(rounded * item.quantity * 100) / 100,
           };
         }
@@ -621,6 +640,11 @@ export function CartProvider({ children }) {
             ...item,
             unitPrice: calcUnitPrice,
             isManualPrice: false,
+            customization: {
+              ...item.customization,
+              manualPrice: null,
+              isManualPrice: false,
+            },
             subtotal: Math.round(calcUnitPrice * item.quantity * 100) / 100,
           };
         }

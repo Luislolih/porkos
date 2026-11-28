@@ -203,12 +203,25 @@ function CustomizerForm({
   });
 
   // 8. Precio Manual Opcional
-  const [manualPriceInput, setManualPriceInput] = useState(() => {
-    if (initialCustomization?.manualPrice !== undefined && initialCustomization?.manualPrice !== null) {
-      return String(initialCustomization.manualPrice);
+  const initialHasManual = Boolean(
+    initialCustomization?.isManualPrice ||
+    (initialCustomization?.manualPrice !== undefined &&
+      initialCustomization?.manualPrice !== null &&
+      !isNaN(parseFloat(initialCustomization.manualPrice)))
+  );
+  const [hasManualOverride, setHasManualOverride] = useState(() => initialHasManual);
+  const [manualPriceText, setManualPriceText] = useState(() => {
+    if (
+      initialHasManual &&
+      initialCustomization?.manualPrice !== undefined &&
+      initialCustomization?.manualPrice !== null &&
+      !isNaN(parseFloat(initialCustomization.manualPrice))
+    ) {
+      return Number(initialCustomization.manualPrice).toFixed(2);
     }
     return '';
   });
+  const [isPriceInputFocused, setIsPriceInputFocused] = useState(false);
 
   const toggleCream = (creamId) => {
     setSelectedCreams((prev) =>
@@ -256,10 +269,33 @@ function CustomizerForm({
   );
   const packagingPrice = selectedPackaging?.price || 0;
   const autoCalculatedTotal = Math.round((product.price + extrasTotal + packagingPrice) * 100) / 100;
-  const parsedManual = parseFloat(manualPriceInput);
-  const hasValidManual = manualPriceInput !== '' && !isNaN(parsedManual) && parsedManual >= 0;
-  const isCustomPriceActive = hasValidManual && Math.abs(parsedManual - autoCalculatedTotal) > 0.001;
-  const currentTotal = hasValidManual ? Math.round(parsedManual * 100) / 100 : autoCalculatedTotal;
+  const normalizedPriceText = String(manualPriceText || '').replace(',', '.').trim();
+  const parsedManual = parseFloat(normalizedPriceText);
+  const hasValidManual =
+    hasManualOverride &&
+    normalizedPriceText !== '' &&
+    !isNaN(parsedManual) &&
+    parsedManual >= 0;
+  const roundedManual = hasValidManual ? Math.round(parsedManual * 100) / 100 : null;
+  const isCustomPriceActive = hasValidManual && Math.abs(roundedManual - autoCalculatedTotal) > 0.001;
+  const currentTotal = hasValidManual ? roundedManual : autoCalculatedTotal;
+
+  const displayedPriceValue =
+    isPriceInputFocused || hasManualOverride
+      ? manualPriceText
+      : autoCalculatedTotal.toFixed(2);
+
+  const handleStepManualPrice = (delta) => {
+    const baseVal = hasValidManual ? roundedManual : autoCalculatedTotal;
+    const nextVal = Math.max(0, Math.round((baseVal + delta) * 100) / 100);
+    if (Math.abs(nextVal - autoCalculatedTotal) <= 0.001) {
+      setHasManualOverride(false);
+      setManualPriceText('');
+    } else {
+      setHasManualOverride(true);
+      setManualPriceText(nextVal.toFixed(2));
+    }
+  };
 
   // Confirmar
   const handleConfirm = () => {
@@ -764,9 +800,22 @@ function CustomizerForm({
             PRECIO
           </span>
           {isCustomPriceActive && (
-            <span className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
-              manual
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                manual
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setHasManualOverride(false);
+                  setManualPriceText('');
+                }}
+                className="text-[10px] font-bold text-zinc-400 hover:text-white underline cursor-pointer"
+                title={`Restablecer a ${formatCurrency(autoCalculatedTotal)}`}
+              >
+                Restablecer ({formatCurrency(autoCalculatedTotal)})
+              </button>
+            </div>
           )}
         </div>
 
@@ -774,13 +823,7 @@ function CustomizerForm({
           {/* Flecha/Botón Menos (-0.50) */}
           <button
             type="button"
-            onClick={() => {
-              const currentVal = manualPriceInput !== '' && !isNaN(parseFloat(manualPriceInput))
-                ? parseFloat(manualPriceInput)
-                : autoCalculatedTotal;
-              const nextVal = Math.max(0, Math.round((currentVal - 0.5) * 100) / 100);
-              setManualPriceInput(nextVal.toFixed(2));
-            }}
+            onClick={() => handleStepManualPrice(-0.5)}
             className="w-11 h-11 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-90 text-zinc-200 hover:text-white flex items-center justify-center font-black transition-all cursor-pointer border border-zinc-700/80 shrink-0 touch-manipulation"
             title="Disminuir S/ 0.50"
             aria-label="Restar 0.50"
@@ -794,17 +837,42 @@ function CustomizerForm({
               S/
             </span>
             <input
-              type="number"
-              step="0.50"
-              min="0"
-              value={manualPriceInput !== '' ? manualPriceInput : autoCalculatedTotal.toFixed(2)}
-              onChange={(e) => setManualPriceInput(e.target.value)}
-              onFocus={(e) => {
-                if (manualPriceInput === '') {
-                  setManualPriceInput(autoCalculatedTotal.toFixed(2));
+              type="text"
+              inputMode="decimal"
+              value={displayedPriceValue}
+              onChange={(e) => {
+                const raw = e.target.value.replace(',', '.');
+                if (/^\d*(\.\d{0,2})?$/.test(raw)) {
+                  setHasManualOverride(true);
+                  setManualPriceText(raw);
                 }
-                e.target.select();
+              }}
+              onFocus={(e) => {
+                setIsPriceInputFocused(true);
+                if (!hasManualOverride) {
+                  setManualPriceText(autoCalculatedTotal.toFixed(2));
+                }
+                const target = e.target;
+                setTimeout(() => target.select(), 0);
                 handleInputFocusScroll(e);
+              }}
+              onBlur={() => {
+                setIsPriceInputFocused(false);
+                const cleaned = String(manualPriceText || '').replace(',', '.').trim();
+                const parsed = parseFloat(cleaned);
+                if (cleaned === '' || isNaN(parsed) || parsed < 0) {
+                  setHasManualOverride(false);
+                  setManualPriceText('');
+                } else {
+                  const rounded = Math.round(parsed * 100) / 100;
+                  if (Math.abs(rounded - autoCalculatedTotal) <= 0.001) {
+                    setHasManualOverride(false);
+                    setManualPriceText('');
+                  } else {
+                    setHasManualOverride(true);
+                    setManualPriceText(rounded.toFixed(2));
+                  }
+                }
               }}
               placeholder={autoCalculatedTotal.toFixed(2)}
               className="w-full bg-[#141418] border border-zinc-800 focus:border-amber-500 rounded-xl pl-9 pr-3 py-2.5 text-center text-sm sm:text-base text-white font-black focus:outline-none transition-colors"
@@ -815,13 +883,7 @@ function CustomizerForm({
           {/* Flecha/Botón Más (+0.50) */}
           <button
             type="button"
-            onClick={() => {
-              const currentVal = manualPriceInput !== '' && !isNaN(parseFloat(manualPriceInput))
-                ? parseFloat(manualPriceInput)
-                : autoCalculatedTotal;
-              const nextVal = Math.round((currentVal + 0.5) * 100) / 100;
-              setManualPriceInput(nextVal.toFixed(2));
-            }}
+            onClick={() => handleStepManualPrice(0.5)}
             className="w-11 h-11 rounded-xl bg-[var(--color-porkos-orange)]/20 hover:bg-[var(--color-porkos-orange)] text-[var(--color-porkos-orange)] hover:text-zinc-950 active:scale-90 flex items-center justify-center font-black transition-all cursor-pointer border border-orange-500/40 shrink-0 touch-manipulation"
             title="Aumentar S/ 0.50"
             aria-label="Aumentar 0.50"

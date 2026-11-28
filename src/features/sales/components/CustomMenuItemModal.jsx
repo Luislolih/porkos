@@ -15,9 +15,12 @@ function CustomMenuItemForm({
   const { packagings: catalogPackagings = [] } = useCatalog();
 
   const [name, setName] = useState(() => editingItem?.name || initialName || '');
-  const [price, setPrice] = useState(() =>
-    editingItem?.unitPrice !== undefined ? String(editingItem.unitPrice) : ''
-  );
+  const [price, setPrice] = useState(() => {
+    if (editingItem?.unitPrice === undefined) return '';
+    const existingPkgPrice = Number(editingItem?.customization?.packaging?.price) || 0;
+    const baseUnit = Math.max(0, Math.round(((Number(editingItem.unitPrice) || 0) - existingPkgPrice) * 100) / 100);
+    return baseUnit.toFixed(2);
+  });
   const [quantity, setQuantity] = useState(() => editingItem?.quantity || 1);
   const [requiresKitchen, setRequiresKitchen] = useState(() =>
     editingItem?.requiresKitchen !== undefined ? Boolean(editingItem.requiresKitchen) : true
@@ -32,15 +35,11 @@ function CustomMenuItemForm({
   });
   const [selectedPackaging, setSelectedPackaging] = useState(() => {
     if (editingItem?.customization?.packaging) return editingItem.customization.packaging;
-    const isTakeout = modality === 'PARA_LLEVAR' || modality === 'DELIVERY';
-    if (isTakeout) {
-      return catalogPackagings.find((p) => p.active && p.id !== 'pkg_ninguno') || null;
-    }
     return null;
   });
   const [notes, setNotes] = useState(() => editingItem?.customization?.itemNotes || '');
 
-  const parsedPrice = Math.max(0, parseFloat(price) || 0);
+  const parsedPrice = Math.max(0, parseFloat(String(price).replace(',', '.')) || 0);
   const pkgPrice = selectedPackaging?.price || 0;
   const unitTotal = Math.round((parsedPrice + (selectedPackaging ? pkgPrice : 0)) * 100) / 100;
   const lineTotal = Math.round(unitTotal * quantity * 100) / 100;
@@ -63,7 +62,7 @@ function CustomMenuItemForm({
   };
 
   const handleStepPrice = (delta) => {
-    const curr = parseFloat(price) || 0;
+    const curr = parseFloat(String(price).replace(',', '.')) || 0;
     const nextVal = Math.max(0, Math.round((curr + delta) * 100) / 100);
     setPrice(nextVal.toFixed(2));
   };
@@ -112,13 +111,18 @@ function CustomMenuItemForm({
                 S/
               </span>
               <input
-                type="number"
-                step="0.50"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={price}
-                onChange={(e) => setPrice(e.target.value)}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(',', '.');
+                  if (/^\d*(\.\d{0,2})?$/.test(raw)) {
+                    setPrice(raw);
+                  }
+                }}
                 onFocus={(e) => {
-                  e.target.select();
+                  const target = e.target;
+                  setTimeout(() => target.select(), 0);
                   handleInputFocusScroll(e);
                 }}
                 placeholder="0.00"
@@ -190,10 +194,7 @@ function CustomMenuItemForm({
                   type="button"
                   onClick={() => {
                     setConsumptionType(dest.id);
-                    if (dest.id === 'PARA_LLEVAR' && !selectedPackaging) {
-                      const defaultPkg = catalogPackagings.find((p) => p.active && p.id !== 'pkg_ninguno');
-                      if (defaultPkg) setSelectedPackaging(defaultPkg);
-                    } else if (dest.id !== 'PARA_LLEVAR') {
+                    if (dest.id !== 'PARA_LLEVAR') {
                       setSelectedPackaging(null);
                     }
                   }}

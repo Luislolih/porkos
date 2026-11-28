@@ -272,3 +272,46 @@ export function doesProductSupportCreams(prod, allCategories = []) {
   return Boolean(isProductFood(prod, allCategories));
 }
 
+/**
+ * Resuelve el empaque/táper predeterminado EXCLUSIVAMENTE si el producto tiene
+ * empaques asociados en su configuración (`availablePackagingIds` o `applicableProductIds`).
+ * Nunca asigna un empaque aleatorio del catálogo si el producto no tiene ninguno configurado.
+ */
+export function resolveConfiguredPackaging(product, catalogPackagings = [], itemAvailablePackagingIds = []) {
+  if (!product || !Array.isArray(catalogPackagings) || catalogPackagings.length === 0) {
+    return null;
+  }
+
+  if (
+    isProductMarket(product) ||
+    (typeof product.id === 'string' && product.id.startsWith('mkt_'))
+  ) {
+    return null;
+  }
+
+  const configuredIds = new Set([
+    ...(Array.isArray(product.availablePackagingIds) ? product.availablePackagingIds : []),
+    ...(Array.isArray(itemAvailablePackagingIds) ? itemAvailablePackagingIds : []),
+  ]);
+
+  const associatedPackagings = catalogPackagings.filter(
+    (pkg) =>
+      pkg &&
+      pkg.active &&
+      pkg.id !== 'pkg_ninguno' &&
+      (configuredIds.has(pkg.id) ||
+        (Array.isArray(pkg.applicableProductIds) && pkg.applicableProductIds.includes(product.id)))
+  );
+
+  if (associatedPackagings.length === 0) {
+    return null;
+  }
+
+  if (product.defaultPackagingId) {
+    const preferred = associatedPackagings.find((pkg) => pkg.id === product.defaultPackagingId);
+    if (preferred) return preferred;
+  }
+
+  return associatedPackagings[0];
+}
+

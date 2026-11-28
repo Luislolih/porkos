@@ -523,7 +523,7 @@ export function CatalogProvider({ children }) {
       imageMetadata: newProduct.imageMetadata && typeof newProduct.imageMetadata === 'object' ? newProduct.imageMetadata : null,
       requiresKitchen: line === 'MARKET' ? false : (newProduct.requiresKitchen ?? true),
       active: true,
-      defaultPackagingId: newProduct.defaultPackagingId || (packagings[0]?.id || ''),
+      defaultPackagingId: newProduct.defaultPackagingId || (newProduct.availablePackagingIds?.[0] || ''),
       availablePackagingIds: newProduct.availablePackagingIds || [],
       modifiers: newProduct.modifiers || [],
       creamsConfig: newProduct.creamsConfig || {

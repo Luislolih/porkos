@@ -425,7 +425,15 @@ export default function CatalogView() {
         ? prod.availableCreamIds
         : creams.map((c) => c.id)
     );
-    setProdAvailablePackagingIds(prod.availablePackagingIds || []);
+    const mergedPackagingIds = Array.from(
+      new Set([
+        ...(Array.isArray(prod.availablePackagingIds) ? prod.availablePackagingIds : []),
+        ...packagings
+          .filter((pkg) => Array.isArray(pkg.applicableProductIds) && pkg.applicableProductIds.includes(prod.id))
+          .map((pkg) => pkg.id),
+      ])
+    );
+    setProdAvailablePackagingIds(mergedPackagingIds);
     setImageUploadError(null);
     setIsProductModalOpen(true);
   };
