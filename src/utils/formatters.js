@@ -38,45 +38,55 @@ export const formatCurrency = (amount) => {
   return `S/ ${num.toFixed(2)}`;
 };
 
-export const formatDate = (dateInput) => {
+const limaDateTimeFormatter = new Intl.DateTimeFormat('es-PE', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: 'America/Lima',
+});
+
+const getLimaDateParts = (dateInput) => {
   const date = parseToDate(dateInput);
-  if (!date) return '--/--/----';
-  return date.toLocaleDateString('es-PE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    timeZone: 'America/Lima',
+  if (!date) return null;
+  const parts = {};
+  limaDateTimeFormatter.formatToParts(date).forEach((part) => {
+    parts[part.type] = part.value;
   });
+  if (parts.hour === '24') parts.hour = '00';
+  return parts;
+};
+
+export const formatDate = (dateInput) => {
+  const p = getLimaDateParts(dateInput);
+  if (!p) return '--/--/----';
+  return `${p.day}/${p.month}/${p.year}`;
+};
+
+export const formatShortDate = (dateInput) => {
+  const p = getLimaDateParts(dateInput);
+  if (!p) return '--/--';
+  return `${p.day}/${p.month}`;
 };
 
 export const formatDateTime = (dateInput) => {
-  const date = parseToDate(dateInput);
-  if (!date) return '--/--/---- --:--';
-  const parts = new Intl.DateTimeFormat('es-PE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'America/Lima',
-  }).formatToParts(date);
-  const p = {};
-  parts.forEach((part) => {
-    p[part.type] = part.value;
-  });
+  const p = getLimaDateParts(dateInput);
+  if (!p) return '--/--/---- --:--';
   return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
 };
 
+export const formatShortDateTime = (dateInput) => {
+  const p = getLimaDateParts(dateInput);
+  if (!p) return '--/-- --:--';
+  return `${p.day}/${p.month} ${p.hour}:${p.minute}`;
+};
+
 export const formatTime = (dateInput) => {
-  const date = parseToDate(dateInput);
-  if (!date) return '--:--';
-  return date.toLocaleTimeString('es-PE', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'America/Lima',
-  });
+  const p = getLimaDateParts(dateInput);
+  if (!p) return '--:--';
+  return `${p.hour}:${p.minute}`;
 };
 
 export const formatElapsedTime = (dateInput) => {

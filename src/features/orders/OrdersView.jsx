@@ -1,12 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Clock,
-  CheckCircle2,
-  Flame,
-  ChefHat,
-  ShoppingBag,
   Bike,
-  Store,
   Utensils,
   X,
   Check,
@@ -14,8 +9,6 @@ import {
   Edit2,
   Edit3,
   Trash2,
-  Lock,
-  UserCheck,
   User,
   Plus,
   Minus,
@@ -26,8 +19,14 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
 } from 'lucide-react';
-import { formatCurrency, formatTime, formatElapsedTime, generateOrderNumber } from '../../utils/formatters';
+import {
+  formatCurrency,
+  formatShortDate,
+  formatTime,
+  generateOrderNumber,
+} from '../../utils/formatters';
 import {
   getShiftDateString,
   getPreviousShiftDateString,
@@ -35,7 +34,6 @@ import {
   isTimestampInShiftRange,
   formatShiftDisplayDate,
 } from '../../utils/shiftDateUtils';
-import { ORDER_STATUS, PAYMENT_STATUS } from '../../types/constants';
 import Modal from '../../components/ui/Modal';
 import ItemConsumptionBadge from '../../components/ui/ItemConsumptionBadge';
 import EmptyState from '../../components/ui/EmptyState';
@@ -43,10 +41,46 @@ import SearchInput from '../../components/ui/SearchInput';
 import Button from '../../components/ui/Button';
 import Toast from '../../components/ui/Toast';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
+import StatusIndicator from '../../components/ui/StatusIndicator';
 import { handleInputFocusScroll } from '../../utils/scrollIntoViewHelper';
-import { isProductBeverage, isProductDessert, doesProductSupportCreams, resolveConfiguredPackaging } from '../../utils/productCategories';
+import { isProductBeverage, isProductDessert, resolveConfiguredPackaging } from '../../utils/productCategories';
 import { useAuth } from '../../context/useAuth';
 import { useCatalog } from '../../context/useCatalog';
+import OrderDetailContent from './components/OrderDetailContent';
+import ModalityIcon from './components/ModalityIcon';
+import {
+  MODALITY_FULL_LABELS,
+  formatOrderNote,
+  getOrderCustomerLabel,
+  getOrderItemsCount,
+  getOrderItemsSummary,
+  getOrderKey,
+  getOrderLocationLabel,
+  getOrderPaymentInfo,
+  getOrderTimestampMs,
+  getStatusIconContainerClass,
+  isOrderEditable,
+} from './orderHelpers';
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)').matches : true
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mql = window.matchMedia('(min-width: 1024px)');
+    const handleChange = (e) => setIsDesktop(e.matches);
+    if (mql.addEventListener) {
+      mql.addEventListener('change', handleChange);
+      return () => mql.removeEventListener('change', handleChange);
+    }
+    mql.addListener(handleChange);
+    return () => mql.removeListener(handleChange);
+  }, []);
+
+  return isDesktop;
+}
 
 export default function OrdersView({
   orders = [],
@@ -58,18 +92,38 @@ export default function OrdersView({
   const { user } = useAuth();
   const { products = [], categories = [], packagings: catalogPackagings = [], recordProductSales } = useCatalog();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'OWNER';
+  const isDesktop = useIsDesktop();
 
-  const getItemThumbnail = (item) => {
-    if (item?.thumbnailUrl) return item.thumbnailUrl;
-    if (item?.image) return item.image;
-    if (!products || products.length === 0) return null;
-    const match = products.find(
-      (p) =>
-        (item?.productId && p.id === item.productId) ||
-        (item?.name && p.name && p.name.trim().toLowerCase() === item.name.trim().toLowerCase())
-    );
-    return match?.thumbnailUrl || match?.image || null;
-  };
+  // Índice memoizado O(1) para resolver miniaturas de catálogo sin escanear products[] por cada ítem
+  const productThumbIndex = useMemo(() => {
+    const byId = new Map();
+    const byName = new Map();
+    products.forEach((p) => {
+      const thumb = p?.thumbnailUrl || p?.image || null;
+      if (!thumb) return;
+      if (p.id) byId.set(p.id, thumb);
+      if (p.name) byName.set(p.name.trim().toLowerCase(), thumb);
+    });
+    return { byId, byName };
+  }, [products]);
+
+  const getItemThumbnail = useCallback(
+    (item) => {
+      if (item?.thumbnailUrl) return item.thumbnailUrl;
+      if (item?.image) return item.image;
+      if (item?.productId && productThumbIndex.byId.has(item.productId)) {
+        return productThumbIndex.byId.get(item.productId);
+      }
+      if (item?.name) {
+        const key = item.name.trim().toLowerCase();
+        if (productThumbIndex.byName.has(key)) {
+          return productThumbIndex.byName.get(key);
+        }
+      }
+      return null;
+    },
+    [productThumbIndex]
+  );
 
   const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'HISTORY'
   const [filterModality, setFilterModality] = useState('ALL');
@@ -92,13 +146,17 @@ export default function OrdersView({
       // ignore
     }
   };
-  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedOrderKey, setSelectedOrderKey] = useState(null);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [expandedOrderIds, setExpandedOrderIds] = useState({});
   const [editingCustomerNameOrder, setEditingCustomerNameOrder] = useState(null);
   const [tempCustomerName, setTempCustomerName] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
-  const [, setTick] = useState(0);
+
+  const selectedOrder = useMemo(() => {
+    if (!selectedOrderKey) return null;
+    return orders.find((o) => getOrderKey(o) === selectedOrderKey) || null;
+  }, [orders, selectedOrderKey]);
 
   // Modal para ingreso manual de pedidos pasados (Solo Admin)
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
@@ -611,27 +669,39 @@ export default function OrdersView({
     }
   };
 
-  const handleSaveCustomerName = (order) => {
-    if (!order) return;
-    const newName = tempCustomerName.trim();
-    const updated = {
-      ...order,
-      customerName: newName || null,
-      customer: order.customer ? { ...order.customer, name: newName } : (newName ? { name: newName } : null),
-    };
-    if (onUpdateOrder) {
-      onUpdateOrder(updated);
-    }
-    if (selectedOrder && selectedOrder.orderNumber === order.orderNumber) {
-      setSelectedOrder(updated);
-    }
-    setEditingCustomerNameOrder(null);
-  };
+  const handleSaveCustomerName = useCallback(
+    (order, explicitName = null) => {
+      if (!order) return;
+      const rawName = explicitName !== null ? explicitName : tempCustomerName;
+      const newName = String(rawName || '').trim();
+      const updated = {
+        ...order,
+        customerName: newName || null,
+        customer: order.customer
+          ? { ...order.customer, name: newName }
+          : newName
+          ? { name: newName }
+          : null,
+      };
+      if (onUpdateOrder) {
+        onUpdateOrder(updated);
+      }
+      setEditingCustomerNameOrder(null);
+    },
+    [onUpdateOrder, tempCustomerName]
+  );
 
+  // Cerrar el panel lateral con Escape en desktop
   useEffect(() => {
-    const timer = setInterval(() => setTick((t) => t + 1), 15000);
-    return () => clearInterval(timer);
-  }, []);
+    if (!isDesktop || !selectedOrderKey || isManualModalOpen) return undefined;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSelectedOrderKey(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDesktop, selectedOrderKey, isManualModalOpen]);
 
   // Helper de límites del turno operativo seleccionado (de 4:00 AM a 3:59:59 AM del día siguiente)
   const shiftBounds = useMemo(() => {
@@ -663,19 +733,17 @@ export default function OrdersView({
   }, [filterShift, selectedShiftDate]);
 
   const filteredOrders = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
     const list = orders.filter((o) => {
-      if (activeTab === 'ACTIVE') {
-        const isActive = o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO';
-        if (!isActive) return false;
-      } else if (activeTab === 'HISTORY') {
-        const isHistory = o.status === 'ENTREGADO' || o.status === 'CANCELADO';
-        if (!isHistory) return false;
-      }
+      const isActive = o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO';
+      const isHistory = o.status === 'ENTREGADO' || o.status === 'CANCELADO';
+
+      if (activeTab === 'ACTIVE' && !isActive) return false;
+      if (activeTab === 'HISTORY' && !isHistory) return false;
 
       // Filtro de Turno Operativo (4:00 AM a 3:59 AM)
-      // En la pestaña 'ACTIVE' o en 'ALL' con orden en curso, no descartar para garantizar que ninguna orden activa se pierda
+      // En 'ACTIVE' o 'ALL' con orden en curso, no descartar para garantizar que ninguna orden activa se pierda
       if (shiftBounds?.bounds) {
-        const isActive = o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO';
         if ((activeTab === 'ACTIVE' || activeTab === 'ALL') && isActive) {
           // Mantener visible en activa o todas
         } else {
@@ -691,8 +759,7 @@ export default function OrdersView({
         if (filterModality === 'MARKET' && o.modality !== 'MARKET') return false;
       }
 
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
+      if (query) {
         const matchesNum = o.orderNumber?.toLowerCase().includes(query);
         const matchesClient = o.customerName?.toLowerCase().includes(query) || o.customer?.name?.toLowerCase().includes(query);
         const matchesPhone = o.customer?.phone?.includes(query);
@@ -703,109 +770,108 @@ export default function OrdersView({
       return true;
     });
 
+    // Ordenado estrictamente del último pedido al primero
     return list.sort((a, b) => {
-      const timeA = a.createdAt?.getTime ? a.createdAt.getTime() : new Date(a.createdAt || 0).getTime();
-      const timeB = b.createdAt?.getTime ? b.createdAt.getTime() : new Date(b.createdAt || 0).getTime();
-      if (!isNaN(timeA) && !isNaN(timeB) && timeB !== timeA) {
+      const timeA = getOrderTimestampMs(a);
+      const timeB = getOrderTimestampMs(b);
+      if (timeB !== timeA) {
         return timeB - timeA;
       }
       return (b.orderNumber || '').localeCompare(a.orderNumber || '', undefined, { numeric: true });
     });
   }, [orders, activeTab, shiftBounds, filterModality, searchQuery]);
 
-  const activeCount = useMemo(() => {
-    return orders.filter((o) => o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO').length;
-  }, [orders]);
-
-  const historyCount = useMemo(() => {
-    return orders.filter((o) => {
-      const isHistory = o.status === 'ENTREGADO' || o.status === 'CANCELADO';
-      if (!isHistory) return false;
-      if (shiftBounds?.bounds) {
-        return isTimestampInShiftRange(o.createdAt, shiftBounds.bounds.start, shiftBounds.bounds.end);
-      }
-      return true;
-    }).length;
-  }, [orders, shiftBounds]);
-
-  const allCount = useMemo(() => {
-    return orders.filter((o) => {
-      const isActive = o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO';
-      if (isActive) return true;
-      if (!shiftBounds?.bounds) return true;
-      return isTimestampInShiftRange(o.createdAt, shiftBounds.bounds.start, shiftBounds.bounds.end);
-    }).length;
-  }, [orders, shiftBounds]);
-
-  // Totales acumulados exactos para el turno seleccionado
-  const shiftTotals = useMemo(() => {
-    const shiftOrders = orders.filter((o) => {
-      if (filterModality !== 'ALL') {
-        if (filterModality === 'MESA' && o.modality !== 'MESA') return false;
-        if (filterModality === 'DELIVERY' && o.modality !== 'DELIVERY') return false;
-        if (filterModality === 'PARA_LLEVAR' && o.modality !== 'PARA_LLEVAR' && o.modality !== 'CONSUMO_EXTERNO') return false;
-        if (filterModality === 'MARKET' && o.modality !== 'MARKET') return false;
-      }
-      if (!shiftBounds?.bounds) return true;
-      return isTimestampInShiftRange(o.createdAt, shiftBounds.bounds.start, shiftBounds.bounds.end);
-    });
-
+  // Cálculo unificado en una sola pasada para contadores de pestañas y totales del turno
+  const { activeCount, historyCount, allCount, shiftTotals } = useMemo(() => {
+    let active = 0;
+    let history = 0;
+    let all = 0;
     let sales = 0;
     let validCount = 0;
     let cancelledCount = 0;
+    let totalOrders = 0;
 
-    shiftOrders.forEach((o) => {
-      const totalNum = Math.round((Number(o.total) || 0) * 100) / 100;
-      if (o.status === 'CANCELADO') {
-        cancelledCount++;
-      } else {
-        validCount++;
-        sales = Math.round((sales + totalNum) * 100) / 100;
+    orders.forEach((o) => {
+      const isActive = o.status === 'PENDIENTE' || o.status === 'PREPARANDO' || o.status === 'LISTO';
+      const isHistory = o.status === 'ENTREGADO' || o.status === 'CANCELADO';
+      const inShift = !shiftBounds?.bounds
+        ? true
+        : isTimestampInShiftRange(o.createdAt, shiftBounds.bounds.start, shiftBounds.bounds.end);
+
+      if (isActive) active++;
+      if (isHistory && inShift) history++;
+      if (isActive || inShift) all++;
+
+      const matchesModality =
+        filterModality === 'ALL' ||
+        (filterModality === 'MESA' && o.modality === 'MESA') ||
+        (filterModality === 'DELIVERY' && o.modality === 'DELIVERY') ||
+        (filterModality === 'PARA_LLEVAR' && (o.modality === 'PARA_LLEVAR' || o.modality === 'CONSUMO_EXTERNO')) ||
+        (filterModality === 'MARKET' && o.modality === 'MARKET');
+
+      if (matchesModality && inShift) {
+        totalOrders++;
+        const totalNum = Math.round((Number(o.total) || 0) * 100) / 100;
+        if (o.status === 'CANCELADO') {
+          cancelledCount++;
+        } else {
+          validCount++;
+          sales = Math.round((sales + totalNum) * 100) / 100;
+        }
       }
     });
 
     return {
-      sales,
-      validCount,
-      cancelledCount,
-      totalOrders: shiftOrders.length,
+      activeCount: active,
+      historyCount: history,
+      allCount: all,
+      shiftTotals: { sales, validCount, cancelledCount, totalOrders },
     };
   }, [orders, shiftBounds, filterModality]);
 
-  const getModalityIcon = (mod) => {
-    switch (mod) {
-      case 'MESA':
-        return <Utensils className="w-4 h-4 text-blue-400" />;
-      case 'DELIVERY':
-        return <Bike className="w-4 h-4 text-emerald-400" />;
-      case 'PARA_LLEVAR':
-        return <ShoppingBag className="w-4 h-4 text-amber-400" />;
-      case 'CONSUMO_EXTERNO':
-        return <Utensils className="w-4 h-4 text-purple-400" />;
-      case 'MARKET':
-        return <Store className="w-4 h-4 text-purple-400" />;
-      default:
-        return <Package className="w-4 h-4 text-zinc-400" />;
+  const selectedOrderIndex = useMemo(() => {
+    if (!selectedOrder) return -1;
+    const targetKey = getOrderKey(selectedOrder);
+    return filteredOrders.findIndex((o) => getOrderKey(o) === targetKey);
+  }, [filteredOrders, selectedOrder]);
+
+  const desktopGridColsClass = selectedOrder
+    ? 'grid-cols-[minmax(0,1.3fr)_110px_132px_108px] xl:grid-cols-[165px_112px_minmax(0,1fr)_148px_118px] gap-2.5 xl:gap-3'
+    : 'grid-cols-[145px_118px_135px_minmax(0,1fr)_165px_124px] xl:grid-cols-[175px_126px_165px_minmax(0,1fr)_190px_142px] gap-3';
+
+  const handleSelectOrderRow = (order) => {
+    const key = getOrderKey(order);
+    if (!key) return;
+    if (isDesktop) {
+      setSelectedOrderKey((prev) => (prev === key ? null : key));
+    } else {
+      setSelectedOrderKey(key);
     }
   };
 
-  const getStepStatusIndex = (status) => {
-    switch (status) {
-      case 'PENDIENTE':
-        return 0;
-      case 'PREPARANDO':
-        return 1;
-      case 'LISTO':
-        return 2;
-      case 'ENTREGADO':
-        return 3;
-      default:
-        return 0;
-    }
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    setSelectedOrderKey(null);
+  };
+
+  const handleModalityFilterChange = (modId) => {
+    setFilterModality(modId);
+    setSelectedOrderKey(null);
+  };
+
+  const handleShiftFilterChange = (shiftId) => {
+    setFilterShift(shiftId);
+    setSelectedOrderKey(null);
   };
 
   return (
-    <div className="space-y-4 pb-20 lg:pb-6">
+    <div
+      className={
+        isDesktop
+          ? 'h-[calc(100vh-7rem)] min-h-[480px] flex flex-col gap-3.5 overflow-hidden'
+          : 'space-y-4 pb-20'
+      }
+    >
       {toastMessage && (
         <Toast
           message={toastMessage}
@@ -814,9 +880,9 @@ export default function OrdersView({
         />
       )}
 
-      {/* Barra de Filtros y Búsqueda (compacta y colapsable en móvil) */}
-      <div className="bg-[#121215] p-2.5 sm:p-3 rounded-2xl border border-[var(--color-porkos-border)] space-y-2 shadow-sm">
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2">
+      {/* Barra de Filtros, Búsqueda y Resumen del Turno */}
+      <div className="bg-[#121215] p-2.5 sm:p-3.5 rounded-2xl border border-[var(--color-porkos-border)] space-y-2.5 shadow-sm shrink-0">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
           {/* Segmented Control / Tabs */}
           <div className="flex bg-[#0C0C0F] p-1 rounded-xl border border-zinc-800 shrink-0">
             {[
@@ -829,7 +895,7 @@ export default function OrdersView({
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className={`
                     flex-1 lg:flex-initial justify-center px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 touch-manipulation select-none
                     ${
@@ -841,7 +907,7 @@ export default function OrdersView({
                 >
                   <span>{tab.label}</span>
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-black tabular-nums ${
                       isSelected ? 'bg-zinc-950 text-white' : 'bg-zinc-800 text-zinc-300'
                     }`}
                   >
@@ -852,7 +918,7 @@ export default function OrdersView({
             })}
           </div>
 
-          {/* Search bar, Filtros móvil, Vista y Botón Pedido Pasado */}
+          {/* Search bar, Filtros móvil, Vista móvil y Botón Pedido Pasado */}
           <div className="flex items-center gap-2 flex-1 lg:max-w-2xl">
             <div className="flex-1 min-w-0">
               <SearchInput
@@ -880,66 +946,80 @@ export default function OrdersView({
               {showMobileFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
 
-            {/* Toggle de Vista en móvil y desktop */}
-            <div className="flex items-center bg-[#0C0C0F] p-0.5 rounded-lg border border-zinc-800 shrink-0">
-              <button
-                type="button"
-                onClick={() => handleSetViewMode('grid')}
-                className={`p-1.5 rounded-md text-xs transition-all cursor-pointer flex items-center gap-1 ${
-                  viewMode === 'grid'
-                    ? 'bg-zinc-800 text-white font-bold shadow-xs'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-                title="Vista en cuadrícula de tarjetas"
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSetViewMode('list')}
-                className={`p-1.5 rounded-md text-xs transition-all cursor-pointer flex items-center gap-1 ${
-                  viewMode === 'list'
-                    ? 'bg-zinc-800 text-white font-bold shadow-xs'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-                title="Vista de lista compacta"
-              >
-                <List className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            {/* Toggle de Vista solo en móvil/tablet (desktop usa vista profesional en fila + panel lateral) */}
+            {!isDesktop && (
+              <div className="flex items-center bg-[#0C0C0F] p-0.5 rounded-lg border border-zinc-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleSetViewMode('grid')}
+                  className={`p-1.5 rounded-md text-xs transition-all cursor-pointer flex items-center gap-1 ${
+                    viewMode === 'grid'
+                      ? 'bg-zinc-800 text-white font-bold shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                  title="Vista en cuadrícula de tarjetas"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetViewMode('list')}
+                  className={`p-1.5 rounded-md text-xs transition-all cursor-pointer flex items-center gap-1 ${
+                    viewMode === 'list'
+                      ? 'bg-zinc-800 text-white font-bold shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                  title="Vista de lista compacta"
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
             {isAdmin && onCreateOrder && (
               <Button
                 onClick={handleOpenManualOrderModal}
                 icon={Plus}
                 size="sm"
-                className="text-xs font-black shadow-md shadow-orange-500/20 whitespace-nowrap shrink-0"
+                className="hidden sm:inline-flex text-xs font-black shadow-md shadow-orange-500/20 whitespace-nowrap shrink-0"
               >
-                <span className="hidden sm:inline">Registrar </span>Pedido Pasado
+                Registrar Pedido Pasado
               </Button>
             )}
           </div>
         </div>
 
-        {/* Resumen compacto siempre visible en móvil cuando los filtros avanzados están colapsados */}
-        {!showMobileFilters && (
-          <div className="sm:hidden flex items-center justify-between gap-2 text-[11px] bg-[#0C0C0F] px-2.5 py-1.5 rounded-xl border border-zinc-800/80">
+        {/* Barra resumen móvil con acceso rápido a pedido pasado sin comprimir el buscador */}
+        <div className="sm:hidden flex items-center justify-between gap-2 text-[11px] bg-[#0C0C0F] px-2.5 py-1.5 rounded-xl border border-zinc-800/80">
+          <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-zinc-300 font-bold truncate">
               {shiftBounds?.label || 'Historial Completo'}
-              {filterModality !== 'ALL' ? ` • ${filterModality}` : ''}
+              {filterModality !== 'ALL' ? ` • ${MODALITY_FULL_LABELS[filterModality] || filterModality}` : ''}
             </span>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-zinc-400 font-semibold">{shiftTotals.validCount} ped.</span>
-              <span className="text-emerald-400 font-black">{formatCurrency(shiftTotals.sales)}</span>
-            </div>
           </div>
-        )}
+          <div className="flex items-center gap-2 shrink-0 tabular-nums">
+            <span className="text-zinc-400 font-semibold">{shiftTotals.validCount} ped.</span>
+            <span className="text-emerald-400 font-black">{formatCurrency(shiftTotals.sales)}</span>
+            {isAdmin && onCreateOrder && (
+              <button
+                type="button"
+                onClick={handleOpenManualOrderModal}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--color-porkos-orange)] text-zinc-950 font-black text-[10px] cursor-pointer active:scale-95"
+                title="Registrar pedido pasado"
+              >
+                <Plus className="w-3 h-3 stroke-[2.5]" />
+                <span>Pasado</span>
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Filter Pills: Modalidad + Turno (siempre visible en sm+, colapsable en móvil) */}
         <div className={`${showMobileFilters ? 'block' : 'hidden'} sm:block space-y-2`}>
-          <div className="flex items-center justify-between gap-2 overflow-x-auto pb-0.5 scrollbar-none text-xs pt-2 border-t border-[var(--color-porkos-border)]">
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-              <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider shrink-0 mr-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--color-porkos-border)] text-xs">
+            {/* Modalidad */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5 sm:pb-0">
+              <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider shrink-0 mr-0.5">
                 Modalidad:
               </span>
               {[
@@ -954,7 +1034,7 @@ export default function OrdersView({
                   <button
                     key={m.id}
                     type="button"
-                    onClick={() => setFilterModality(m.id)}
+                    onClick={() => handleModalityFilterChange(m.id)}
                     className={`
                       px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer border active:scale-95 touch-manipulation
                       ${
@@ -969,12 +1049,33 @@ export default function OrdersView({
                 );
               })}
             </div>
+
+            {/* Resumen del Turno */}
+            <div className="hidden lg:flex items-center gap-2.5 text-xs font-semibold text-zinc-400 bg-[#0C0C0F] px-3 py-1.5 rounded-xl border border-zinc-800/80 tabular-nums">
+              <span className="text-zinc-300 font-bold">
+                {shiftBounds?.label || 'Historial Completo'}
+              </span>
+              <span className="text-zinc-700">|</span>
+              <span>
+                <strong className="text-white font-black">{shiftTotals.validCount}</strong>{' '}
+                {shiftTotals.validCount === 1 ? 'comanda' : 'comandas'}
+                {shiftTotals.cancelledCount > 0 && (
+                  <span className="text-rose-400 text-[11px] ml-1.5">
+                    ({shiftTotals.cancelledCount} canc.)
+                  </span>
+                )}
+              </span>
+              <span className="text-zinc-700">|</span>
+              <span className="text-emerald-400 font-black">
+                {formatCurrency(shiftTotals.sales)}
+              </span>
+            </div>
           </div>
 
           {/* Selector de Turno Operativo (4:00 AM a 3:59 AM) */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--color-porkos-border)] text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--color-porkos-border)]/70 text-xs">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
+              <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-0.5">
                 <Clock className="w-3 h-3 text-[var(--color-porkos-orange)]" />
                 Turno:
               </span>
@@ -989,7 +1090,7 @@ export default function OrdersView({
                   <button
                     key={s.id}
                     type="button"
-                    onClick={() => setFilterShift(s.id)}
+                    onClick={() => handleShiftFilterChange(s.id)}
                     className={`
                       px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer border active:scale-95 touch-manipulation
                       ${
@@ -1009,7 +1110,10 @@ export default function OrdersView({
                   <input
                     type="date"
                     value={selectedShiftDate}
-                    onChange={(e) => setSelectedShiftDate(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedShiftDate(e.target.value);
+                      setSelectedOrderKey(null);
+                    }}
                     onClick={(e) => e.target.showPicker?.()}
                     style={{ colorScheme: 'dark' }}
                     className="bg-black/70 border border-zinc-700 rounded-lg px-2 py-0.5 text-white text-xs font-semibold focus:outline-none focus:border-[var(--color-porkos-orange)] cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
@@ -1018,8 +1122,8 @@ export default function OrdersView({
               )}
             </div>
 
-            {/* Resumen del Turno */}
-            <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400 ml-auto bg-[#0C0C0F] px-2.5 py-1 rounded-lg border border-zinc-800/80">
+            {/* Resumen del Turno en tablet (sm/md) */}
+            <div className="hidden sm:flex lg:hidden items-center gap-2 text-xs font-semibold text-zinc-400 ml-auto bg-[#0C0C0F] px-2.5 py-1 rounded-lg border border-zinc-800/80 tabular-nums">
               <span className="text-zinc-300 font-bold">
                 {shiftBounds?.label || 'Historial Completo'}
               </span>
@@ -1041,287 +1145,503 @@ export default function OrdersView({
         </div>
       </div>
 
-      {/* Orders List / Cards */}
+      {/* Orders List / Master-Detail */}
       {filteredOrders.length === 0 ? (
-        <EmptyState
-          icon={ClipboardList}
-          title="No se encontraron pedidos"
-          description={
-            searchQuery
-              ? 'No hay resultados que coincidan con la búsqueda actual.'
-              : 'No hay pedidos en la categoría o filtro seleccionado.'
-          }
-          action={
-            searchQuery
-              ? {
-                  label: 'Limpiar búsqueda',
-                  onClick: () => setSearchQuery(''),
-                }
-              : undefined
-          }
-        />
-      ) : viewMode === 'list' ? (
-        /* VISTA DE LISTA COMPACTA (Ultra-eficiente en espacio) */
-        <div className="space-y-1.5">
-          {filteredOrders.map((order) => {
-            const statusConf = ORDER_STATUS[order.status] || {};
-            const isTable = order.modality === 'MESA' || Boolean(order.tableId);
-            const effectivePaymentStatus = isTable ? (order.paymentStatus || 'PENDING') : 'PAID';
-            const payConf = PAYMENT_STATUS[effectivePaymentStatus] || {};
-
-            const itemsSummary = (order.items || [])
-              .map((it) => `${it.quantity}× ${it.name}`)
-              .join(', ');
-
-            return (
-              <div
-                key={order.orderNumber}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedOrder(order)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setSelectedOrder(order);
+        <div className={isDesktop ? 'flex-1 min-h-0 flex items-center justify-center' : ''}>
+          <EmptyState
+            icon={ClipboardList}
+            title="No se encontraron pedidos"
+            description={
+              searchQuery
+                ? 'No hay resultados que coincidan con la búsqueda actual.'
+                : 'No hay pedidos en la categoría o filtro seleccionado.'
+            }
+            action={
+              searchQuery
+                ? {
+                    label: 'Limpiar búsqueda',
+                    onClick: () => setSearchQuery(''),
                   }
-                }}
-                className="group bg-[#121216] hover:bg-[#16161c] border border-[var(--color-porkos-border)] hover:border-zinc-700 rounded-xl px-3 py-2 transition-all cursor-pointer active:scale-[0.99] shadow-xs text-xs space-y-1"
-                title="Toca para ver el detalle y seguimiento del pedido"
-              >
-                <div className="flex items-center justify-between gap-2.5">
-                  {/* Izquierda: Icono + Número + Mesa + Cliente */}
-                  <div className="flex items-center gap-2.5 min-w-0 sm:w-64 shrink-0">
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
-                        order.status === 'ENTREGADO'
-                          ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
-                          : order.status === 'LISTO'
-                          ? 'bg-amber-950/40 border-amber-500/30 text-amber-400'
-                          : 'bg-orange-950/40 border-orange-500/30 text-[var(--color-porkos-orange)]'
-                      }`}
-                    >
-                      {getModalityIcon(order.modality)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-black text-white">{order.orderNumber}</span>
-                        <span className="text-[10px] px-1.5 py-0.2 bg-zinc-800 text-zinc-300 rounded font-bold border border-zinc-700/80">
-                          {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Llevar' : order.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : order.modality === 'DELIVERY' ? 'Delivery' : 'Market')}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-amber-300/90 truncate font-semibold">
-                        {order.customerName || order.customer?.name || 'Cliente'}
-                      </div>
-                    </div>
-                  </div>
+                : undefined
+            }
+          />
+        </div>
+      ) : isDesktop ? (
+        /* VISTA DESKTOP PROFESIONAL: PANELES INDEPENDIENTES CON SCROLL PROPIO */
+        <div className="flex-1 min-h-0 grid grid-cols-12 gap-4 items-stretch">
+          {/* Lista en filas con cabecera fija y scroll interno independiente */}
+          <div
+            className={`${
+              selectedOrder ? 'col-span-7' : 'col-span-12'
+            } min-w-0 h-full min-h-0 flex flex-col bg-[#121216] border border-[var(--color-porkos-border)] rounded-2xl overflow-hidden shadow-lg`}
+          >
+            {/* Cabecera de columnas fija */}
+            <div
+              className={`shrink-0 bg-[#16161C] border-b border-[var(--color-porkos-border)] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-zinc-400 grid items-center ${desktopGridColsClass}`}
+            >
+              <div>Comanda</div>
+              <div>Fecha / Hora ↓</div>
+              {!selectedOrder && <div>Cliente</div>}
+              <div className={selectedOrder ? 'hidden xl:block' : ''}>Productos</div>
+              <div>Estado / Pago</div>
+              <div className="text-right">Total</div>
+            </div>
 
-                  {/* Centro: Resumen de productos en una sola línea (desktop) */}
-                  <div className="hidden md:flex flex-1 min-w-0 items-center gap-1.5 text-zinc-400 text-xs">
-                    <span className="truncate">
-                      {itemsSummary || 'Sin productos'}
-                    </span>
-                    {order.deliveryFee > 0 && (
-                      <span className="text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-1 rounded font-bold shrink-0">
-                        Delivery
+            {/* Filas ordenadas del último pedido al primero con scroll independiente */}
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin overscroll-contain divide-y divide-[var(--color-porkos-border)]/70">
+              {filteredOrders.map((order) => {
+                const orderKey = getOrderKey(order);
+                const isSelected = Boolean(selectedOrder && getOrderKey(selectedOrder) === orderKey);
+                const isCancelled = order.status === 'CANCELADO';
+                const editable = isOrderEditable(order);
+                const paymentInfo = getOrderPaymentInfo(order);
+                const locationLabel = getOrderLocationLabel(order, { short: true });
+                const customerLabel = getOrderCustomerLabel(order, 'Cliente');
+                const itemsSummary = getOrderItemsSummary(order);
+                const itemsCount = getOrderItemsCount(order);
+                const noteText = formatOrderNote(order.generalNotes);
+
+                return (
+                  <div
+                    key={orderKey}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleSelectOrderRow(order)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleSelectOrderRow(order);
+                      }
+                    }}
+                    className={`group grid items-center py-2.5 pr-4 pl-[13px] border-l-[3px] transition-colors cursor-pointer select-none ${desktopGridColsClass} ${
+                      isSelected
+                        ? 'bg-orange-500/[0.09] hover:bg-orange-500/[0.12] border-l-[var(--color-porkos-orange)]'
+                        : 'hover:bg-white/[0.03] border-l-transparent'
+                    } ${isCancelled && !isSelected ? 'opacity-70' : ''}`}
+                    title={isSelected ? 'Clic para ocultar detalle' : 'Clic para ver detalle a la derecha'}
+                  >
+                    {/* Col 1: Comanda + Modalidad/Mesa */}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${getStatusIconContainerClass(order.status)}`}
+                      >
+                        <ModalityIcon modality={order.modality} className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className={`font-black text-xs xl:text-sm tracking-tight shrink-0 ${
+                              isSelected ? 'text-[var(--color-porkos-orange)]' : 'text-white'
+                            }`}
+                          >
+                            {order.orderNumber}
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.2 bg-zinc-800/90 text-zinc-300 rounded font-bold border border-zinc-700/70 truncate">
+                            {locationLabel}
+                          </span>
+                        </div>
+                        {selectedOrder && (
+                          <div className="text-[11px] text-zinc-400 truncate mt-0.5">
+                            {customerLabel}
+                            <span className="xl:hidden text-zinc-500"> · {itemsCount}u</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Col 2: Fecha (DD/MM) y Hora */}
+                    <div className="text-xs tabular-nums whitespace-nowrap flex items-center gap-1.5">
+                      <span className="font-semibold text-zinc-400">
+                        {formatShortDate(order.createdAt)}
                       </span>
+                      <span className="text-zinc-600">·</span>
+                      <span className="font-extrabold text-zinc-100">
+                        {formatTime(order.createdAt)}
+                      </span>
+                    </div>
+
+                    {/* Col 3: Cliente (en vista completa) */}
+                    {!selectedOrder && (
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200 min-w-0">
+                          <User className="w-3 h-3 text-zinc-500 shrink-0" />
+                          <span className="truncate">{customerLabel}</span>
+                        </div>
+                        {order.customer?.phone && (
+                          <div className="text-[10px] text-zinc-500 truncate pl-4 tabular-nums">
+                            {order.customer.phone}
+                          </div>
+                        )}
+                      </div>
                     )}
-                  </div>
 
-                  {/* Derecha: Estado + Total + Tiempo + Editar */}
-                  <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 ml-auto">
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full border whitespace-nowrap ${
-                        statusConf.badgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'
-                      }`}
-                    >
-                      {statusConf.label || order.status}
-                    </span>
+                    {/* Col 4: Productos */}
+                    <div className={`min-w-0 flex items-center gap-1.5 ${selectedOrder ? 'hidden xl:flex' : 'flex'}`}>
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-300 tabular-nums shrink-0">
+                        {itemsCount}u
+                      </span>
+                      <span className="text-xs text-zinc-300 truncate" title={itemsSummary}>
+                        {itemsSummary}
+                      </span>
+                      {order.deliveryFee > 0 && (
+                        <span className="text-[10px] text-emerald-400 bg-emerald-950/50 border border-emerald-500/30 px-1.5 py-0.2 rounded font-bold shrink-0">
+                          +Envío
+                        </span>
+                      )}
+                      {noteText && (
+                        <span
+                          className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded font-bold shrink-0"
+                          title={noteText}
+                        >
+                          Nota
+                        </span>
+                      )}
+                    </div>
 
-                    <span
-                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full whitespace-nowrap hidden sm:inline ${
-                        payConf.badgeClass || 'text-zinc-400 bg-zinc-800'
-                      }`}
-                    >
-                      {payConf.label || effectivePaymentStatus}
-                    </span>
+                    {/* Col 5: Estado + Pago */}
+                    <div className="flex flex-col items-start gap-1 min-w-0">
+                      <StatusIndicator
+                        status={order.status}
+                        size="sm"
+                        pulse={order.status === 'PENDIENTE' || order.status === 'PREPARANDO'}
+                      />
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full whitespace-nowrap truncate max-w-full ${paymentInfo.statusBadgeClass}`}
+                      >
+                        {paymentInfo.statusLabel}
+                        {paymentInfo.methodSummary ? ` · ${paymentInfo.methodSummary}` : ''}
+                      </span>
+                    </div>
 
-                    <span className="font-black text-xs sm:text-sm text-white shrink-0 min-w-[65px] text-right">
-                      {formatCurrency(order.total)}
-                    </span>
+                    {/* Col 6: Total + Acción */}
+                    <div className="flex items-center justify-end gap-1.5 shrink-0">
+                      <span
+                        className={`font-black text-xs xl:text-sm tabular-nums ${
+                          isCancelled ? 'line-through text-zinc-500' : 'text-white'
+                        }`}
+                      >
+                        {formatCurrency(order.total)}
+                      </span>
 
-                    <span className="text-[10px] text-zinc-500 hidden sm:inline whitespace-nowrap min-w-[70px] text-right">
-                      {formatElapsedTime(order.createdAt)}
-                    </span>
-
-                    {((order.status !== 'ENTREGADO' && order.status !== 'CANCELADO') ||
-                      ((order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID' && order.status !== 'CANCELADO')) &&
-                      onEditOrderInSales && (
+                      {editable && onEditOrderInSales && (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             onEditOrderInSales(order);
                           }}
-                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white cursor-pointer active:scale-95 border border-zinc-700"
-                          title="Editar comanda"
+                          className="p-1.5 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white cursor-pointer active:scale-95 border border-zinc-700/80 transition-colors"
+                          title="Editar comanda en Ventas"
                         >
                           <Edit3 className="w-3 h-3" />
                         </button>
                       )}
+
+                      <ChevronRight
+                        className={`w-4 h-4 shrink-0 transition-transform ${
+                          isSelected
+                            ? 'text-[var(--color-porkos-orange)] translate-x-0.5'
+                            : 'text-zinc-600 group-hover:text-zinc-300'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Panel Lateral de Detalle con scroll interno independiente */}
+          {selectedOrder && (
+            <aside className="col-span-5 h-full min-h-0">
+              <OrderDetailContent
+                key={getOrderKey(selectedOrder)}
+                order={selectedOrder}
+                products={products}
+                categories={categories}
+                getItemThumbnail={getItemThumbnail}
+                onEditOrderInSales={onEditOrderInSales}
+                onSaveCustomerName={handleSaveCustomerName}
+                onClose={() => setSelectedOrderKey(null)}
+                hasPrevOrder={selectedOrderIndex > 0}
+                hasNextOrder={selectedOrderIndex >= 0 && selectedOrderIndex < filteredOrders.length - 1}
+                onPrevOrder={() => {
+                  if (selectedOrderIndex > 0) {
+                    setSelectedOrderKey(getOrderKey(filteredOrders[selectedOrderIndex - 1]));
+                  }
+                }}
+                onNextOrder={() => {
+                  if (selectedOrderIndex >= 0 && selectedOrderIndex < filteredOrders.length - 1) {
+                    setSelectedOrderKey(getOrderKey(filteredOrders[selectedOrderIndex + 1]));
+                  }
+                }}
+                variant="panel"
+              />
+            </aside>
+          )}
+        </div>
+      ) : viewMode === 'list' ? (
+        /* VISTA DE LISTA COMPACTA (Móvil / Tablet) */
+        <div className="space-y-2">
+          {filteredOrders.map((order) => {
+            const orderKey = getOrderKey(order);
+            const paymentInfo = getOrderPaymentInfo(order);
+            const itemsSummary = getOrderItemsSummary(order);
+            const itemsCount = getOrderItemsCount(order);
+            const editable = isOrderEditable(order);
+            const isCancelled = order.status === 'CANCELADO';
+
+            return (
+              <div
+                key={orderKey}
+                role="button"
+                tabIndex={0}
+                onClick={() => handleSelectOrderRow(order)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSelectOrderRow(order);
+                  }
+                }}
+                className={`group bg-[#121216] hover:bg-[#16161c] border border-[var(--color-porkos-border)] hover:border-zinc-700 rounded-2xl px-3 py-2.5 transition-all cursor-pointer active:scale-[0.99] shadow-xs text-xs space-y-2 ${
+                  isCancelled ? 'opacity-75' : ''
+                }`}
+                title="Toca para ver el detalle y seguimiento del pedido"
+              >
+                {/* Fila superior: Comanda + Modalidad | Total + Editar */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${getStatusIconContainerClass(order.status)}`}
+                    >
+                      <ModalityIcon modality={order.modality} className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-black text-[13px] text-white shrink-0">
+                          {order.orderNumber}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.2 bg-zinc-800/60 text-zinc-400 rounded-md font-medium border border-zinc-700/50 truncate">
+                          {getOrderLocationLabel(order, { short: true })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-zinc-400 min-w-0">
+                        <User className="w-2.5 h-2.5 text-zinc-500 shrink-0" />
+                        <span className="truncate font-medium">
+                          {getOrderCustomerLabel(order, 'Cliente')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tablet: productos al centro */}
+                  <div className="hidden md:flex flex-1 min-w-0 items-center gap-1.5 text-zinc-400 text-xs px-2">
+                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300 tabular-nums shrink-0">
+                      {itemsCount}u
+                    </span>
+                    <span className="truncate">{itemsSummary}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 ml-auto">
+                    <div className="text-right">
+                      <span
+                        className={`font-black text-sm tabular-nums block ${
+                          isCancelled ? 'line-through text-zinc-500' : 'text-white'
+                        }`}
+                      >
+                        {formatCurrency(order.total)}
+                      </span>
+                      <span className="hidden sm:block text-[10px] text-zinc-400 tabular-nums font-medium">
+                        {formatShortDate(order.createdAt)} · {formatTime(order.createdAt)}
+                      </span>
+                    </div>
+
+                    {editable && onEditOrderInSales && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditOrderInSales(order);
+                        }}
+                        className="p-1.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white cursor-pointer active:scale-95 border border-zinc-700/80"
+                        title="Editar comanda"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    <ChevronRight className="w-4 h-4 text-zinc-600 shrink-0" />
                   </div>
                 </div>
 
-                {/* Resumen de productos visible también en móvil sin abrir modal */}
-                <div className="md:hidden flex items-center justify-between gap-2 text-[11px] text-zinc-400 pt-1 border-t border-zinc-800/50">
-                  <span className="truncate">{itemsSummary || 'Sin productos'}</span>
-                  <span className="text-[10px] text-zinc-500 shrink-0">{formatElapsedTime(order.createdAt)}</span>
+                {/* Fila intermedia de estado y pago */}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <StatusIndicator
+                      status={order.status}
+                      size="sm"
+                      pulse={order.status === 'PENDIENTE' || order.status === 'PREPARANDO'}
+                    />
+                    <span
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${paymentInfo.statusBadgeClass}`}
+                    >
+                      {paymentInfo.statusLabel}
+                      {paymentInfo.methodSummary ? ` · ${paymentInfo.methodSummary}` : ''}
+                    </span>
+                  </div>
+
+                  <span className="sm:hidden text-[10px] text-zinc-400 tabular-nums font-semibold">
+                    {formatShortDate(order.createdAt)} · {formatTime(order.createdAt)}
+                  </span>
+                </div>
+
+                {/* Resumen de productos visible en móvil sin abrir modal */}
+                <div className="md:hidden flex items-center gap-1.5 text-[11px] text-zinc-400 pt-1.5 border-t border-zinc-800/60">
+                  <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-800 text-zinc-300 tabular-nums shrink-0">
+                    {itemsCount}u
+                  </span>
+                  <span className="truncate text-zinc-300">{itemsSummary}</span>
                 </div>
               </div>
             );
           })}
         </div>
       ) : (
-        /* VISTA DE CUADRÍCULA COMPACTA Y MODERNA (2 a 3 columnas) */
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 sm:gap-3">
+        /* VISTA DE TARJETAS COMPACTAS Y EQUILIBRADAS (Móvil / Tablet) */
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3">
           {filteredOrders.map((order) => {
-            const statusConf = ORDER_STATUS[order.status] || {};
-            const isTable = order.modality === 'MESA' || Boolean(order.tableId);
-            const effectivePaymentStatus = isTable ? (order.paymentStatus || 'PENDING') : 'PAID';
-            const payConf = PAYMENT_STATUS[effectivePaymentStatus] || {};
-            const isFinished = order.status === 'ENTREGADO' || order.status === 'CANCELADO';
+            const orderKey = getOrderKey(order);
+            const paymentInfo = getOrderPaymentInfo(order);
+            const isCancelled = order.status === 'CANCELADO';
+            const editable = isOrderEditable(order);
+            const noteText = formatOrderNote(order.generalNotes);
 
             return (
               <div
-                key={order.orderNumber}
+                key={orderKey}
                 role="button"
                 tabIndex={0}
-                onClick={() => setSelectedOrder(order)}
+                onClick={() => handleSelectOrderRow(order)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    setSelectedOrder(order);
+                    handleSelectOrderRow(order);
                   }
                 }}
-                className={`
-                  group bg-[#121216] hover:bg-[#16161c] border rounded-2xl p-3 sm:p-3.5 transition-colors duration-200 cursor-pointer flex flex-col justify-between gap-2 active:scale-[0.99] shadow-sm
-                  ${
-                    !isFinished
-                      ? 'border-[var(--color-porkos-border)] hover:border-zinc-700'
-                      : 'border-[var(--color-porkos-border)]/80 hover:border-zinc-700'
-                  }
-                `}
+                className={`group bg-[#121216] hover:bg-[#16161c] border border-[var(--color-porkos-border)] hover:border-zinc-700 rounded-2xl p-3 sm:p-3.5 transition-colors duration-200 cursor-pointer flex flex-col justify-between gap-2.5 active:scale-[0.99] shadow-sm ${
+                  isCancelled ? 'opacity-75' : ''
+                }`}
                 title="Toca para ver el detalle y seguimiento del pedido"
               >
-                {/* Cabecera del pedido */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
-                        order.status === 'ENTREGADO'
-                          ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
-                          : order.status === 'LISTO'
-                          ? 'bg-amber-950/40 border-amber-500/30 text-amber-400'
-                          : 'bg-orange-950/40 border-orange-500/30 text-[var(--color-porkos-orange)]'
-                      }`}
-                    >
-                      {getModalityIcon(order.modality)}
+                {/* Cabecera limpia: Comanda + Modalidad sutil | Total */}
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${getStatusIconContainerClass(order.status)}`}
+                      >
+                        <ModalityIcon modality={order.modality} className="w-4 h-4" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="font-black text-sm text-white tracking-tight">
+                            {order.orderNumber}
+                          </h4>
+                          <span className="inline-flex items-center px-1.5 py-0.2 rounded-md text-[10px] font-medium bg-zinc-800/60 text-zinc-400 border border-zinc-700/50">
+                            {getOrderLocationLabel(order)}
+                          </span>
+                        </div>
+
+                        {/* Cliente inline con tono sobrio */}
+                        <div className="flex items-center gap-1 text-[11px] text-zinc-400 mt-0.5 min-w-0">
+                          {editingCustomerNameOrder === orderKey ? (
+                            <div
+                              className="flex items-center gap-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <input
+                                type="text"
+                                autoFocus
+                                value={tempCustomerName}
+                                onChange={(e) => setTempCustomerName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveCustomerName(order);
+                                  if (e.key === 'Escape') setEditingCustomerNameOrder(null);
+                                }}
+                                className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] font-bold w-28"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveCustomerName(order)}
+                                className="p-1 rounded bg-[var(--color-porkos-orange)] text-zinc-950 cursor-pointer font-bold"
+                              >
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingCustomerNameOrder(null)}
+                                className="p-1 rounded bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingCustomerNameOrder(orderKey);
+                                setTempCustomerName(order.customerName || order.customer?.name || '');
+                              }}
+                              className="group/cust inline-flex items-center gap-1 cursor-pointer text-zinc-300 hover:text-white font-semibold truncate max-w-[165px]"
+                              title="Clic para editar el nombre del cliente"
+                            >
+                              <User className="w-3 h-3 text-zinc-500 group-hover/cust:text-zinc-300 shrink-0" />
+                              <span className="truncate">{getOrderCustomerLabel(order, 'Cliente')}</span>
+                              <Edit3 className="w-2.5 h-2.5 text-zinc-600 group-hover/cust:text-zinc-300 shrink-0" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="font-black text-sm text-white transition-colors">
-                          {order.orderNumber}
-                        </h4>
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md text-[10px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
-                          {order.tableName || (order.modality === 'PARA_LLEVAR' ? 'Para Llevar' : order.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : order.modality === 'DELIVERY' ? 'Delivery' : 'Market Directo')}
-                        </span>
-                      </div>
-
-                      {/* Cliente inline con edición rápida */}
-                      <div className="flex items-center gap-1 text-[11px] text-zinc-400 mt-0.5 min-w-0">
-                        {editingCustomerNameOrder === order.orderNumber ? (
-                          <div
-                            className="flex items-center gap-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <input
-                              type="text"
-                              autoFocus
-                              value={tempCustomerName}
-                              onChange={(e) => setTempCustomerName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveCustomerName(order);
-                                if (e.key === 'Escape') setEditingCustomerNameOrder(null);
-                              }}
-                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-[var(--color-porkos-orange)] font-bold w-28"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleSaveCustomerName(order)}
-                              className="p-1 rounded bg-[var(--color-porkos-orange)] text-zinc-950 cursor-pointer font-bold"
-                            >
-                              <Check className="w-3 h-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingCustomerNameOrder(null)}
-                              className="p-1 rounded bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingCustomerNameOrder(order.orderNumber);
-                              setTempCustomerName(order.customerName || order.customer?.name || '');
-                            }}
-                            className="group/cust inline-flex items-center gap-1 cursor-pointer text-amber-300 hover:text-amber-200 font-bold truncate max-w-[140px]"
-                            title="Clic para editar el nombre del cliente"
-                          >
-                            <User className="w-2.5 h-2.5 text-zinc-500 group-hover/cust:text-amber-300 shrink-0" />
-                            <span className="truncate">{order.customerName || order.customer?.name || 'Cliente'}</span>
-                            <Edit3 className="w-2.5 h-2.5 text-zinc-500 group-hover/cust:text-amber-300 shrink-0" />
-                          </button>
-                        )}
-                      </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span
+                        className={`font-black text-base tabular-nums ${
+                          isCancelled ? 'line-through text-zinc-500' : 'text-white'
+                        }`}
+                      >
+                        {formatCurrency(order.total)}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-zinc-600 shrink-0" />
                     </div>
                   </div>
 
-                  {/* Derecha: Total y Badges */}
-                  <div className="text-right shrink-0">
-                    <div className="font-black text-sm sm:text-base text-white">
-                      {formatCurrency(order.total)}
-                    </div>
-                    <div className="flex items-center justify-end gap-1 mt-0.5">
-                      <span
-                        className={`text-[9px] font-black px-1.5 py-0.2 rounded-full border whitespace-nowrap ${
-                          statusConf.badgeClass || 'bg-zinc-800 text-zinc-300 border-zinc-700'
-                        }`}
-                      >
-                        {statusConf.label || order.status}
-                      </span>
-                      <span
-                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full whitespace-nowrap ${
-                          payConf.badgeClass || 'text-zinc-400 bg-zinc-800'
-                        }`}
-                      >
-                        {payConf.label || effectivePaymentStatus}
-                      </span>
-                    </div>
+                  {/* Franja de estado y pago */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <StatusIndicator
+                      status={order.status}
+                      size="sm"
+                      pulse={order.status === 'PENDIENTE' || order.status === 'PREPARANDO'}
+                    />
+                    <span
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${paymentInfo.statusBadgeClass}`}
+                    >
+                      {paymentInfo.statusLabel}
+                      {paymentInfo.methodSummary ? ` · ${paymentInfo.methodSummary}` : ''}
+                    </span>
                   </div>
                 </div>
 
-                {/* Lista compacta de productos (1 línea c/u, expandible inline sin abrir modal) */}
-                <div className="bg-[#0C0C0F] rounded-xl px-2.5 py-1.5 border border-zinc-900 divide-y divide-zinc-800/50">
+                {/* Lista compacta de productos con badge de consumo sutil */}
+                <div className="bg-[#0C0C0F] rounded-xl px-2.5 py-2 border border-zinc-800/80 divide-y divide-zinc-800/45">
                   {order.items && order.items.length > 0 ? (
                     <>
-                      {(expandedOrderIds[order.orderNumber] ? order.items : order.items.slice(0, 4)).map((item, idx) => (
+                      {(expandedOrderIds[orderKey] ? order.items : order.items.slice(0, 4)).map((item, idx) => (
                         <div
                           key={idx}
-                          className="py-1 flex items-center justify-between gap-2 text-[11px]"
+                          className="py-1.5 first:pt-0 last:pb-0 flex items-center justify-between gap-2 text-[11px]"
                         >
                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                             <ProductThumbnail
@@ -1330,39 +1650,42 @@ export default function OrdersView({
                               name={item.name}
                               isBeverage={isProductBeverage(item)}
                               isDessert={isProductDessert(item)}
-                              className="w-5 h-5 rounded shrink-0"
+                              className="w-5 h-5 rounded-md shrink-0"
                               iconSize="w-3 h-3"
                             />
-                            <span className="font-black text-[var(--color-porkos-orange)] shrink-0">
+                            <span className="font-black text-[var(--color-porkos-orange)] tabular-nums shrink-0">
                               {item.quantity}×
                             </span>
-                            <span className="font-semibold text-zinc-200 truncate">
+                            <span className="font-medium text-zinc-200 truncate">
                               {item.name}
                             </span>
-                            <ItemConsumptionBadge item={item} orderModality={order.modality} />
                           </div>
-                          {item.subtotal !== undefined && (
-                            <span className="text-[10px] font-bold text-zinc-400 tabular-nums shrink-0">
-                              {formatCurrency(item.subtotal)}
-                            </span>
-                          )}
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <ItemConsumptionBadge item={item} orderModality={order.modality} subtle />
+                            {item.subtotal !== undefined && (
+                              <span className="text-[11px] font-bold text-zinc-300 tabular-nums min-w-[52px] text-right">
+                                {formatCurrency(item.subtotal)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ))}
 
                       {order.items.length > 4 && (
-                        <div className="pt-1 pb-0.5 flex items-center justify-between">
+                        <div className="pt-1.5 pb-0.5 flex items-center justify-between">
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               setExpandedOrderIds((prev) => ({
                                 ...prev,
-                                [order.orderNumber]: !prev[order.orderNumber],
+                                [orderKey]: !prev[orderKey],
                               }));
                             }}
                             className="text-[10px] font-bold text-[var(--color-porkos-orange)] hover:text-amber-300 flex items-center gap-1 cursor-pointer"
                           >
-                            {expandedOrderIds[order.orderNumber] ? (
+                            {expandedOrderIds[orderKey] ? (
                               <>
                                 <ChevronUp className="w-3 h-3" />
                                 <span>Mostrar menos</span>
@@ -1382,52 +1705,49 @@ export default function OrdersView({
                   )}
 
                   {order.deliveryFee > 0 && (
-                    <div className="py-1 flex items-center justify-between text-[10px] text-emerald-300 font-bold">
+                    <div className="pt-1.5 flex items-center justify-between text-[10px] text-emerald-300/90 font-semibold">
                       <span className="inline-flex items-center gap-1">
                         <Bike className="w-3 h-3 text-emerald-400" />
                         <span>Envío Delivery</span>
                       </span>
-                      <span>+{formatCurrency(order.deliveryFee)}</span>
+                      <span className="tabular-nums">+{formatCurrency(order.deliveryFee)}</span>
                     </div>
                   )}
                 </div>
 
-                {/* Barra inferior */}
-                <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-[var(--color-porkos-border)]/60 text-[10px]">
+                {/* Barra inferior: Fecha (DD/MM) y hora + nota + acción */}
+                <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[var(--color-porkos-border)]/70 text-[10px]">
                   <div className="flex items-center gap-1.5 text-zinc-500 min-w-0">
-                    <span className="inline-flex items-center gap-1 text-zinc-400">
-                      <Clock className="w-2.5 h-2.5 text-zinc-500" />
-                      {formatElapsedTime(order.createdAt)}
+                    <span className="inline-flex items-center gap-1 text-zinc-300 font-semibold tabular-nums shrink-0">
+                      <Clock className="w-3 h-3 text-zinc-500" />
+                      {formatShortDate(order.createdAt)} · {formatTime(order.createdAt)}
                     </span>
-                    {order.generalNotes && (
-                      <span className="truncate italic text-amber-300 max-w-[120px] sm:max-w-[160px]" title={order.generalNotes}>
-                        • &ldquo;
-                        {order.generalNotes.includes('histórico') || order.generalNotes.includes('administrador')
-                          ? 'Registro manual'
-                          : order.generalNotes}
-                        &rdquo;
+                    {noteText && (
+                      <span className="truncate italic text-amber-300/80 max-w-[130px]" title={order.generalNotes}>
+                        • &ldquo;{noteText}&rdquo;
                       </span>
                     )}
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                    {/* Botón Editar Comanda */}
-                    {((order.status !== 'ENTREGADO' && order.status !== 'CANCELADO') ||
-                      ((order.modality === 'MESA' || Boolean(order.tableId)) && order.paymentStatus !== 'PAID' && order.status !== 'CANCELADO')) &&
-                      onEditOrderInSales && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEditOrderInSales(order);
-                          }}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-[11px] font-bold transition-colors cursor-pointer active:scale-95 border border-zinc-700/80 hover:border-zinc-600"
-                          title="Editar comanda"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                          <span>Editar</span>
-                        </button>
-                      )}
+                    {editable && onEditOrderInSales ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditOrderInSales(order);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-[11px] font-bold transition-colors cursor-pointer active:scale-95 border border-zinc-700/80 hover:border-zinc-600"
+                        title="Editar comanda"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        <span>Editar</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-zinc-500">
+                        Ver detalle
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1436,276 +1756,26 @@ export default function OrdersView({
         </div>
       )}
 
-      {/* Modal de Detalle de Orden */}
+      {/* Modal de Detalle de Orden (solo en móvil/tablet; en desktop se abre a la derecha) */}
       <Modal
-        isOpen={Boolean(selectedOrder)}
-        onClose={() => setSelectedOrder(null)}
-        title={`Detalle de Comanda: ${selectedOrder?.orderNumber}`}
-        subtitle={`Modalidad: ${selectedOrder?.tableName || (selectedOrder?.modality === 'CONSUMO_EXTERNO' ? 'Ir Comiendo' : selectedOrder?.modality)}`}
+        isOpen={!isDesktop && Boolean(selectedOrder)}
+        onClose={() => setSelectedOrderKey(null)}
+        title={selectedOrder?.orderNumber ? `Comanda ${selectedOrder.orderNumber}` : 'Detalle'}
+        subtitle={`${getOrderLocationLabel(selectedOrder)} · ${formatShortDate(selectedOrder?.createdAt)} ${formatTime(selectedOrder?.createdAt)}`}
         maxWidth="max-w-xl"
       >
         {selectedOrder && (
-          <div className="space-y-4 text-xs">
-            {/* Timeline */}
-            <div className="bg-[#0C0C0F] p-3.5 rounded-2xl border border-[var(--color-porkos-border)] space-y-2.5">
-              <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
-                Progreso del Pedido
-              </span>
-
-              <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
-                {[
-                  { id: 'PENDIENTE', label: '1. Recibido', icon: Clock },
-                  { id: 'PREPARANDO', label: '2. Cocina', icon: Flame },
-                  { id: 'LISTO', label: '3. Listo', icon: ChefHat },
-                  { id: 'ENTREGADO', label: '4. Entregado', icon: CheckCircle2 },
-                ].map((step, idx) => {
-                  const currentIdx = getStepStatusIndex(selectedOrder.status);
-                  const isDone = idx < currentIdx;
-                  const isCurrent = idx === currentIdx;
-                  const StepIcon = step.icon;
-
-                  return (
-                    <div
-                      key={step.id}
-                      className={`p-2 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all ${
-                        isCurrent
-                          ? 'bg-[var(--color-porkos-orange)] text-zinc-950 border-[var(--color-porkos-orange)] font-black shadow-md'
-                          : isDone
-                          ? 'bg-zinc-800 text-emerald-400 border-emerald-500/30 font-bold'
-                          : 'bg-zinc-900/60 text-zinc-600 border-zinc-800'
-                      }`}
-                    >
-                      <StepIcon className="w-3.5 h-3.5" />
-                      <span className="text-[10px] leading-tight font-bold">{step.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Datos del Cliente y Registro */}
-            <div className="bg-[#0C0C0F] p-3 rounded-2xl border border-[var(--color-porkos-border)] flex items-center justify-between text-xs">
-              <div className="flex-1 pr-3">
-                <span className="text-zinc-500 text-[10px] font-bold block uppercase tracking-wider">Cliente:</span>
-                <span className="font-extrabold text-white text-sm">
-                  {selectedOrder.customerName || selectedOrder.customer?.name || 'Cliente en Salón'}
-                </span>
-                {selectedOrder.customer?.phone && (
-                  <p className="text-[11px] text-zinc-400">Tel: {selectedOrder.customer.phone}</p>
-                )}
-                {selectedOrder.customer?.address && (
-                  <p className="text-[11px] text-zinc-400 truncate">
-                    Dir: {selectedOrder.customer.address}
-                  </p>
-                )}
-              </div>
-
-              <div className="text-right">
-                <span className="text-zinc-500 text-[10px] font-bold block uppercase tracking-wider">Registrado:</span>
-                <span className="font-bold text-zinc-200">
-                  {formatTime(selectedOrder.createdAt)}
-                </span>
-                <span className="text-[10px] text-zinc-500 block">
-                  {formatElapsedTime(selectedOrder.createdAt)}
-                </span>
-              </div>
-            </div>
-
-            {/* Ingresado por */}
-            <div className="bg-[#0C0C0F] px-3.5 py-2.5 rounded-xl border border-[var(--color-porkos-border)] flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-zinc-400">
-                <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span className="text-[11px]">
-                  Operador:{' '}
-                  <strong className="text-zinc-200 font-bold">
-                    {selectedOrder.createdBy?.name || selectedOrder.createdBy?.email?.split('@')[0] || 'Caja'}
-                  </strong>
-                </span>
-              </div>
-              {selectedOrder.createdBy?.email && (
-                <span className="text-[10px] text-zinc-500 font-mono">
-                  {selectedOrder.createdBy.email}
-                </span>
-              )}
-            </div>
-
-            {/* Productos */}
-            <div className="bg-[#0C0C0F] p-3 sm:p-4 rounded-2xl space-y-2.5 border border-[var(--color-porkos-border)]">
-              <div className="flex items-center justify-between">
-                <h5 className="font-black text-white uppercase tracking-wider text-[11px]">
-                  Platos y Artículos ({selectedOrder.items?.length || 0})
-                </h5>
-                <span className="text-[11px] font-bold text-zinc-400">
-                  {selectedOrder.items?.reduce((acc, i) => acc + (i.quantity || 1), 0)} unidades
-                </span>
-              </div>
-              <div className="space-y-2.5 max-h-72 sm:max-h-80 overflow-y-auto pr-0.5 scrollbar-none">
-                {selectedOrder.items?.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="p-2.5 sm:p-3 rounded-xl bg-[#141418] border border-zinc-800 flex items-start gap-3 text-xs"
-                  >
-                    <ProductThumbnail
-                      src={item.image}
-                      thumbnailUrl={getItemThumbnail(item)}
-                      name={item.name}
-                      isBeverage={isProductBeverage(item)}
-                      isDessert={isProductDessert(item)}
-                      priority={true}
-                      className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl shrink-0"
-                      iconSize="w-6 h-6"
-                    />
-
-                    <div className="space-y-1 min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                          <span className="bg-zinc-800 text-white border border-zinc-700 px-1.5 py-0.5 rounded font-black text-xs shrink-0">
-                            {item.quantity}×
-                          </span>
-                          <span className="font-black text-white text-xs sm:text-sm truncate">
-                            {item.name}
-                          </span>
-                          <ItemConsumptionBadge item={item} orderModality={selectedOrder.modality} />
-                        </div>
-                        <span className="font-black text-white text-xs sm:text-sm shrink-0 ml-2">
-                          {formatCurrency(item.subtotal)}
-                        </span>
-                      </div>
-
-                      {item.customization?.saladSummary && (
-                        <p className="text-[10px] text-emerald-400 font-semibold">
-                          • {item.customization.saladSummary}
-                        </p>
-                      )}
-
-                      {item.customization?.selectedModifiers?.map((m) => (
-                        <p key={m.groupId} className="text-[10px] text-zinc-400">
-                          • {m.optionName}
-                        </p>
-                      ))}
-
-                      {(() => {
-                        const catalogProd = products.find((p) => p.id === (item.productId || item.id)) || item;
-                        const supportsCreams = doesProductSupportCreams(catalogProd, categories);
-                        if (!supportsCreams) return null;
-
-                        const creamsText = item.customization?.creamsSummary?.trim();
-                        if (!creamsText) return null;
-
-                        return (
-                          <p className="text-[11px] text-[var(--color-porkos-orange)] font-bold">
-                            Cremas: {creamsText}
-                          </p>
-                        );
-                      })()}
-
-                      {item.customization?.selectedExtras?.map((e, eIdx) => {
-                        const clean = (e?.name || e?.label || (typeof e === 'string' ? e : '') || 'Extra').replace(/^Extra\s+/i, '');
-                        const qty = e?.quantity || 1;
-                        const totalExtraPrice = (e?.unitPrice || e?.price || 0) * qty;
-                        return (
-                          <div
-                            key={e?.id || `ord_extra_${eIdx}`}
-                            className="flex items-center justify-between text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20"
-                          >
-                            <span className="flex items-center gap-1.5 min-w-0 truncate">
-                              <span className="bg-amber-400 text-zinc-950 px-1.5 py-0.2 rounded text-[10px] font-black shrink-0">
-                                {qty}x
-                              </span>
-                              <span className="truncate">{clean}</span>
-                            </span>
-                            {totalExtraPrice > 0 && (
-                              <span className="text-[10px] text-amber-200/90 font-black shrink-0 ml-2">
-                                +{formatCurrency(totalExtraPrice)}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                      {item.customization?.packaging && item.customization.packaging.price > 0 && (
-                        <p className="text-[10px] text-blue-300 font-medium">
-                          📦 {item.customization.packaging.name || 'Empaque'}
-                        </p>
-                      )}
-
-                      {item.customization?.temperature && (
-                        <p className="text-[10px] text-cyan-300 font-bold">
-                          {item.customization.temperature === 'HELADA' ? '❄️ Helada' : '🌡️ Sin Helar'}
-                        </p>
-                      )}
-
-                      {item.customization?.itemNotes && (
-                        <p className="text-[10px] text-amber-300 italic">
-                          &ldquo;{item.customization.itemNotes}&rdquo;
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Totales */}
-            <div className="space-y-1.5 pt-2 border-t border-[var(--color-porkos-border)] font-semibold text-xs">
-              <div className="flex justify-between text-zinc-400">
-                <span>Subtotal:</span>
-                <span>{formatCurrency(selectedOrder.subtotal)}</span>
-              </div>
-              {selectedOrder.packagingsTotal > 0 && (
-                <div className="flex justify-between text-zinc-400">
-                  <span>Empaques / Tápers:</span>
-                  <span>{formatCurrency(selectedOrder.packagingsTotal)}</span>
-                </div>
-              )}
-              {selectedOrder.deliveryFee > 0 && (
-                <div className="flex justify-between text-zinc-400">
-                  <span>Costo Delivery:</span>
-                  <span>{formatCurrency(selectedOrder.deliveryFee)}</span>
-                </div>
-              )}
-              {selectedOrder.discount > 0 && (
-                <div className="flex justify-between text-emerald-400">
-                  <span>Descuento aplicado:</span>
-                  <span>-{formatCurrency(selectedOrder.discount)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-white font-black text-base pt-1.5 border-t border-zinc-800">
-                <span>Total:</span>
-                <span className="text-[var(--color-porkos-orange)]">
-                  {formatCurrency(selectedOrder.total)}
-                </span>
-              </div>
-            </div>
-
-            {/* Acciones */}
-            <div className="pt-2 border-t border-[var(--color-porkos-border)] flex items-center justify-between gap-2">
-              {((selectedOrder.status !== 'ENTREGADO' && selectedOrder.status !== 'CANCELADO') ||
-                ((selectedOrder.modality === 'MESA' || Boolean(selectedOrder.tableId)) && selectedOrder.paymentStatus !== 'PAID' && selectedOrder.status !== 'CANCELADO')) ? (
-                onEditOrderInSales && (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={() => {
-                      const orderToEdit = selectedOrder;
-                      setSelectedOrder(null);
-                      onEditOrderInSales(orderToEdit);
-                    }}
-                    icon={Edit3}
-                    className="ml-auto"
-                  >
-                    Editar en Ventas
-                  </Button>
-                )
-              ) : (
-                <div className="flex items-center gap-1.5 text-zinc-500 text-xs font-semibold ml-auto py-1">
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Comanda Finalizada</span>
-                </div>
-              )}
-            </div>
-          </div>
+          <OrderDetailContent
+            key={getOrderKey(selectedOrder)}
+            order={selectedOrder}
+            products={products}
+            categories={categories}
+            getItemThumbnail={getItemThumbnail}
+            onEditOrderInSales={onEditOrderInSales}
+            onSaveCustomerName={handleSaveCustomerName}
+            onClose={() => setSelectedOrderKey(null)}
+            variant="modal"
+          />
         )}
       </Modal>
 
