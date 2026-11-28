@@ -315,3 +315,54 @@ export function resolveConfiguredPackaging(product, catalogPackagings = [], item
   return associatedPackagings[0];
 }
 
+/**
+ * Ordena una lista de productos siguiendo el orden manual maestro definido en Ventas
+ * (`categoryOrderMap['ALL']` o `categoryOrderMap['MARKET_ALL']`), o mediante `sortOrder`
+ * sincronizado desde Firestore si no existe mapa explícito para esa clave.
+ */
+export function sortProductsByManualOrder(
+  list = [],
+  categoryOrderMap = {},
+  masterKey = 'ALL',
+  fallbackCategoryKey = null
+) {
+  if (!Array.isArray(list) || list.length === 0) return list || [];
+
+  const masterOrder =
+    (masterKey && Array.isArray(categoryOrderMap?.[masterKey]) && categoryOrderMap[masterKey].length > 0
+      ? categoryOrderMap[masterKey]
+      : null) ||
+    (fallbackCategoryKey &&
+    Array.isArray(categoryOrderMap?.[fallbackCategoryKey]) &&
+    categoryOrderMap[fallbackCategoryKey].length > 0
+      ? categoryOrderMap[fallbackCategoryKey]
+      : null);
+
+  if (masterOrder) {
+    const orderIndex = new Map(masterOrder.map((id, idx) => [id, idx]));
+    return [...list].sort((a, b) => {
+      const indexA = orderIndex.has(a.id) ? orderIndex.get(a.id) : -1;
+      const indexB = orderIndex.has(b.id) ? orderIndex.get(b.id) : -1;
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      if (typeof a.sortOrder === 'number' && typeof b.sortOrder === 'number') {
+        return a.sortOrder - b.sortOrder;
+      }
+      if (typeof a.sortOrder === 'number') return -1;
+      if (typeof b.sortOrder === 'number') return 1;
+      return 0;
+    });
+  }
+
+  if (list.some((p) => typeof p.sortOrder === 'number')) {
+    return [...list].sort((a, b) => {
+      const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 999999;
+      const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 999999;
+      return orderA - orderB;
+    });
+  }
+
+  return [...list];
+}
+

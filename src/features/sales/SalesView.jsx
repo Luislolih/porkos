@@ -14,7 +14,7 @@ import QuickPaymentModal from './components/QuickPaymentModal';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
 import { formatCurrency } from '../../utils/formatters';
 import { getNextOrderNumber } from '../../utils/orderNumber';
-import { isProductBeverage, isProductMarket, isProductFood, isProductDessert, isProductSnack, resolveConfiguredPackaging } from '../../utils/productCategories';
+import { isProductBeverage, isProductMarket, isProductFood, isProductDessert, isProductSnack, resolveConfiguredPackaging, sortProductsByManualOrder } from '../../utils/productCategories';
 import { sanitizeText, sanitizeNotes } from '../../utils/security';
 import { forceUnlockScroll } from '../../utils/scrollLock';
 import { useAuth } from '../../context/useAuth';
@@ -189,37 +189,7 @@ export default function SalesView({
     // Ordenamiento: solo se organiza en "Toda la Carta" ('ALL' o 'MARKET_ALL')
     // y dicho orden maestro se respeta automáticamente en todas las demás categorías
     const masterKey = salesMode === SALES_MODES.MARKET ? 'MARKET_ALL' : 'ALL';
-    const masterOrder = categoryOrderMap?.[masterKey] || categoryOrderMap?.[selectedLine];
-
-    // 1. Si existe un orden maestro explícito por IDs en categoryOrderMap
-    if (Array.isArray(masterOrder) && masterOrder.length > 0) {
-      return [...list].sort((a, b) => {
-        const indexA = masterOrder.indexOf(a.id);
-        const indexB = masterOrder.indexOf(b.id);
-        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-        if (indexA !== -1) return -1;
-        if (indexB !== -1) return 1;
-        if (typeof a.sortOrder === 'number' && typeof b.sortOrder === 'number') {
-          return a.sortOrder - b.sortOrder;
-        }
-        if (typeof a.sortOrder === 'number') return -1;
-        if (typeof b.sortOrder === 'number') return 1;
-        return 0;
-      });
-    }
-
-    // 2. Si los productos traen sortOrder (sincronizado directamente desde Firestore)
-    const hasAnySortOrder = list.some((p) => typeof p.sortOrder === 'number');
-    if (hasAnySortOrder) {
-      return [...list].sort((a, b) => {
-        const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 999999;
-        const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 999999;
-        return orderA - orderB;
-      });
-    }
-
-    // 3. Fallback: Mantener el orden natural de la carta (sin forzar salesCount)
-    return list;
+    return sortProductsByManualOrder(list, categoryOrderMap, masterKey, selectedLine);
   }, [products, categories, salesMode, selectedLine, searchQuery, categoryOrderMap]);
 
   // Etiqueta legible de la categoría actualmente seleccionada
@@ -255,35 +225,13 @@ export default function SalesView({
       setSelectedLine(masterKey);
       setSearchQuery('');
 
-      const masterOrder = categoryOrderMap?.[masterKey];
-      let allProducts = products.filter((prod) => {
+      const filteredAllProducts = products.filter((prod) => {
         if (salesMode === SALES_MODES.MARKET) {
           return isProductMarket(prod, categories);
         }
         return true;
       });
-
-      if (Array.isArray(masterOrder) && masterOrder.length > 0) {
-        allProducts = [...allProducts].sort((a, b) => {
-          const indexA = masterOrder.indexOf(a.id);
-          const indexB = masterOrder.indexOf(b.id);
-          if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-          if (indexA !== -1) return -1;
-          if (indexB !== -1) return 1;
-          if (typeof a.sortOrder === 'number' && typeof b.sortOrder === 'number') {
-            return a.sortOrder - b.sortOrder;
-          }
-          if (typeof a.sortOrder === 'number') return -1;
-          if (typeof b.sortOrder === 'number') return 1;
-          return 0;
-        });
-      } else if (allProducts.some((p) => typeof p.sortOrder === 'number')) {
-        allProducts = [...allProducts].sort((a, b) => {
-          const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 999999;
-          const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 999999;
-          return orderA - orderB;
-        });
-      }
+      const allProducts = sortProductsByManualOrder(filteredAllProducts, categoryOrderMap, masterKey);
 
       // Guardar snapshot intacto para restaurar en caso de cancelar
       initialReorderProductsRef.current = [...allProducts];

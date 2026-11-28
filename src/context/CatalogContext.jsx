@@ -19,7 +19,6 @@ import {
   subscribeToPackagings,
   savePackagingToFirestore,
   deletePackagingFromFirestore,
-  clearAllDemoCatalogFromFirestore,
   subscribeToCategoryOrder,
   saveCategoryOrderToFirestore,
   updateProductsSortOrderInFirestore,
@@ -1008,21 +1007,6 @@ export function CatalogProvider({ children }) {
     });
   };
 
-  // Limpiar catálogo completamente
-  const clearAllCatalog = async () => {
-    setIsLoadingCatalog(true);
-    saveLocal(STORAGE_KEYS.PRODUCTS, []);
-    saveLocal(STORAGE_KEYS.CREAMS, []);
-    saveLocal(STORAGE_KEYS.EXTRAS, []);
-    saveLocal(STORAGE_KEYS.PACKAGINGS, []);
-    setProducts([]);
-    setCreams([]);
-    setExtras([]);
-    setPackagings([]);
-    await clearAllDemoCatalogFromFirestore();
-    setIsLoadingCatalog(false);
-  };
-
   // Guardar y sincronizar orden manual de productos por categoría
   const saveCategoryOrder = async (categoryKey, orderedProductIds) => {
     const updatedMap = {
@@ -1088,7 +1072,6 @@ export function CatalogProvider({ children }) {
     firestoreError,
     isFirestoreConnected,
     syncLocalToFirestore,
-    clearAllCatalog,
     addProduct,
     updateProduct,
     deleteProduct,

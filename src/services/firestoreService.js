@@ -751,23 +751,6 @@ export async function deleteCategoryFromFirestore(categoryId) {
   }
 }
 
-// Limpiar datos de prueba si el usuario desea empezar 100% desde cero
-export async function clearAllDemoCatalogFromFirestore() {
-  try {
-    const collectionsToClear = ['products', 'creams', 'extras', 'packagings'];
-    for (const colName of collectionsToClear) {
-      const snap = await getDocs(collection(db, colName));
-      for (const d of snap.docs) {
-        await deleteDoc(d.ref);
-      }
-    }
-    return true;
-  } catch (err) {
-    console.error('Error al limpiar datos demo:', err);
-    return false;
-  }
-}
-
 // =========================================================================
 // 8. MESAS / TABLES (SALÓN)
 // =========================================================================

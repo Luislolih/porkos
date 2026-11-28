@@ -24,6 +24,7 @@ import {
   isProductDessert,
   isProductMarket,
   isProductSnack,
+  sortProductsByManualOrder,
 } from '../../../utils/productCategories';
 import { SALES_MODES } from '../../../types/constants';
 
@@ -47,6 +48,7 @@ function ReorderCategoryList({
   categoryLabel,
   categoryProducts = [],
   savedOrder = null,
+  fallbackMasterOrder = null,
   categories = [],
   onSaveOrder,
   onResetOrder,
@@ -54,20 +56,20 @@ function ReorderCategoryList({
   onClose,
 }) {
   const [orderedItems, setOrderedItems] = useState(() => {
-    const list = [...categoryProducts];
-    if (Array.isArray(savedOrder) && savedOrder.length > 0) {
-      list.sort((a, b) => {
-        const indexA = savedOrder.indexOf(a.id);
-        const indexB = savedOrder.indexOf(b.id);
-        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-        if (indexA !== -1) return -1;
-        if (indexB !== -1) return 1;
-        return (b.salesCount || 0) - (a.salesCount || 0);
-      });
-    } else {
-      list.sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0));
+    const orderToUse =
+      (Array.isArray(savedOrder) && savedOrder.length > 0 && savedOrder) ||
+      (Array.isArray(fallbackMasterOrder) && fallbackMasterOrder.length > 0 && fallbackMasterOrder) ||
+      null;
+
+    if (orderToUse) {
+      return sortProductsByManualOrder(categoryProducts, { current: orderToUse }, 'current');
     }
-    return list;
+
+    if (categoryProducts.some((p) => typeof p.sortOrder === 'number')) {
+      return sortProductsByManualOrder(categoryProducts, {}, 'ALL');
+    }
+
+    return [...categoryProducts].sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0));
   });
 
   const [hasChanges, setHasChanges] = useState(false);
@@ -390,6 +392,7 @@ export default function ReorderCategoryModal({
           categoryLabel={currentTab?.label || activeCategory}
           categoryProducts={categoryProducts}
           savedOrder={categoryOrderMap?.[activeCategory]}
+          fallbackMasterOrder={categoryOrderMap?.[isMarket ? 'MARKET_ALL' : 'ALL']}
           categories={categories}
           onSaveOrder={onSaveOrder}
           onResetOrder={onResetOrder}

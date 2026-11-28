@@ -34,7 +34,12 @@ import Toast from '../../components/ui/Toast';
 import ProductThumbnail from '../../components/ui/ProductThumbnail';
 import ScrollToTopButton from '../../components/ui/ScrollToTopButton';
 import ReorderCategoryModal from '../sales/components/ReorderCategoryModal';
-import { isProductBeverage, isProductDessert, isProductSnack } from '../../utils/productCategories';
+import {
+  isProductBeverage,
+  isProductDessert,
+  isProductSnack,
+  sortProductsByManualOrder,
+} from '../../utils/productCategories';
 
 export default function CatalogView() {
   const {
@@ -46,7 +51,6 @@ export default function CatalogView() {
     isLoadingCatalog,
     firestoreError,
     syncLocalToFirestore,
-    clearAllCatalog,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -79,10 +83,15 @@ export default function CatalogView() {
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
 
+  // Ordenar productos con el mismo orden manual configurado en la vista Ventas
+  const sortedProducts = useMemo(() => {
+    return sortProductsByManualOrder(products, categoryOrderMap, 'ALL');
+  }, [products, categoryOrderMap]);
+
   const filteredProducts = useMemo(() => {
-    if (!productSearchQuery.trim()) return products;
+    if (!productSearchQuery.trim()) return sortedProducts;
     const q = productSearchQuery.toLowerCase().trim();
-    return products.filter((p) => {
+    return sortedProducts.filter((p) => {
       const nameMatch = p.name?.toLowerCase().includes(q);
       const descMatch = p.description?.toLowerCase().includes(q);
       const typeMatch = p.type?.toLowerCase().includes(q);
@@ -90,11 +99,7 @@ export default function CatalogView() {
       const subtypeMatch = p.marketSubtype?.toLowerCase().includes(q);
       return Boolean(nameMatch || descMatch || typeMatch || lineMatch || subtypeMatch);
     });
-  }, [products, productSearchQuery]);
-
-  // Dialogs & Modals state
-  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
+  }, [sortedProducts, productSearchQuery]);
 
   // Deletion Confirm Dialog state for items
   const [itemToDelete, setItemToDelete] = useState(null); // { type: 'product'|'category'|'cream'|'extra'|'packaging', data: object }
@@ -851,20 +856,6 @@ export default function CatalogView() {
                 className="font-bold text-xs"
               >
                 Nuevo Empaque
-              </Button>
-            )}
-
-            {(products.length > 0 || creams.length > 0 || extras.length > 0 || packagings.length > 0) && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setIsClearConfirmOpen(true)}
-                className="text-xs text-rose-400 border-zinc-800 hover:border-rose-900/60 hover:bg-rose-950/20"
-                title="Vaciar catálogo para empezar de cero"
-              >
-                <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-500" />
-                <span className="hidden sm:inline">Vaciar</span>
               </Button>
             )}
           </div>
@@ -2436,29 +2427,6 @@ export default function CatalogView() {
         </form>
       </Modal>
 
-      {/* CONFIRM DIALOG: VACIAR CATÁLOGO */}
-      <ConfirmDialog
-        isOpen={isClearConfirmOpen}
-        onClose={() => !isClearing && setIsClearConfirmOpen(false)}
-        onConfirm={async () => {
-          setIsClearing(true);
-          try {
-            await clearAllCatalog();
-            setIsClearConfirmOpen(false);
-            setStatusToast({ type: 'success', msg: 'Catálogo vaciado con éxito' });
-          } catch (err) {
-            console.error('Error vaciando catálogo:', err);
-          } finally {
-            setIsClearing(false);
-          }
-        }}
-        title="¿Vaciar todo el catálogo?"
-        message="Esta acción eliminará todos los platos, cremas, extras y empaques de Firebase Firestore para empezar 100% desde cero."
-        confirmText={isClearing ? 'Vaciando...' : 'Sí, Vaciar Todo'}
-        variant="danger"
-        isLoading={isClearing}
-      />
-
       {/* CONFIRM DIALOG: ELIMINAR ELEMENTO INDIVIDUAL */}
       <ConfirmDialog
         isOpen={Boolean(itemToDelete)}
@@ -2639,7 +2607,7 @@ service firebase.storage {
         key={`catalog_reorder_${isReorderModalOpen}`}
         isOpen={isReorderModalOpen}
         onClose={() => setIsReorderModalOpen(false)}
-        initialCategory="COMIDA"
+        initialCategory="ALL"
         salesMode="RESTAURANT"
         products={products}
         categories={categories}
